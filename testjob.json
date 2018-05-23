@@ -1,0 +1,65 @@
+{
+  "workflow": {
+    "name": "TestWorkflow1",
+    "entry": [{
+      "module": "dirwatcher",
+      "name": "Input",
+      "config": "Cryonite.Dirwatcher",
+      "options": {
+        "src": "/tmp/inputdir/",
+        "recursive": {"config": "recurse"}
+      }
+    }],
+    "children": [{
+      "module": "unzip",
+      "priority": 10,
+      "name": "Unzip",
+      "runOn": "success",
+      "args": {
+        "Input.fullPath": "src"
+      },
+      "children": [{
+        "module": "remove",
+        "args": {
+          "Input.fullPath": "src"
+        },
+        "options": {
+          "ignoreerrors": true
+        }
+      }, {
+        "module": "wind",
+        "runOn": "success",
+        "name": "Wind",
+        "args": {
+          "Unzip.destDir": "src",
+          "Input.configOverride": "configOverride"
+        },
+        "children": [{
+          "module": "remove",
+          "runOn": "always",
+          "args": {
+            "Unzip.destDir": "src"
+          },
+          "options": {
+            "recursive": true
+          }
+        }, {
+          "module": "ksat_report",
+          "runOn": "success",
+          "args": {
+            "Input.fullPath": "src",
+            "Wind.product": "product",
+            "Wind.result": "result"
+          }
+        }, {
+          "module": "log_error",
+          "args": {
+            "Input.fullPath": "src",
+            "Wind.product": "product",
+            "Wind.result": "result"
+          }
+        }]
+      }]
+    }]
+  }
+}

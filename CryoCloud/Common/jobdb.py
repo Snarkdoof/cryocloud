@@ -8,9 +8,9 @@ import psutil
 from CryoCore import API
 from CryoCore.Core.InternalDB import mysql
 
-PRI_HIGH = 10
-PRI_NORMAL = 5
-PRI_LOW = 2
+PRI_HIGH = 100
+PRI_NORMAL = 50
+PRI_LOW = 20
 PRI_BULK = 0
 
 TYPE_NORMAL = 1

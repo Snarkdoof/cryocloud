@@ -1,6 +1,22 @@
 import os
 import shutil
 
+ccmodule = {
+    "description": "Remove files or directories",
+    "depends": [],
+    "provides": [],
+    "inputs": {
+        "src": "Full path to file or directory to delete",
+        "recursive": "Recurse, default False",
+        "ignoreerrors": "Igore any errors, will always succeed"
+    },
+    "outputs": {},
+    "defaults": {
+        "priority": 0,  # Bulk
+        "run": "always"
+    }
+}
+
 
 def process_task(self, task):
     """
