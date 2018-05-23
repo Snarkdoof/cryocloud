@@ -1,0 +1,1328 @@
+<!doctype html>
+<!--
+  Material Design Lite
+  Copyright 2015 Google Inc. All rights reserved.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      https://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License
+-->
+<html lang="en" xmlns="http://www.w3.org/1999/html">
+<head>
+    <link rel="icon" type="image/png" href="images/DB_16х16.png">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="description" content="A front-end template that helps you build fast, modern mobile web apps.">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Material Dashboard Lite</title>
+
+    <!-- Add to homescreen for Chrome on Android -->
+    <meta name="mobile-web-app-capable" content="yes">
+
+
+    <!-- Add to homescreen for Safari on iOS -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="Material Design Lite">
+
+
+    <!-- Tile icon for Win8 (144x144 + tile color) -->
+    <meta name="msapplication-TileImage" content="images/touch/ms-touch-icon-144x144-precomposed.png">
+    <meta name="msapplication-TileColor" content="#3372DF">
+
+    <!-- SEO: If your mobile URL is different from the desktop URL, add a canonical link to the desktop page https://developers.google.com/webmasters/smartphone-sites/feature-phones -->
+    <!--
+    <link rel="canonical" href="http://www.example.com/">
+    -->
+
+    <link href='https://fonts.googleapis.com/css?family=Roboto:400,500,300,100,700,900' rel='stylesheet'
+          type='text/css'>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <!-- inject:css -->
+    <link rel="stylesheet" href="css/lib/getmdl-select.min.css">
+    <link rel="stylesheet" href="css/lib/nv.d3.css">
+    <link rel="stylesheet" href="css/application.css">
+    <!-- endinject -->
+
+<script src="https://mcorp.no/lib/mcorp-2.0.js"></script>
+<script src="https://mcorp.no/lib/timingsrc-min-v2.js"></script>
+<script src="js/cryocore.js"></script>
+<script src="js/cryocoregui.js"></script>
+<script src="js/sorttable.js"></script>
+
+
+<script src="js/d3.js"></script>
+<script src="js/getmdl-select.min.js"></script>
+<script src="js/material.js"></script>
+<script src="js/nv.d3.js"></script>
+<style>
+.progressmap {
+  width: 100%;
+  height:150px;
+  background:darkgray;
+}
+
+.progressmap table {
+  width: 100%;
+}
+
+.mainitem {
+  display: none;
+}
+
+.visible {
+  display: block;
+}
+</style>
+<script>
+
+String.prototype.toTitleCase = function () {
+    return this.replace(/\w\S*/g, function(txt){return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();});
+};
+
+var timingObject = new TIMINGSRC.TimingObject();
+console.log(timingObject.isReady());
+timingObject.ready.then(function() {
+  console.log("READY");
+  timingObject.update({position: new Date()/1000, velocity: 1});
+});
+// timingObject.update({position: new Date()/1000, velocity: 1});
+
+//CryoCore.setServer("./")
+CryoCore.setServer("https://cryosql.itek.norut.no/")
+var dataset = CryoCore.Dataset({
+  timingObject: timingObject,
+  onReady: function() {
+    window.dashboard = Dashboard(dataset, timingObject);
+  }
+});
+
+var Dashboard = function(dataset, timingObject) {
+  var colors = ['rgba(96, 196, 150, 1)', 'rgba(80, 150, 215, 1)', 'rgba(0, 188, 212, 1)', 'rgba(116, 199, 209, 1)', 'rgba(255, 82, 82, 1)', 'rgba(0, 0, 0, 0)'];
+
+  var API = {dataset: dataset};
+  var nodeUp = {};
+
+  var seenNode = function(node, time) {
+    nodeUp[node] = time || timingObject.pos;
+  };
+  var lostNode = function(node) {
+    if (nodeUp[node])
+      delete nodeUp[node];
+  };
+
+  var isNodeUp = function(node) {
+    if (nodeUp[node] && timingObject.pos - nodeUp[node] < 10) {
+      return true;
+    }
+    return false;
+  };
+
+  var removeClass = function(selector, className) {
+    var targets = document.querySelectorAll(selector);
+    for (var i=0; i<targets.length; i++) {
+      targets[i].classList = targets[i].classList.value.replace(className, "");
+      targets[i].classList = targets[i].classList.value.replace("  ", " ");
+    }
+  };
+  var addClass = function(selector, className) {
+    var targets = document.querySelectorAll(selector);
+    for (var i=0; i<targets.length; i++) {
+      targets[i].classList += " " + className;
+    }
+  };
+
+  var aggregate = function(someData) {
+    var j = 0;
+    for (var i in someData) {
+      if (someData.hasOwnProperty(i)) {
+        j += someData[i];
+      }
+    }
+    return j;
+  };
+
+  window.removeClass = removeClass;
+  window.addClass = addClass;
+
+  API.jobid = 0;
+  API.name = "ExampleProcessor";
+  var isLogsInitialized = false;
+
+  var init = function() {
+    API.cfg = CryoCore.Config();
+
+    // Map some buttons
+    var navlinks = document.querySelectorAll(".mdl-navigation__link");
+    for (var i=0; i<navlinks.length; i++) {
+      navlinks[i].onclick = function(e) {
+        e.preventDefault();
+        var what = e.srcElement.getAttribute("target");
+        if (what === "logs") {
+          setTimeout(initLogs, 100);
+        }
+        var target = document.querySelector(".mainitem#" + what);
+        if (!target) {
+          console.log("Not implemented", what);
+          return;
+        }
+        // Disable the currently active bit
+        removeClass(".mainitem.visible", "visible");
+        target.classList += " visible";
+
+        // Change the active link visually in the drawer too
+        removeClass(".mdl-navigation__link--current", "mdl-navigation__link--current");
+        e.srcElement.classList += " mdl-navigation__link--current";
+
+        document.querySelector(".mdl-layout").MaterialLayout.toggleDrawer();
+      };
+    }
+
+    // Monitor nodes for state changes  // TODO: PERIODIC REFRESH OF KNOWN NODES?
+    var s = dataset.resolveParams({channel: "NodeController", param: "state"});
+    dataset.addMonitor(s, function(key, values) {
+      var last_val = values[values.length - 1];
+        var node = dataset.getParamInfo(key).channel.replace("NodeController.", "");
+        console.log("New state for", node, "is", last_val[1]);
+        if (last_val[1] === "Running") {
+          seenNode(node);
+        } else {
+          lostNode(node);
+        }
+    });
+
+  };
+
+
+
+  var donut = function(target, title, onDone, data, options) {
+    data = data || [];
+    options = options || {};
+    var self = {data: data};
+    nv.addGraph(function () {
+      console.log("Adding graph)");
+      var innerRadius = 0.86,
+          outerRadius = 1.02;
+
+      var pieChart = nv.models.pieChart().x(function (d) {
+        return d.key;
+      }).y(function (d) {
+        return d.y;
+      }).showLabels(false).donut(true).growOnHover(true).padAngle(0.04).cornerRadius(0).margin({ 'left': -10, 'right': -10, 'top': -10, 'bottom': -10 }).color(colors).arcsRadius([{ 'inner': innerRadius, 'outer': outerRadius }, { 'inner': innerRadius, 'outer': outerRadius }, { 'inner': innerRadius, 'outer': outerRadius }, { 'inner': innerRadius, 'outer': outerRadius }, { 'inner': innerRadius, 'outer': outerRadius }]).showLegend(false).title(title).titleOffset(10);
+
+      pieChart.tooltip.enabled(true).hideDelay(0).headerEnabled(false).contentGenerator(function (d) {
+        if (d === null) {
+          return '';
+        }
+        d3.selectAll('.nvtooltip').classed('mdl-tooltip', true);
+        if (options.legend) {
+          return options.legend(d.data.y);
+        }
+        return d.data.y.toFixed(1);
+      });
+
+      var container = d3.select(target).append('div').append('svg').datum(data).transition().duration(1200).call(pieChart);
+
+      if (title) {
+        pieChart.title(title);
+      }
+
+      /*
+      d3.select('.nv-pie .nv-pie').append('image').attr('width', '30').attr('height', '30').attr('xlink:href', 'images/watch_white.svg').attr('transform', 'translate(-15,-35)');
+*/
+      var color = d3.scale.ordinal().range(colors);
+
+      var legend = d3.select(target + '.pie-chart__container').append('div').attr('class', 'legend').selectAll('.legend__item').data(data.slice(0, data.length - 1)).enter().append('div').attr('class', 'legend__item');
+      console.log("LEGEND", legend);
+      legend.append('div').attr('class', 'legend__mark pull-left').style('background-color', function (d) {
+        return color(d.key);
+      });
+
+      legend.append('div').attr('class', 'legend__text').text(function (d) {
+        return d.key;
+      });
+      self.chart = pieChart;
+      self.update = function() {
+        pieChart.update();
+      };
+      onDone(self);
+      return pieChart;
+    });
+    console.log("Should have added chart");
+    return self;
+  };
+
+  var addPieMonitor = function(target, what) {
+    var p = dataset.resolveParams(what);
+    if (p.length === 0) {
+      throw new Error("Missing parameter", what);
+    }
+    var chart = donut(target, dataset.getParamInfo(p[0]).param, function(chart) {
+      console.log("Chart is here");
+      chart.data.push({
+        key: dataset.getParamInfo(p[0]).param,
+        y: 0});
+      chart.data.push({
+        key:"",
+        y:100
+      });
+
+        // Found a parameter, monitor the last value
+        console.log("Monitoring value", p);
+        dataset.monitorLastValue(what, function(e) {
+          console.log(chart);
+          chart.data[0].y = e.value;
+          chart.data[1].y = 100 - e.value;
+          chart.update();
+        });
+
+    });
+  };
+
+
+  var addCPUMonitor = function(target, nodelist) {
+    var keys = {};
+    var p;
+    if (nodelist === undefined) {
+      // Aggregate from ALL known node controllers
+      p = dataset.resolveParams({channel: "NodeController", param: "cpu.user"});
+      p = p.concat(dataset.resolveParams({channel: "NodeController", param: "cpu.system"}));    
+      p = p.concat(dataset.resolveParams({channel: "NodeController", param: "cpu.nice"}));
+      p = p.concat(dataset.resolveParams({channel: "NodeController", param: "cpu.idle"}));
+    } else {
+      p = dataset.resolveParams({channel: "System.SystemInfo", param: "cpu_user"});
+      p.push(dataset.resolveParams({channel: "System.SystemInfo", param: "cpu_system"})[0]);    
+      p.push(dataset.resolveParams({channel: "System.SystemInfo", param: "cpu_nice"})[0]);
+      p.push(dataset.resolveParams({channel: "System.SystemInfo", param: "cpu_idle"})[0]);
+      keys = {};
+      keys[p[0]] = ["User", 0];
+      keys[p[1]] = ["System", 1];
+      keys[p[2]] = ["Nice", 2];
+      keys[p[3]] = ["Idle", 3];
+      
+    }
+    for (var i=0; i<p.length; i++) {
+      var info = dataset.getParamInfo(p[i]);
+      keys[p[i]] = {
+        name: info.param.replace("cpu.", "").toTitleCase(),
+        node: info.channel.replace("NodeController.", "")
+      };
+    }
+    var data = [
+      {key: "User", y:0},
+      {key: "System", y:0},
+      {key: "Nice", y:0},
+      {key: "Idle", y:0},
+      {key: "", y:0}
+    ];
+    var dataIdx = {User: 0, System: 1, Nice: 2, Idle: 3};
+
+    if (p.length < 4) {
+      throw new Error("Missing CPU info");
+    }
+
+    var actualData = {User:{}, System: {}, Nice: {}, Idle: {}};
+    var chart = donut(target, "CPU", function(chart) {
+      var t;
+      dataset.addMonitor(p, function(a, b) {
+        var x = actualData[keys[a].name];
+        var node = keys[a].node;
+        seenNode(node, b[b.length-1][0]);
+        actualData[keys[a].name][node] = b[b.length-1][1];
+        
+        // Clean up
+        for (var key in actualData) {
+          if (!actualData.hasOwnProperty(key)) continue;
+          for (node in actualData[key]) {
+            if (!actualData[key].hasOwnProperty(node)) continue;
+            if (!isNodeUp(node)) {
+              if (actualData[key][node]) {
+                delete actualData[key][node];
+              }
+            }            
+          }
+        }
+        // Aggregate
+
+        data[dataIdx[keys[a].name]].y = aggregate(actualData[keys[a].name]);
+
+        clearTimeout(t);
+        t = setTimeout(chart.update, 10);
+      });
+    }, data, {legend: function(x) { return x.toFixed(0) + "%"}});
+  };
+
+
+  var addMemoryMonitor = function(target) {
+    var keys = {};
+    var p;
+    // Aggregate from ALL known node controllers
+    p = dataset.resolveParams({channel: "NodeController", param: "memory.active"});
+    p = p.concat(dataset.resolveParams({channel: "NodeController", param: "memory.available"}));    
+
+    for (var i=0; i<p.length; i++) {
+      var info = dataset.getParamInfo(p[i]);
+      keys[p[i]] = {
+        name: info.param.replace("memory.", "").toTitleCase(),
+        node: info.channel.replace("NodeController.", "")
+      };
+    }
+    var data = [
+      {key: "Active", y:0},
+      {key: "Available", y:0},
+      {key: "", y:0}
+    ];
+    var dataIdx = {Active: 0, Available:1};
+
+    if (p.length < 2) {
+      throw new Error("Missing Memory info");
+    }
+
+    var actualData = {Active:{}, Available: {}};
+    var chart = donut(target, "Memory", function(chart) {
+      var t;
+      dataset.addMonitor(p, function(a, b) {
+        var x = actualData[keys[a].name];
+        var node = keys[a].node;
+        seenNode(node, b[b.length-1][0]);
+
+        actualData[keys[a].name][node] = b[b.length-1][1];
+        
+        // Clean up
+        for (var key in actualData) {
+          if (!actualData.hasOwnProperty(key)) continue;
+          for (node in actualData[key]) {
+            if (!actualData[key].hasOwnProperty(node)) continue;
+            if (!isNodeUp(node)) {
+              if (actualData[key][node]) {
+                delete actualData[key][node];
+              }
+            }            
+          }
+        }
+        // Aggregate
+
+        data[dataIdx[keys[a].name]].y = aggregate(actualData[keys[a].name]);
+        clearTimeout(t);
+        t = setTimeout(chart.update, 10);
+      });
+    }, data, {legend: prettySize});
+  };
+
+
+  var addHeadMonitor = function(target, jobid, name) {
+
+    var t = document.querySelector('template#headmonitor');
+    // Clone the new row and insert it into the dom
+    var clone = document.importNode(t.content, true);
+    clone.querySelector(".headmonitor").setAttribute("id", name);
+    clone.querySelector("#name").innerHTML = name;
+    document.querySelector(target).appendChild(clone);
+    console.log(".headmonitor #" + name + " #state");
+    var last_vals = {};
+    var monValues = ["state", "step", "total_steps", "tasks_created", "tasks_allocated", "tasks_completed", "eta_step", "eta_total"];
+    for (var i=0; i<monValues.length; i++) {
+      dataset.monitorLastValue({channel: jobid + "." + name + ".Head", param: monValues[i]}, function(e) {
+        last_vals[e.param] = e.value;
+          /*
+        if (e.param.indexOf("avg_task_time") === 0) {
+          if (e.param === "avg_task_time_step") return;
+
+          // This bit is NO GOOD - it doesn't work
+          var num_workers = dataset.resolveParams({channel: jobid + "." + name + ".Worker-", param: "state"}).length;
+          var eta_step = ((last_vals.tasks_created - last_vals.tasks_completed) * e.value) / num_workers;
+          console.log(num_workers,"workers averaging at", e.value.toFixed(2),last_vals.task_created - last_vals.task_completed, "tasks left")
+          last_vals.eta_step = eta_step;
+          var eta_total = eta_step;
+          if (last_vals.step !== last_vals.total_steps) {
+            var total_tasks_left = (last_vals.tasks_created * last_vals.total_steps) - ((last_vals.step - 1) * last_vals.tasks_created) - last_vals.tasks_completed;
+            eta_total = total_tasks_left * last_vals.avg_task_time_total / num_workers;
+          }
+          console.log(eta_step, total_tasks_left, eta_total, last_vals);
+          document.querySelector(".headmonitor #eta_step").innerHTML = CryoCoreGUI.prettyTime(eta_step);
+          document.querySelector(".headmonitor #eta_total").innerHTML = CryoCoreGUI.prettyTime(eta_total);           
+          */
+        if (e.param.indexOf("eta") === 0) {
+          document.querySelector(".headmonitor #" + e.param).innerHTML = CryoCoreGUI.prettyTime(e.value);
+        } else {
+          document.querySelector(".headmonitor#" + name + " #" + e.param).innerHTML = e.value;          
+        }
+      });
+      
+    }
+
+    // Add a progress map
+    var getColor = function(x) {
+      if (x === 1) { return colors[3]; }  // created
+      if (x === 2) { return "red"; } // error - retrying
+      if (x === 3) { return colors[1]; }  // Allocated
+      if (x === 10) { return colors[0]; }  // Done
+      return "black";
+    };
+    var p = dataset.resolveParams({channel: jobid + "." + name + ".Head", param: "progress"});
+    console.log("Progress is", p[0]);
+    if (p[0]) {
+      CryoCoreGUI.progressMap(document.querySelector(".headmonitor#" + name + " #progress"), dataset, p[0], {fillColor: getColor});      
+    } else {
+      alert("Missing progress from HEAD");
+    }
+    // p.push(dataset.resolveParams({channel: jobid + "." + name + ".Head", param: ""})[0]);
+
+  };
+
+  var addProgressMonitor = function(target, jobid, name) {
+
+    var t = document.querySelector('template#progressmonitor');
+    // Clone the new row and insert it into the dom
+    var clone = document.importNode(t.content, true);
+    clone.querySelector(".progressmonitor").setAttribute("id", name);
+    clone.querySelector("#name").innerHTML = name;
+    document.querySelector(target).appendChild(clone);
+    console.log(".progressmonitor#" + name + " #progressmonitor");
+
+    // List all workers
+    var wks = dataset.resolveParams({channel: "Worker-", param: "state"});
+    for (var i=0; i<wks.length; i++) {
+      var wn = dataset.getParamInfo(wks[i]).channel.split("-")[1];
+
+      var wt = document.querySelector("template#progressmonitorworker");
+      var wclone = document.importNode(wt.content, true);
+      wclone.querySelector("tr").setAttribute("id", "worker" + wn);
+      wclone.querySelector("#workernum").innerHTML = wn;
+
+      // Set up more details too
+      var swt = document.querySelector("template#statusmonitorworker");
+      var swclone = document.importNode(swt.content, true);
+      swclone.querySelector("tr").setAttribute("id", "sworker" + wn);
+      swclone.querySelector("#workernum").innerHTML = wn;
+      swclone.querySelector("#host").innerHTML = wn.split("_")[0];
+
+      // Hook up to dataset
+      dataset.monitorLastValue(wks[i], function(e) {
+          var n = e.channel.split("-")[1];
+          document.querySelector("tr#worker" + n + " #state").innerHTML = e.value;
+          document.querySelector("tr#sworker" + n + " #state").innerHTML = e.value;
+      });
+
+      dataset.monitorLastValue({channel: jobid + "." + name + ".Worker-" + wn, param: "progress"}, function(e) {
+          var n = e.channel.split("-")[1];
+          var task = document.querySelector("tr#worker" + n + " #task0");
+          task.MaterialProgress.setProgress(e.value);
+          task = document.querySelector("tr#sworker" + n + " #task0");
+          task.MaterialProgress.setProgress(e.value);
+      });
+
+      var monitor = ["last_processing_time", "last_error", "num_errors", "host"];
+      var setval = function(e) {
+          var n = e.channel.split("-")[1];
+          if (e.param.indexOf("time") > -1) {
+            document.querySelector("tr#sworker" + n + " #" + e.param).innerHTML = CryoCoreGUI.prettyTime(e.value);
+          } else {
+            document.querySelector("tr#sworker" + n + " #" + e.param).innerHTML = e.value;            
+          }
+      };
+      for (var j=0; j<monitor.length; j++) {
+        dataset.monitorLastValue({channel: jobid + "." + name + ".Worker-" + wn, param: monitor[j]}, setval);
+      }
+ 
+      document.querySelector(".progressmonitor#" + name + " #progresstable").appendChild(wclone);
+      document.querySelector(".statusviewer #statustable").appendChild(swclone);
+    }
+    sorttable.makeSortable(document.querySelector(target + " #progresstable").parentElement);
+
+
+/*
+    var wnum = 0;
+    dataset.monitorLastValue({channel: jobid + "." + name + ".Worker-" + wnum, param: "progress"}, function(e) {
+        var n = e.channel.split("-")[1];
+        var task = document.querySelector("#task" + n);
+        task.MaterialProgress.setProgress(e.value);
+    });
+    */
+  };
+
+  API.load_logviewer = function() {
+  };
+
+  var prettyPrintTs = function(ts) {
+    var d = new Date(ts * 1000);
+    var tstring = d.toTimeString().split(" ")[0] + String((d.getMilliseconds()/1000).toFixed(3)).substr(1);
+    return {date: d, time: tstring};
+  };
+
+  var prettySize = function(bytes) {
+    var sizes = [
+      [1024*1024*1024*1024*1024, " PB"],
+      [1024*1024*1024*1024, " TB"],
+      [1024*1024*1024, " GB"],
+      [1024*1024, " MB"],
+      [1024, " KB"],
+      [0, " B"]
+    ];
+
+    for (var i=0; i<sizes.length; i++) {
+      if (bytes > sizes[i][0]) {
+        return (bytes / sizes[i][0]).toFixed(1) + sizes[i][1];
+      }
+    }
+    return bytes;
+  }
+  window.prettySize = prettySize;
+  init();
+  var lowto = new TIMINGSRC.SkewConverter(timingObject, -300);  // We use 5 minute window
+  var minlevel = "INFO";
+  var logfilter = "";
+  var redraw_timer;
+
+  API.logs = CryoCore.getLogs(lowto, timingObject);
+
+  var initLogs = function() {
+    if (isLogsInitialized) return;
+    isLogsInitialized = true;
+
+  API.logs.sequencer.on("change", function(e) {
+    document.querySelector("#logs #name").innerHTML = API.name;
+
+    var t = document.querySelector('template#logviewerrow');
+    // Clone the new row and insert it into the dom
+    var clone = document.importNode(t.content, true);
+    clone.querySelector("tr").setAttribute("id", "lr" + e.data.id);
+    clone.querySelector("tr").setAttribute("level", API.logs.logLevelsReverse[e.data.level]);
+    
+    clone.querySelector(".label").classList += " label-color--" + e.data.level.toLowerCase();
+    clone.querySelector(".label").innerHTML = e.data.level;
+    clone.querySelector(".loglevel").setAttribute("sorttable_customkey", API.logs.logLevelsReverse[e.data.level.toUpperCase()]);
+    var d = prettyPrintTs(e.data.time);
+    clone.querySelector(".logtime").innerHTML = d.time;  // PRETTYPRINT
+    clone.querySelector(".loglogger").innerHTML = e.data.logger.replace(API.jobid + "." + API.name + ".", "");
+    clone.querySelector(".logmodule").innerHTML = e.data.module;
+    var logtext = clone.querySelector("#ls1");
+    logtext.setAttribute("id", "ls" + e.data.id);
+    logtext.innerHTML = e.data.text;
+    clone.querySelector("#logtooltip").innerHTML = e.data.text;
+    clone.querySelector("#logtooltip").setAttribute("for", "ls" + e.data.id);
+    clone.querySelector("tr").style.display = "none";
+    /*
+    if (parseInt(e.data.level) < API.logs.logLevelsReverse[minlevel.toUpperCase()]) {
+      clone.querySelector("tr").style.display = "none";
+    }
+    if (API.name && API.jobid !== undefined) {
+      if (e.data.logger.indexOf(API.jobid + "." + API.name) !== 0) {
+        clone.querySelector("tr").style.display = "none";
+      }
+    }
+    */
+    // Do insertion sort
+    // What are we sorting on?
+    var columns = document.querySelectorAll("#logs th");
+    var col;
+    var rev = false;
+    for (var i=0; i<columns.length; i++) {
+      if (columns[i].classList.value.indexOf("sorttable_sorted") > -1) {
+        col = i;
+        if (columns[i].classList.value.indexOf("sorttable_sorted_reverse") > -1) {
+          rev = true;
+        }
+        break;
+      } 
+    }
+
+    if (col === undefined) {
+      document.querySelector("#loglist").insertBefore(clone, document.querySelector("#loglist").children[0]);
+    } else {
+      // What did we sort by?
+      var rows = document.querySelectorAll("#loglist tr");
+      var myval = clone.querySelectorAll("td")[col].getAttribute("sorttable_customkey") || clone.querySelectorAll("td")[col].innerHTML;
+      var inserted = false;
+      for (var rowid=0; rowid<rows.length; rowid++) {
+        var row = rows[rowid].querySelectorAll("td")[col];
+        var rowval = row.getAttribute("sorttable_customkey") || row.innerHTML;
+        // If not reverse, find the first item that's HIGHER than our value
+        if (!rev) {
+          if (rowval > myval) {
+            document.querySelector("#loglist").insertBefore(clone, rows[rowid]);
+            inserted = true;
+            break;
+          }          
+        } else {
+          // Find the first that's LOWER than our value
+          if (rowval <= myval) {
+            document.querySelector("#loglist").insertBefore(clone, rows[rowid]);
+            inserted = true;
+            break;
+          }          
+        }
+      }
+      if (!inserted) {
+        console.log("Didn't find a place to put it, add to end");
+        document.querySelector("#loglist").appendChild(clone);
+      }
+    }
+    //clearTimeout(redraw_timer);
+    redraw_timer = setTimeout(redraw_logs, 100);
+    redraw_logs();  // Ensure that we hide or show based on the regexp
+  });
+
+  API.logs.sequencer.on("remove", function(e) {
+    var elem = document.querySelector("#loglist #lr" + e.key);
+    if (elem) {
+      elem.parentNode.removeChild(elem);
+    }
+  });
+
+  // Do some more preparations for logs
+  var onLabelClicked = function(e) {
+    console.log("Clicked", e);    
+  };
+  document.querySelector("#logcontrols #minlevel").onclick = function(e) {
+    console.log("Clicked", e.srcElement.classList);
+    if (e.srcElement.classList.value.indexOf("label") === -1) return;
+    var active = document.querySelector("#logcontrols .label-selected");
+    if (active) {
+      active.classList.remove("label-selected");
+    }
+    e.target.classList += " label-selected";
+    console.log("minlevel is now", e.target.id);
+    minlevel = e.target.id;
+    redraw_logs();
+
+  };
+
+  var redraw_logs = function() {
+    //return;
+    if (API.logs.logLevelsReverse === undefined) return;  // Not ready yet 
+    var minlvl = API.logs.logLevelsReverse[minlevel.toUpperCase()];
+    var rows = document.querySelectorAll("#loglist tr");
+    for (var row in rows) {
+      if (!rows.hasOwnProperty(row)) continue;
+      var visible = true;
+      // Loglevels
+      if (parseInt(rows[row].getAttribute("level")) < minlvl) {
+        visible = false;
+      } else {      
+        // Filters
+
+        if (logfilter) {
+          var re = new RegExp(logfilter, "i");
+          visible = false;
+          var items = ["loglogger", "logmodule", "logtext"];
+          for (var i=0; i<items.length; i++) {
+            if (re.exec(rows[row].querySelector("." + items[i]).innerHTML)) {
+              visible = true;
+              break;
+            }
+          }
+      }
+        
+      }
+
+      if (visible) {
+        rows[row].style.display = "";
+      } else {
+        rows[row].style.display = "none";
+      }
+    }
+  };
+
+  document.querySelector("#logcontrols #logfilter").onchange = function(e) {
+    console.log("Logfilter changed", e.srcElement.value);
+    logfilter = e.srcElement.value;
+    redraw_logs();
+  };
+  if (API.name) {
+    document.querySelector("#logcontrols #logfilter").value = API.name;
+    document.querySelector("#logcontrols #logfilter").parentNode.classList += " is-dirty";
+  }
+  API.minlevel = "Info";
+
+  };
+
+  //addPieMonitor("#cpu", {channel:"System.SystemInfo", param:"cpu_user"});
+
+  timingObject.ready.then(function() {
+    addCPUMonitor("#cpu");
+    addMemoryMonitor("#memory");
+    addHeadMonitor("#thegrid", API.jobid, API.name);
+    addProgressMonitor("#thegrid", API.jobid, API.name);    
+    setTimeout(initLogs, 5000);  // Auto-init after 5 seconds
+  });
+
+  API.__defineGetter__("minlevel", function() { return minlevel; });
+  API.__defineSetter__("minlevel", function(val) { 
+    var btn = document.querySelector("#logcontrols #minlevel #" + val.toLowerCase());
+    if (btn) {
+      btn.click();
+    } else {
+      throw new Error("Bad level", val);
+    }
+  });
+  //API.minlevel = "Info";
+  //API.set = minlevel(val) { console.log("Setting minlevel to", val)};
+  return API;
+};
+</script>
+
+</head>
+<body>
+<div class="mdl-layout mdl-js-layout mdl-layout--fixed-drawer mdl-layout--fixed-header is-small-screen">
+    <header class="mdl-layout__header">
+        <div class="mdl-layout__header-row">
+            <div class="mdl-layout-spacer"></div>
+            <!-- Search-->
+            <div class="mdl-textfield mdl-js-textfield mdl-textfield--expandable">
+                <label class="mdl-button mdl-js-button mdl-button--icon" for="search">
+                    <i class="material-icons">search</i>
+                </label>
+
+                <div class="mdl-textfield__expandable-holder">
+                    <input class="mdl-textfield__input" type="text" id="search"/>
+                    <label class="mdl-textfield__label" for="search">Enter your query...</label>
+                </div>
+            </div>
+            <!--
+            <ul class="mdl-menu mdl-list mdl-menu--bottom-right mdl-js-menu mdl-js-ripple-effect mdl-shadow--2dp search-dropdown"
+                for="search">
+                <li class="mdl-list__item mdl-list__item--two-line">
+                  worker1
+                </li>
+            </ul>
+            -->
+            <div class="avatar-dropdown" id="icon">
+                <span>Luke</span>
+                <img src="images/Icon_header.png">
+            </div>
+            <!-- Account dropdawn-->
+            <ul class="mdl-menu mdl-list mdl-menu--bottom-right mdl-js-menu mdl-js-ripple-effect mdl-shadow--2dp account-dropdown"
+                for="icon">
+                <li class="mdl-list__item mdl-list__item--two-line">
+                    <span class="mdl-list__item-primary-content">
+                        <span class="material-icons mdl-list__item-avatar"></span>
+                        <span>Luke</span>
+                        <span class="mdl-list__item-sub-title">Luke@skywalker.com</span>
+                    </span>
+                </li>
+                <li class="list__item--border-top"></li>
+                <li class="mdl-menu__item mdl-list__item">
+                    <span class="mdl-list__item-primary-content">
+                        <i class="material-icons mdl-list__item-icon">account_circle</i>
+                        My account
+                    </span>
+                </li>
+                <li class="mdl-menu__item mdl-list__item">
+                    <span class="mdl-list__item-primary-content">
+                        <i class="material-icons mdl-list__item-icon">check_box</i>
+                        My tasks
+                    </span>
+                    <span class="mdl-list__item-secondary-content">
+                      <span class="label background-color--primary">3 new</span>
+                    </span>
+                </li>
+                <li class="mdl-menu__item mdl-list__item">
+                    <span class="mdl-list__item-primary-content">
+                        <i class="material-icons mdl-list__item-icon">perm_contact_calendar</i>
+                        My events
+                    </span>
+                </li>
+                <li class="list__item--border-top"></li>
+                <li class="mdl-menu__item mdl-list__item">
+                    <span class="mdl-list__item-primary-content">
+                        <i class="material-icons mdl-list__item-icon">settings</i>
+                        Settings
+                    </span>
+                </li>
+                <li class="mdl-menu__item mdl-list__item">
+                    <span class="mdl-list__item-primary-content">
+                        <i class="material-icons mdl-list__item-icon text-color--secondary">exit_to_app</i>
+                        Log out
+                    </span>
+                </li>
+            </ul>
+        </div>
+    </header>
+
+    <div class="mdl-layout__drawer">
+        <header>darkboard</header>
+        <nav class="mdl-navigation">
+            <a class="mdl-navigation__link mdl-navigation__link--current" target="dashboard">
+                <i class="material-icons" role="presentation">dashboard</i>
+                Dashboard
+            </a>
+            <a class="mdl-navigation__link" target="logs">
+                <i class="material-icons" role="presentation">assignment</i>
+                Logs
+            </a>
+            <a class="mdl-navigation__link" target="status">
+                <i class="material-icons" role="presentation">info_outline</i>
+                Status
+            </a>
+
+            <a class="mdl-navigation__link" target="map">
+                <i class="material-icons" role="presentation">map</i>
+                Maps
+            </a>
+
+            <!--
+            <div class="mdl-layout-spacer"></div>
+            <a class="mdl-navigation__link" href="https://github.com/CreativeIT/getmdl-dashboard">
+                <i class="material-icons" role="presentation">link</i>
+                GitHub
+            </a>
+            -->
+        </nav>
+    </div>
+
+    <main class="mdl-layout__content">
+
+        <div class="mdl-grid mdl-grid--no-spacing mainitem visible" id="dashboard">
+
+            <div class="mdl-grid mdl-cell mdl-cell--9-col-desktop mdl-cell--12-col-tablet mdl-cell--4-col-phone mdl-cell--top" id="thegrid">
+
+                <!-- Pie chart-->
+                <div class="mdl-cell mdl-cell--4-col-desktop mdl-cell--4-col-tablet mdl-cell--2-col-phone">
+                    <div class="mdl-card mdl-shadow--2dp pie-chart">
+                        <div class="mdl-card__title">
+                            <h2 class="mdl-card__title-text">CPU</h2>
+                        </div>
+                        <div class="mdl-card__supporting-text">
+                            <div class="pie-chart__container" id="cpu">
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pie chart-->
+                <div class="mdl-cell mdl-cell--4-col-desktop mdl-cell--4-col-tablet mdl-cell--2-col-phone">
+                    <div class="mdl-card mdl-shadow--2dp pie-chart">
+                        <div class="mdl-card__title">
+                            <h2 class="mdl-card__title-text">Memory</h2>
+                        </div>
+                        <div class="mdl-card__supporting-text">
+                            <div class="pie-chart__container" id="memory">
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Weather widget
+                <div class="mdl-cell mdl-cell--4-col-desktop mdl-cell--4-col-tablet mdl-cell--2-col-phone">
+                    <div class="mdl-card mdl-shadow--2dp">
+                        <div class="mdl-card__title" >
+                            <h2 class="mdl-card__title-text">Now</h2>
+
+                            <div class="mdl-layout-spacer"></div>
+                            <div class="mdl-card__subtitle-text">
+                                <i class="material-icons">room</i>
+                                Minsk, Belarus
+                            </div>
+                        </div>
+                        <div class="mdl-card__supporting-text mdl-card--expand">
+                            <p class="weather-temperature">-11<sup>&deg;</sup></p>
+
+                            <p class="weather-description">
+                                Cloudy and snow
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                -->
+                <!-- Trending widget
+                <div class="mdl-cell mdl-cell--4-col-desktop mdl-cell--4-col-tablet mdl-cell--2-col-phone">
+                    <div class="mdl-card mdl-shadow--2dp trending">
+                        <div class="mdl-card__title">
+                            <h2 class="mdl-card__title-text">Trending</h2>
+                        </div>
+                        <div class="mdl-card__supporting-text">
+                            <ul class="mdl-list">
+                                <li class="mdl-list__item">
+                                    <span class="mdl-list__item-primary-content list__item-text">UX</span>
+                                    <span class="mdl-list__item-secondary-content">
+                                        <i class="material-icons trending__arrow-up" role="presentation">&#xE5C7</i>
+                                    </span>
+                                    <span class="mdl-list__item-secondary-content trending__percent">1 %</span>
+                                </li>
+                                <li class="mdl-list__item list__item--border-top">
+                                    <span class="mdl-list__item-primary-content list__item-text">PHP</span>
+                                    <span class="mdl-list__item-secondary-content">
+                                        <i class="material-icons trending__arrow-down" role="presentation">&#xE5C5</i>
+                                    </span>
+                                    <span class="mdl-list__item-secondary-content trending__percent">2 %</span>
+                                </li>
+                                <li class="mdl-list__item list__item--border-top">
+                                    <span class="mdl-list__item-primary-content list__item-text ">Big Data</span>
+                                    <span class="mdl-list__item-secondary-content">
+                                        <i class="material-icons trending__arrow-up" role="presentation">&#xE5C7</i>
+                                    </span>
+                                    <span class="mdl-list__item-secondary-content trending__percent">5 %</span>
+                                </li>
+                                <li class="mdl-list__item list__item--border-top">
+                                    <span class="mdl-list__item-primary-content list__item-text">Material Design</span>
+                                    <span class="mdl-list__item-secondary-content">
+                                        <i class="material-icons trending__arrow-up" role="presentation">&#xE5C7</i>
+                                    </span>
+                                    <span class="mdl-list__item-secondary-content trending__percent">18 %</span>
+                                </li>
+                                <li class="mdl-list__item list__item--border-top">
+                                    <span class="mdl-list__item-primary-content">JavaScript</span>
+                                    <span class="mdl-list__item-secondary-content">
+                                        <i class="material-icons trending__arrow-up" role="presentation">&#xE5C7</i>
+                                    </span>
+                                    <span class="mdl-list__item-secondary-content trending__percent">17 %</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                -->
+                <!-- Cotoneaster card
+                <div class="mdl-cell mdl-cell--5-col-desktop mdl-cell--5-col-tablet mdl-cell--2-col-phone">
+                    <div class="mdl-card mdl-shadow--2dp cotoneaster">
+                        <div class="mdl-card__title mdl-card--expand">
+                            <h2 class="mdl-card__title-text">Cotoneaster</h2>
+                        </div>
+                        <div class="mdl-card__supporting-text">
+                            <div>
+                                Cotoneaster is a genus of flowering plants in the rose family, Roseaceae, netive to the
+                                Palaearctic region, with a strong concentration of diversity in the genus in the
+                                mountains
+                                of southwestern China and the Himalayas.
+                            </div>
+                            <a href="https://en.wikipedia.org/wiki/Cotoneaster" target="_blank">Wikipedia</a>
+                        </div>
+                    </div>
+                </div>
+                -->
+                <!-- Line chart
+                <div class="mdl-cell mdl-cell--7-col-desktop mdl-cell--7-col-tablet mdl-cell--4-col-phone">
+                    <div class="mdl-card mdl-shadow--2dp line-chart">
+                        <div class="mdl-card__title">
+                            <h2 class="mdl-card__title-text">Startup Financing Cycle</h2>
+                        </div>
+                        <div class="mdl-card__supporting-text">
+                            <div class="line-chart__container">
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                -->
+                <!-- Table
+                <div class="mdl-cell mdl-cell--12-col-desktop mdl-cell--12-col-tablet mdl-cell--4-col-phone ">
+                    <table class="mdl-data-table mdl-js-data-table mdl-data-table--selectable mdl-shadow--2dp projects-table">
+                        <thead>
+                        <tr>
+                            <th class="mdl-data-table__cell--non-numeric">Project</th>
+                            <th class="mdl-data-table__cell--non-numeric">Responsible</th>
+                            <th class="mdl-data-table__cell--non-numeric">Client contact</th>
+                            <th class="mdl-data-table__cell--non-numeric">Deadline</th>
+                            <th class="mdl-data-table__cell--non-numeric">Progress</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr>
+                            <td class="mdl-data-table__cell--non-numeric">Darkboard</td>
+                            <td class="mdl-data-table__cell--non-numeric">
+                                <span class="label label--mini background-color--mint">Alex</span>
+                                <span class="label label--mini background-color--primary">Dina</span>
+                                <span class="label label--mini background-color--cerulean">Misha</span>
+                            </td>
+                            <td class="mdl-data-table__cell--non-numeric">Luke@skywalker.com</td>
+                            <td class="mdl-data-table__cell--non-numeric">Jun 15</td>
+                            <td class="mdl-data-table__cell--non-numeric">
+                                <div id="task1" class="mdl-progress mdl-js-progress"></div>
+                                <div class="mdl-tooltip" for="task1">
+                                    44%
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="mdl-data-table__cell--non-numeric">Big financial app</td>
+                            <td class="mdl-data-table__cell--non-numeric">
+                                <span class="label label--mini background-color--baby-blue">Vlada</span>
+                            </td>
+                            <td class="mdl-data-table__cell--non-numeric">Boss@financial.com</td>
+                            <td class="mdl-data-table__cell--non-numeric">Mar 1</td>
+                            <td class="mdl-data-table__cell--non-numeric">
+                                <div id="task2" class="mdl-progress mdl-js-progress"></div>
+                                <div class="mdl-tooltip" for="task2">
+                                    14%
+                                </div>
+                            </td>
+                        </tr>
+                        <tr class="is-selected">
+                            <td class="mdl-data-table__cell--non-numeric">New Year office decoration</td>
+                            <td class="mdl-data-table__cell--non-numeric">
+                                <span class="label label--mini background-color--primary">Dina</span>
+                                <span class="label label--mini background-color--baby-blue">Vlada</span>
+                            </td>
+                            <td class="mdl-data-table__cell--non-numeric">info@creativeit.io</td>
+                            <td class="mdl-data-table__cell--non-numeric">Dec 25</td>
+                            <td class="mdl-data-table__cell--non-numeric task-done">
+                                <i id="task3" class="material-icons">done</i>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="mdl-data-table__cell--non-numeric">Don't worry, be happy!!!</td>
+                            <td class="mdl-data-table__cell--non-numeric">
+                                <span class="label label--mini background-color--secondary">Everybody</span>
+                            </td>
+                            <td class="mdl-data-table__cell--non-numeric">Contact@happyness.com</td>
+                            <td class="mdl-data-table__cell--non-numeric">Yesterday</td>
+                            <td class="mdl-data-table__cell--non-numeric">
+                                <div id="task4" class="mdl-progress mdl-js-progress"></div>
+                                <div class="mdl-tooltip" for="task4">
+                                    31%
+                                </div>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+              
+            <div class="mdl-grid mdl-cell mdl-cell--3-col-desktop mdl-cell--12-col-tablet mdl-cell--4-col-phone mdl-cell--top">
+                # Robot card
+                <div class="mdl-cell mdl-cell--12-col-desktop mdl-cell--6-col-tablet mdl-cell--2-col-phone">
+                    <div class="mdl-card mdl-shadow--2dp robot">
+                        <div class="mdl-card__title mdl-card--expand">
+                            <h2 class="mdl-card__title-text">BB-8</h2>
+                        </div>
+                        <div class="mdl-card__supporting-text">
+                            <div>
+                                A skittish but loyal astromech, BB-8 accompanied Poe Dameron on many missions for the
+                                Resistance helping keep his X-wing in working order.
+                            </div>
+                            <a href="http://www.starwars.com/databank/bb-8" target="_blank">Star Wars Databank</a>
+                        </div>
+                    </div>
+                </div>
+                # ToDo_widget
+                <div class="mdl-cell mdl-cell--12-col-desktop mdl-cell--6-col-tablet mdl-cell--2-col-phone">
+                    <div class="mdl-card mdl-shadow--2dp todo">
+                        <div class="mdl-card__title">
+                            <h2 class="mdl-card__title-text">To-do list</h2>
+                        </div>
+                        <div class="mdl-card__supporting-text">
+                            <ul class="mdl-list">
+
+                            </ul>
+                        </div>
+                        <div class="mdl-card__actions">
+                            <button class="mdl-button mdl-js-button mdl-js-ripple-effect">remove selected</button>
+                            <button class="mdl-button mdl-js-button mdl-js-ripple-effect mdl-button--fab mdl-shadow--8dp mdl-button--colored ">
+                                <i class="material-icons mdl-js-ripple-effect">add</i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+                -->
+        </div>
+      </div>
+      <!--   LOG VIEWER    -->
+       <div class="mdl-card mdl-shadow--2dp logviewer mainitem" action="#" id="logs">
+        <div class="mdl-card__title">
+          <h2>Logs</h2>
+          <div class="mdl-card__subtitle" id="name"></div>
+        </div>
+        <div class="mdl-card__supporting-text">
+          <div class="mdl-cell mdl-cell--12-col-desktop mdl-cell--12-col-tablet mdl-cell--4-col-phone ">
+
+          <table class="mdl-data-table mdl-js-data-table mdl-shadow--2dp log-table">
+            <tbody id="logcontrols">
+              <tr>
+                  <td class="mdl-data-table__cell--non-numeric" id="minlevel">
+                      <span class="label label--mini label-color--debug" id="debug">Debug</span>
+                      <span class="label label--mini label-color--info" id="info">Info</span>
+                      <span class="label label--mini label-color--warning" id="warning">Warning</span>
+                      <span class="label label--mini label-color--error" id="error">Error</span>
+                  </td>
+                  <td class="mdl-data-table__cell--non-numeric">
+                  </td>
+                  <td class="mdl-data-table__cell--non-numeric">
+                    <span class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label mdl-badge">
+                      <input class="mdl-textfield__input question" type="text" id="logfilter">
+                      <label class="mdl-textfield__label" for="logfilter" id="q">Filter</label>
+                    </span>
+                  </td>
+                  <td class="mdl-data-table__cell--non-numeric"></td>
+ 
+              </tr>
+            </tbody>
+          </table>
+
+
+          <table class="sortable mdl-data-table mdl-js-data-table mdl-shadow--2dp log-table">
+              <thead>
+              <tr>
+                  <th class="mdl-data-table__cell--non-numeric"></th>
+                  <th class="mdl-data-table__cell--non-numeric">Time</th>
+                  <th class="mdl-data-table__cell--non-numeric">Logger</th>
+                  <th class="mdl-data-table__cell--non-numeric">Module</th>
+                  <th class="mdl-data-table__cell--non-numeric">Text</th>
+              </tr>
+              </thead>
+              <tbody id="loglist">
+            </tbody>
+          </table>
+        </div>
+        </div>
+
+
+      </div>
+
+
+      <!--   Status viewer    -->
+      <div class="mdl-card mdl-shadow--2dp statusviewer mainitem" action="#" id="status">
+        <div class="mdl-card__title">
+          <h2>Status</h2>
+          <div class="mdl-card__subtitle" id="name"></div>
+        </div>
+        <div class="mdl-card__supporting-text">
+          <div class="mdl-cell mdl-cell--12-col-desktop mdl-cell--12-col-tablet mdl-cell--4-col-phone ">
+          <table class="sortable mdl-data-table mdl-js-data-table mdl-shadow--2dp status-table">
+            <thead>
+              <tr>
+                  <th class="mdl-data-table__cell--non-numeric">Wnr</th>
+                  <th class="mdl-data-table__cell--non-numeric">Host</th>
+                  <th class="mdl-data-table__cell--non-numeric">State</th>
+                  <th class="mdl-data-table__cell--non-numeric">Progress</th>
+                  <th class="mdl-data-table__cell--non-numeric">Time/job</th>
+                  <th class="mdl-data-table__cell--non-numeric">Errors</th>                  
+                  <th class="mdl-data-table__cell--non-numeric">Last error</th>
+              </tr>
+            </thead>
+            <tbody id="statustable">
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+</div>
+
+<div class="templates">
+<template id="headmonitor">
+
+  <div class="mdl-cell mdl-cell--4-col-desktop mdl-cell--4-col-tablet mdl-cell--2-col-phone">
+    <div class="mdl-card mdl-shadow--2dp headmonitor">
+        <div class="mdl-card__title" >
+          <h2 class="mdl-card__title-text">Head</h2>
+          <div class="mdl-layout-spacer"></div>
+            <div class="mdl-card__subtitle-text">
+                <i class="material-icons">home</i>
+                <span id="name"></span>
+            </div>
+          </div>
+          <div class="mdl-card__supporting-text mdl-card--expand">
+            <div class="status">ETA step : <span id="eta_step">??</span></div>
+            <div class="status">ETA total: <span id="eta_total">??</span></div> 
+            <div class="bigright">
+              <div class="status">
+                <span id="step"></span> of <span id="total_steps"></span>
+                <div id="state" style="text-align: right"></div>
+              </div>
+            </div>
+            <span class="status">Created: <span id="tasks_created"></span></span>
+            <span class="status">Allocated: <span id="tasks_allocated"></span></span>
+            <span class="status">Completed: <span id="tasks_completed"></span></span>
+            <div><br></div>
+            <div class="progressmap" id="progress"></div>
+          </div>
+      </div>
+  </div>
+</template>
+
+<template id="progressmonitor">
+  <div class="mdl-cell mdl-cell--4-col-desktop mdl-cell--4-col-tablet mdl-cell--2-col-phone">
+    <div class="mdl-card mdl-shadow--2dp progressmonitor">
+        <div class="mdl-card__title" >
+          <h2 class="mdl-card__title-text">Workers</h2>
+          <div class="mdl-layout-spacer"></div>
+            <div class="mdl-card__subtitle-text">
+                <i class="material-icons">autorenew</i>
+                <span id="name"></span>
+            </div>
+          </div>
+          <div class="mdl-card__supporting-text mdl-card--expand">
+              <table class="sfortable mdl-data-table mdl-js-data-table mdl-shadow--2dp table">
+                <thead>
+                  <tr>
+                      <th class="mdl-data-table__cell--non-numeric">Worker</th>
+                      <th class="mdl-data-table__cell--non-numeric">State</th>
+                      <th class="mdl-data-table__cell--non-numeric">Progress</th>
+                  </tr>
+                </thead>
+                <tbody id="progresstable">
+                </tbody>
+              </table>
+          </div>
+      </div>
+  </div>
+</template>
+
+<template id="progressmonitorworker">
+  <tr>
+      <td class="mdl-data-table__cell--non-numeric" id="workernum">?</td>
+      <td class="mdl-data-table__cell--non-numeric" id="state">Unknown</td>
+      <td class="mdl-data-table__cell--non-numeric">
+          <div id="task0" class="mdl-progress mdl-js-progress table"></div>
+          <div class="mdl-tooltip" for="task0">0</div>
+      </td>
+  </tr>
+</template>
+
+<template id="statusmonitorworker">
+  <tr>
+    <td class="mdl-data-table__cell--non-numeric" id="workernum"></td>
+    <td class="mdl-data-table__cell--non-numeric" id="host"></td>
+    <td class="mdl-data-table__cell--non-numeric" id="state"></td>
+    <td class="mdl-data-table__cell--non-numeric">
+        <div id="task0" class="mdl-progress mdl-js-progress table"></div>
+        <div class="mdl-tooltip" for="task0">0</div>
+    </td>
+    <td class="mdl-data-table__cell--non-numeric" id="last_processing_time"></td>
+    <td class="mdl-data-table__cell--non-numeric" id="num_errors"></td>
+    <td class="mdl-data-table__cell--non-numeric" id="last_error"></td>
+  </tr>
+
+</template>
+
+<template id="logviewerrow">
+  <tr>
+      <td class="mdl-data-table__cell--non-numeric loglevel">
+          <span class="label label--mini"></span>
+      </td>
+      <td class="mdl-data-table__cell--non-numeric logtime"></td>
+      <td class="mdl-data-table__cell--non-numeric logmodule"></td>
+      <td class="mdl-data-table__cell--non-numeric loglogger"></td>
+      <td class="mdl-data-table__cell--non-numeric mouseover"><div class='logtext' id=ls1></div>
+      <div class="mdl-tooltip" id="logtooltip" for="ls1">
+      </div></td>
+  </tr>
+</template>
+
+</div>
+
+<!-- inject:js -->
+<script src="js/widgets/employer-form/employer-form.js"></script>
+<script src="js/widgets/line-chart/line-chart-nvd3.js"></script>
+<!--<script src="js/widgets/map/maps.js"></script>
+<script src="js/widgets/pie-chart/pie-chart-nvd3.js"></script>
+-->
+
+<script src="js/widgets/table/table.js"></script>
+<script src="js/widgets/todo/todo.js"></script>
+<!-- endinject -->
+
+</body>
+</html>

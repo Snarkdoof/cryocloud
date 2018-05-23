@@ -1,0 +1,14 @@
+{"args": 
+  {
+    "fullPath": "/tmp/tmp", 
+    "dir": "/tmp/", 
+    "max_time": 10,
+    "cmd": ["-IDL_STARTUP", 
+            "' '", 
+            "-IDL_PATH", 
+            "'<IDL_DEFAULT>'", 
+            "-e", 
+            "wind, '/home/norut/tmp/tmpvixyur69/TSX1_SAR__MGD_RE___SC_S_SRA_20180208T061615_20180208T061649', '/home/norut/config_ksat.cfg'"
+          ]
+  }
+}

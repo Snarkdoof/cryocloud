@@ -1,3 +1,3 @@
-[submodule "cryocore"]
+[submodule "cc"]
 	path = cc
 	url = git@gitlab.itek.norut.no:norut/cryocore.git
