@@ -29,4 +29,3 @@ def process_task(self, args, stop_event, callback):
         recursive = args["recursive"]
 
     self.dir_monitor = self.head.makeDirectoryWatcher(src, self.onAdd, recursive=recursive)
-
