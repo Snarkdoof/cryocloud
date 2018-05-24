@@ -24,16 +24,18 @@ class Task:
         self.type = 0
         self.args = {}
         self.runOn = "always"
-        self.name = "unnamed"
+        self.name = "task%d" % random.randint(0, 1000000)
         self.module = None
         self.resolved = False
         self.retval_dict = {}
         self.result = None
         self.config = None
+        self.resolveOnAny = False
         self.completed = threading.Event()
         self.provides = []
         self.depends = []
         self.options = []
+        self.parents = []
 
     def __str__(self):
         return "[%s (%s), %s]: priority %d, args: %s\n" %\
@@ -123,8 +125,8 @@ loaded_modules = {}
 
 class Workflow:
 
-    entries = []
-    names = {}
+    entry = None
+    nodes = {}
 
     @staticmethod
     def load_file(filename):
@@ -157,6 +159,8 @@ class Workflow:
                 task.priority = mod.ccmodule["defaults"]["priority"]
             if "runOn" in mod.ccmodule["defaults"]:
                 task.runOn = mod.ccmodule["defaults"]["runOn"]
+            if "resolveOnAny" in mod.ccmodule["defaults"]:
+                task.resolveOnAny = mod.ccmodule["defaults"]["resolveOnAny"]
 
             task.depends = mod.ccmodule["depends"]
             task.provides = mod.ccmodule["provides"]
@@ -165,7 +169,6 @@ class Workflow:
 
             if "name" in child:
                 task.name = child["name"]
-                wf.names[task.name] = task
             if "runOn" in child:
                 task.runOn = child["runOn"]
             if "args" in child:
@@ -180,37 +183,57 @@ class Workflow:
                 task.options = child["options"]
             if "config" in child:
                 task.config = API.get_config(child["config"])
+            if "downstreamOf" in child:
+                task.parents = child["downstreamOf"]
+            if "resolveOnAny" in child:
+                task.resolveOnAny = child["resolveOnAny"]
+            wf.nodes[task.name] = task
             return task
 
         # Now we go through the children (recursively)
         def load_children(parents, subworkflow):
-            for child in subworkflow["children"]:
-                task = make_task(child)
+            if "children" in subworkflow:
+                for child in subworkflow["children"]:
+                    task = make_task(child)
 
-                # Verify dependencies
-                provided = []
-                for parent in parents:
-                    task.downstreamOf(parent)
-                    provided.extend(parent.provides)
+                    # Verify dependencies
+                    # provided = []
+                    for parent in parents:
+                        task.downstreamOf(parent)
+                    #    provided.extend(parent.provides)
 
-                # Parents must provide all our dependencies
-                for dep in task.depends:
-                    if dep not in provided:
-                        raise Exception("Graph defect, dependency not met for %s: '%s'" % (task.name, dep))
+                    # Parents must provide all our dependencies
+                    # for dep in task.depends:
+                    #    if dep not in provided:
+                    #        raise Exception("Graph defect, dependency not met for %s: '%s'" % (task.name, dep))
 
-                # If this one has children, load those too
-                if "children" in child:
-                    load_children([task], child)
+                    # If this one has children, load those too
+                    if "children" in child:
+                        load_children([task], child)
 
         wf = Workflow()
 
-        # Entries are a bit special
-        for entry in workflow["entry"]:
-            task = make_task(entry)
-            wf.entries.append(task)
+        wf.entry = EntryTask()
 
-        load_children(wf.entries, workflow)
+        # Entries are a bit special
+        for entry in workflow["modules"]:
+            task = make_task(entry)
+            load_children([task], entry)
+
+        wf.build_graph()
         return wf
+
+    def build_graph(self):
+        """
+        Go through all modules and check that they are all connected to the correct place
+        """
+        for node in self.nodes.values():
+            for parent in node.parents:
+                if parent == "entry":
+                    node.downstreamOf(self.entry)
+                else:
+                    node.downstreamOf(self.nodes[parent])
+        self.validate()
 
     def __str__(self):
         """
@@ -225,18 +248,17 @@ class Workflow:
 
         s = "Workflow\n"
         children = []
-        for entry in self.entries:
-            s += "Entry: %s\n" % (entry.name)
-            for child in entry._downstreams:
-                if child not in children:
-                    children.append(child)
+        s = "Entry: %s\n" % (self.entry.name)
+        for child in self.entry._downstreams:
+            if child not in children:
+                children.append(child)
 
         for child in children:
             s += __str_subtree(child, 1)
 
         return s
 
-    def validate(self, node=None, exceptionOnWarnings=False, recurseCheckNodes=[]):
+    def validate(self, node=None, exceptionOnWarnings=False, recurseCheckNodes=None):
         """
         Go through the tree and see that all dependencies are met.
         Declared dependencies are validated already, but we need to check
@@ -248,18 +270,26 @@ class Workflow:
         """
         retval = []
         if node is None:
-            for entry in self.entries:
-                retval.extend(self.validate(entry))
+            if self.entry is None:
+                raise Exception("No entry point for workflow!")
+            retval = self.validate(self.entry, exceptionOnWarnings=exceptionOnWarnings, recurseCheckNodes=[])
         else:
             if node in recurseCheckNodes:
                 raise Exception("Node already visited - graph loop detected %s (%s)" % (node.module, node.name))
-
             # Validate this node
             for arg in node.args:
                 name, param = arg.split(".")
-                if name not in self.names:
+                if name == "parent":
+                    found = False
+                    for parent in node._upstreams:
+                        if param in parent.outputs:
+                            found = True
+                            break
+                    if not found:
+                        raise Exception("Parent doesn't provide  '%s' for task %s (%s)" % (param, node.module, node.name))
+                elif name not in self.nodes:
                     raise Exception("Missing name '%s' for task %s (%s)" % (name, node.module, node.name))
-                if param not in self.names[name].outputs:
+                if name != "parent" and param not in self.nodes[name].outputs:
                     if (exceptionOnWarnings):
                         raise Exception("Missing parameter '%s' from %s for task %s (%s)" % (param, name, node.module, node.name))
                     else:
@@ -283,20 +313,19 @@ class Workflow:
         """
         Get the max priority for this workflow
         """
-        pri = 0
-        for entry in self.entries:
-            pri = max(pri, entry.get_max_priority())
-        return pri
+        return self.entry.get_max_priority()
 
     def estimate_time(self):
-        time_left = 0
-        time_left_parallel = 0
-        for entry in self.entries:
-            times = entry.estimate_time_left()
-            time_left_parallel = max(time_left_parallel, times["time_left_parallel"])
-            time_left += times["time_left"]
+        return self.entry.estimate_time_left()
 
-        return {"sequential": time_left, "parallel": time_left_parallel}
+
+class EntryTask(Task):
+    def __init__(self):
+        Task.__init__(self)
+        self.name = "Entry"
+
+    def resolve(self):
+        print("START entry")
 
 
 class TestTask(Task):
@@ -351,7 +380,7 @@ if __name__ == "__main__":
         print("Maximum priority", wf.get_max_priority())
         print("Total time", wf.estimate_time())
 
-        wf.entries[0].on_completed("success", {"fullPath": "/tmp/testfile", "relPath": "testfile"})
+        wf.entry.on_completed("success", {"fullPath": "/tmp/testfile", "relPath": "testfile"})
 
         raise SystemExit(0)
     finally:
