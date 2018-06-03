@@ -8,13 +8,33 @@ import time
 import json
 import random
 import imp
+import copy
 
 from CryoCore import API
 import CryoCloud
 
 
+class Granule:
+
+    def __init__(self, gid=None):
+        self.gid = gid
+        if gid is None:
+            self.gid = random.randint(0, 100000000)  # TODO: DO this better
+        self.resolved = {}
+        self.args = {}
+        self.retval_dict = {}
+        self.completed = {}
+
+    def __str__(self):
+        return "[Granule %s]: %s, %s" % (self.gid, self.resolved, self.retval_dict)
+
+
 class Task:
-    def __init__(self, taskid=None):
+    def __init__(self, workflow, taskid=None):
+        if not isinstance(workflow, Workflow):
+            raise Exception("Bad workflow parameter (%s not Workflow)" % workflow.__class__)
+
+        self.workflow = workflow
         self.taskid = taskid
         if taskid is None:
             self.taskid = random.randint(0, 100000000000)  # generate this better
@@ -26,12 +46,8 @@ class Task:
         self.runOn = "always"
         self.name = "task%d" % random.randint(0, 1000000)
         self.module = None
-        self.resolved = False
-        self.retval_dict = {}
-        self.result = None
         self.config = None
         self.resolveOnAny = False
-        self.completed = threading.Event()
         self.provides = []
         self.depends = []
         self.options = []
@@ -48,61 +64,65 @@ class Task:
     def _register_down(self, task):
         self._downstreams.append(task)
 
-    def on_completed(self, result, retval):
+    def on_completed(self, granule, result):
         """
         This task has completed, notify downstreams
         """
-        print("Completed", str(self))
-        self.result = result
-        self.completed.set()
-        for child in self._downstreams:
-            child.retval_dict[self.name] = retval
-            child._completed(result)
+        # granule.retval[self.name] = retval
 
-    def _completed(self, result):
+        print("Completed", str(self), granule)
+        if granule:
+            granule.completed[self.name] = True
+        for child in self._downstreams:
+            child._completed(granule, result)
+
+    def _completed(self, granule, result):
         """
         An upstream node has completed, check if we have been resolved
         """
-        for node in self._upstreams:
-            if not node.completed.isSet():
-                print("Unresolved", node.taskid)
-                # Still at least one unresolved dependency
-                return
+        if not self.resolveOnAny and granule:
+            for node in self._upstreams:
+                if node.name in granule.completed:
+                    print("Unresolved", node.taskid)
+                    # Still at least one unresolved dependency
+                    return
 
         # All has been resolved!
         self.resolved = True
 
         # Should we run at all?
         if (self.runOn == "always" or self.runOn == result):
-            print("Resolving", self.name, self.retval_dict)
-            self.resolve()
+            print("Resolving", self.name, granule)
+            self.resolve(granule)
         else:
-            print("Not resolving, should only do %s, this was %s" % (self.runOn, result))
+            print("Resolved but not running, should only do %s, this was %s" %
+                  (self.runOn, result))
             # Should likely say that this step is either done or not going to happen -
             # just for viewing statistics
 
-    def resolve(self):
+    def resolve(self, granule, result):
         raise Exception("NOT IMPLEMENTED")
 
     # Some nice functions to do estimates etc
-    def estimate_time_left(self):
+    def estimate_time_left(self, granule):
         """
         Estimate processing time from this node and down the graph
         """
         run_time = 0
-        if self.resolved:
-            # Need to fetch my state to check if I've been running for a while
-            pass
 
         # DB Lookup of typical time for this module
         # my_estimate = jobdb.estimate_time(self.module)
         step_time = 10
 
+        # TODO: Need to fetch my state to check if I've been running for a while
+        if self.name not in granule.resolved:
+            step_time = 0
+
         # Recursively check the time left
         subnodes = 0
         subnodes_parallel = 0
         for node in self._downstreams:
-            times = node.estimate_time_left()
+            times = node.estimate_time_left(granule)
             subnodes += times["time_left"]
             subnodes_parallel = max(subnodes_parallel, times["time_left_parallel"])
 
@@ -120,6 +140,7 @@ class Task:
             priority = max(priority, node.get_max_priority())
         return priority
 
+
 loaded_modules = {}
 
 
@@ -127,6 +148,7 @@ class Workflow:
 
     entry = None
     nodes = {}
+    inputs = {}
 
     @staticmethod
     def load_file(filename):
@@ -144,8 +166,8 @@ class Workflow:
     @staticmethod
     def load_workflow(workflow):
 
-        def make_task(child):
-            task = CryoCloudTask()
+        def make_task(wf, child):
+            task = CryoCloudTask(wf)
             task.module = child["module"]
             # Load defaults from module!
             if task.module not in loaded_modules:
@@ -194,7 +216,7 @@ class Workflow:
         def load_children(parents, subworkflow):
             if "children" in subworkflow:
                 for child in subworkflow["children"]:
-                    task = make_task(child)
+                    task = make_task(wf, child)
 
                     # Verify dependencies
                     # provided = []
@@ -213,11 +235,11 @@ class Workflow:
 
         wf = Workflow()
 
-        wf.entry = EntryTask()
+        wf.entry = EntryTask(wf)
 
         # Entries are a bit special
         for entry in workflow["modules"]:
-            task = make_task(entry)
+            task = make_task(wf, entry)
             load_children([task], entry)
 
         wf.build_graph()
@@ -276,6 +298,14 @@ class Workflow:
         else:
             if node in recurseCheckNodes:
                 raise Exception("Node already visited - graph loop detected %s (%s)" % (node.module, node.name))
+
+            if self.entry in node._upstreams:
+                print("Should be an input node", node.name, node.module)
+                if "Input" not in node.provides:
+                    raise Exception("Non-input node as parent of entry")
+                if not callable(getattr(loaded_modules[node.module], 'start', None)):
+                    raise Exception("Input node must have a runnable 'start' method")
+
             # Validate this node
             for arg in node.args:
                 name, param = arg.split(".")
@@ -320,29 +350,38 @@ class Workflow:
 
 
 class EntryTask(Task):
-    def __init__(self):
-        Task.__init__(self)
+    def __init__(self, workflow):
+        Task.__init__(self, workflow)
         self.name = "Entry"
 
-    def resolve(self):
-        print("START entry")
+    def resolve(self, granule=None, result=None):
+        print("EntryTask completed")
+        self.on_completed(None, "success")
 
 
 class TestTask(Task):
-    def resolve(self):
-        print("Processing", self.taskid)
+    def resolve(self, granule, result):
+        print("Processing", self.taskid, "result so far", result)
         time.sleep(10)
-        self.on_completed("success", {})
+        self.on_completed(granule, "success")
 
 
 class CryoCloudTask(Task):
 
-    def resolve(self):
-        """
-        retval is a dict that contains all return values so far [name] = {retvalname: value}
-        """
+    def resolve(self, granule):
+        if "Input" in self.provides:
+            self.resolve_input(granule)
+            return
+
+        print("Resolving non-input task", self.name)
+
         # Create the CC job
-        print("Resolve", self.name, "options:", self.options, "args:", self.args)
+        args = self._build_args(granule)
+        job = {"args": args}  # {"src": info["fullpath"], "dst": target}
+        print("Task %s, Module: %s (%s), priority %s, job: %s" %
+              (self.taskid, self.module, self.name, self.priority, job))
+
+    def _build_args(self, granule):
         args = {}
         for option in self.options:
             if (isinstance(self.options[option], dict)):
@@ -359,15 +398,96 @@ class CryoCloudTask(Task):
                 if param in self.retval_dict[name]:
                     print("Found argument")
                     args[self.args[arg]] = self.retval_dict[name][param]
+        return args
 
-        job = {"args": args}  # {"src": info["fullpath"], "dst": target}
-        print("Task %s, Module: %s (%s), priority %s, job: %s" %
-              (self.taskid, self.module, self.name, self.priority, job))
+    def resolve_input(self, granule):
+        """
+        retval is a dict that contains all return values so far [name] = {retvalname: value}
+        """
+        if "Input" not in self.provides:
+            raise Exception("resolve_input called on non-input task")
+
+        print("Resulve", granule)
+        print("Resolve", self.name, "options:", self.options, "args:", self.args)
+
+        args = self._build_args(granule)
+
+        # If we're the entry point, we'll have a start() method defined and should run
+        # rather than start something new
+        print("Input node resolving", granule)
+        if not callable(getattr(loaded_modules[self.module], 'start', None)):
+            raise Exception("Input node must have a runnable 'start' method")
+
+        print("Ready to rock and roll - fire up the start of the module thingy")
+        args["__name__"] = self.name
+        loaded_modules[self.module].start(
+            self.workflow.handler,
+            args,
+            API.api_stop_event)
 
 
-class WorkflowHandler(CryoCloud.DefaultHandler):
-    pass
+class Handler(CryoCloud.DefaultHandler):
 
+    _granules = {}
+    inputs = {}
+
+    def onReady(self, options):
+
+        self.log = API.get_log("WorkflowHandler")
+        self.status = API.get_status("WorkflowHandler")
+
+        # Need to get the workflow...
+        self.workflow = Workflow.load_file("testjob.json")
+        self.workflow.handler = self
+
+        # Entry has been resolved, just go
+        self.workflow.entry.resolve()
+
+    def onAdd(self, task):
+        """
+        Add is a special case for CryoCloud - it's provided Input from
+        modules
+        """
+        print("onAdd called", task)
+
+        # We need to find the source if this addition
+        if "caller" not in task:
+            self.log.error("'caller' is missing on Add, please check the calling module. Ignoring this task: %s" % task)
+            return
+
+        # Do we have this caller in the workflow?
+        if task["caller"] not in self.workflow.nodes:
+            print("Missing", task["caller"], "in", self.workflow.nodes)
+            self.log.error("Can't find caller '%s' in workflow, giving up" % task["caller"])
+            return
+
+        # Generate a granule to represent this piece of work
+        granule = Granule()
+        self._granules[granule.gid] = granule
+
+        # The return value must be created here now
+        granule.retval_dict[task["caller"]] = task
+
+        # We're now ready to resolve the task
+        caller = self.workflow.nodes[task["caller"]]
+
+        # We can now resolve this caller with the correct info
+        print("Found caller", caller)
+        caller.on_completed(granule, "success")
+
+    def onCompleted(self, task):
+
+        if "itemid" not in task:
+            self.log.error("Got task without itemid: %s" % task)
+            return
+
+        # task["itemid"] is the graph identifier
+        if task["itemid"] not in self._granules:
+            self.log.error("Got completed task for unknown granule %s" % task)
+            return
+
+        granule = self._granules[task["itemid"]]
+        print("Completed", granule)
 
 if __name__ == "__main__":
     """

@@ -18,6 +18,7 @@
         "name": "Unzip",
         "runOn": "success",
         "downstreamOf": ["Input"],
+        "resolveOnAny": true,
         "children": [{
           "module": "remove",
           "args": {

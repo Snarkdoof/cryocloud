@@ -2,7 +2,7 @@
 ccmodule = {
     "description": "Watch a directory for new files",
     "depends": [],
-    "provides": ["entry"],
+    "provides": ["Input"],
     "job_type": "permanent",
     "inputs": {
         "src": "Full path to watch",
@@ -19,13 +19,22 @@ ccmodule = {
 }
 
 
-def process_task(self, args, stop_event, callback):
+def start(handler, args, stop_event):
 
+    print("DirWatcher starting")
     recursive = False
     if "src" not in args:
         raise Exception("Required argument 'src' not given")
     src = args["src"]
     if "recursive" in args:
         recursive = args["recursive"]
+    if "__name__" not in args:
+        raise Exception("Require name as argument")
 
-    self.dir_monitor = self.head.makeDirectoryWatcher(src, self.onAdd, recursive=recursive)
+    def onAdd(info):
+        # We need to add who we are
+        info["caller"] = args["__name__"]
+        handler.onAdd(info)
+
+    handler.dir_monitor = handler.head.makeDirectoryWatcher(src, onAdd, recursive=recursive)
+    handler.dir_monitor.start()
