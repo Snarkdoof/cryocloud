@@ -309,12 +309,12 @@ if __name__ == "__main__":
         args = sys.argv
     else:
         args = sys.argv[2:]
-        moduleinfo = inspect.getmoduleinfo(filename)
+        name = inspect.getmodulename(filename)
         path = os.path.dirname(os.path.abspath(filename))
 
         # sys.path.append(path)
-        info = imp.find_module(moduleinfo.name, [path])
-        mod = imp.load_module(moduleinfo.name, info[0], info[1], info[2])
+        info = imp.find_module(name, [path])
+        mod = imp.load_module(name, info[0], info[1], info[2])
 
         supress = []
         try:
