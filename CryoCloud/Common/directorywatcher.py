@@ -9,7 +9,7 @@ try:
 except:
     import queue as Queue
 
-import traceback
+# import traceback
 from CryoCloud.Common import jobdb
 
 # watched events
@@ -139,7 +139,8 @@ class FakeEvent():
 
 
 class DirectoryWatcher(threading.Thread):
-    def __init__(self, runid, target, onAdd=None, onModify=None, onRemove=None, onError=None, stabilize=0, recursive=False):
+    def __init__(self, runid, target, onAdd=None, onModify=None, onRemove=None, onError=None,
+                 stabilize=0, recursive=False, noDB=False):
         threading.Thread.__init__(self)
         self.stabilize = stabilize
         self.runid = runid
@@ -150,7 +151,10 @@ class DirectoryWatcher(threading.Thread):
         self._unstable = {}
 
         wm = pyinotify.WatchManager()
-        self._db = jobdb.JobDB("directorywatcher", None)
+        if noDB:
+            self._db = None
+        else:
+            self._db = jobdb.JobDB("directorywatcher", None)
 
         self.monitor = Dispatcher(target, self)
         if onAdd:
@@ -181,7 +185,8 @@ class DirectoryWatcher(threading.Thread):
             self.addUnstable(event)
 
     def lookupState(self, pathname):
-        return self._db.get_file(self.target, pathname.replace(self.target, ""), self.runid)
+        if self._db:
+            return self._db.get_file(self.target, pathname.replace(self.target, ""), self.runid)
 
     def isStable(self, info):
         if self.stabilize and self.stabilize > time.time() - info["mtime"]:
@@ -194,24 +199,29 @@ class DirectoryWatcher(threading.Thread):
             self._unstable[event.pathname] = event
 
     def addStable(self, pathname, mtime):
-        self._db.insert_file(self.target, pathname.replace(self.target, ""), mtime, True, None, self.runid)
+        if self._db:
+            self._db.insert_file(self.target, pathname.replace(self.target, ""), mtime, True, None, self.runid)
 
     def updateStable(self, pathname, mtime):
-        self._db.update_file(self.target, pathname.replace(self.target, ""), mtime, True)
+        if self._db:
+            self._db.update_file(self.target, pathname.replace(self.target, ""), mtime, True)
 
     def setDone(self, path):
-        self._db.done_file(self.target, path.replace(self.target, ""), self.runid)
+        if self._db:
+            self._db.done_file(self.target, path.replace(self.target, ""), self.runid)
 
     def removeFile(self, pathname):
-        f = self._db.get_file(self.target, pathname.replace(self.target, ""), self.runid)
-        if f:
-            self._db.remove_file(f[0])
+        if self._db:
+            f = self._db.get_file(self.target, pathname.replace(self.target, ""), self.runid)
+            if f:
+                self._db.remove_file(f[0])
 
     def reset(self):
         """
         Reset all files
         """
-        self._db.reset_files(self.target, self.runid)
+        if self._db:
+            self._db.reset_files(self.target, self.runid)
 
         # We now do an initial check again
         self._check_existing(self.target)
