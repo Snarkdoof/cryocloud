@@ -55,6 +55,10 @@ def load(modulename, path=None):
                 path = [path]
             info = imp.find_module(modulename, path)
             modules[modulename] = imp.load_module(modulename, info[0], info[1], info[2])
+            try:
+                info[0].close()
+            except Exception as e:
+                pass
         except ImportError as e:
             try:
                 print("Trying importlib")
@@ -130,7 +134,8 @@ class Worker(multiprocessing.Process):
             self.log.exception("Failed to get module %s" % job["module"])
             raise e
         try:
-            self.log.info("%s allocated %s priority job %s (%s)" % (self._worker_type, jobdb.PRI_STRING[job["priority"]], job["id"], job["module"]))
+            self.log.info("%s allocated %s priority job %s (%s)" %
+                          (self._worker_type, job["priority"], job["id"], job["module"]))
             self.status["num_errors"] = 0.0
             self.status["last_error"] = ""
             self.status["host"] = socket.gethostname()
