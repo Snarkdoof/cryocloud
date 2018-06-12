@@ -61,7 +61,10 @@ class HeadNode(threading.Thread):
                        (self.name, self.options.steps, self.options.tasks))
 
         # Load the handler
-        self.handler = handler.Handler()  # load(options.handler).Handler()
+        if not callable(getattr(handler, 'Handler', None)):
+            self.handler = handler
+        else:
+            self.handler = handler.Handler()  # load(options.handler).Handler()
         print("HANDLER", self.handler.__module__)
 
         self.PRI_HIGH = jobdb.PRI_HIGH
@@ -79,6 +82,12 @@ class HeadNode(threading.Thread):
         self.STATE_FAILED = jobdb.STATE_FAILED
         self.STATE_TIMEOUT = jobdb.STATE_TIMEOUT
         self.STATE_CANCELLED = jobdb.STATE_CANCELLED
+
+        self.TASK_STRING_TO_NUM = {
+            "admin": self.TYPE_ADMIN,
+            "manual": self.TYPE_MANUAL,
+            "normal": self.TYPE_NORMAL
+        }
 
         self.handler.head = self
         self.step = 0
