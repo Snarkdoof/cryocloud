@@ -1,5 +1,24 @@
 import time
 
+ccmodule = {
+    "description": "Do nothing for some time",
+    "depends": [],
+    "provides": [],
+    "inputs": {
+        "time": "The time (or max time) to sleep",
+        "randomize": "Randomly sleep within the given time"
+    },
+    "outputs": {
+    },
+    "defaults": {
+        "priority": 10,  # Bulk
+        "runOn": "always"
+    },
+    "status": {
+        "progress": "Progress 0-100%"
+    }
+}
+
 
 def process_task(self, task):
     """

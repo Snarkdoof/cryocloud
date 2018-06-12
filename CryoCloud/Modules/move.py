@@ -1,6 +1,26 @@
 import os
 import os.path
 
+ccmodule = {
+    "description": "Move files or directories",
+    "depends": [],
+    "provides": [],
+    "inputs": {
+        "src": "Source path(s) - string or list",
+        "dst": "Destination path",
+        "dontstop": "Ignore errors and continue"
+    },
+    "outputs": {
+    },
+    "defaults": {
+        "priority": 10,  # Bulk
+        "runOn": "always"
+    },
+    "status": {
+        "progress": "Progress 0-100%"
+    }
+}
+
 
 def process_task(self, task):
     """

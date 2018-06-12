@@ -13,7 +13,8 @@ ccmodule = {
     "outputs": {},
     "defaults": {
         "priority": 0,  # Bulk
-        "run": "always"
+        "run": "always",
+        "type": "admin"
     }
 }
 

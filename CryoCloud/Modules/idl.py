@@ -20,6 +20,30 @@ import psutil
 import time
 
 
+ccmodule = {
+    "description": "Run IDL tasks",
+    "depends": ["Product"],
+    "provides": ["Product"],
+    "inputs": {
+        "cmd": "IDL command to run",
+        "dir": "Directory to run IDL in",
+        "env": "Environment to set before running",
+        "debug": "Set True to log all output from IDL",
+        "max_time": "Maximum time allowed (blank for unlimited)",
+        "max_memory": "Maximum memory to use (blank for unlimited)"
+    },
+    "outputs": {
+    },
+    "defaults": {
+        "priority": 50,  # Normal
+        "runOn": "success"
+    },
+    "status": {
+        "progress": "Progress 0-100%"
+    }
+}
+
+
 def process_task(worker, task, cancel_event=None):
     """
     worker.status and worker.log are ready here.
@@ -71,7 +95,7 @@ def process_task(worker, task, cancel_event=None):
         fcntl.fcntl(p.stderr, fcntl.F_SETFL, os.O_NONBLOCK)
 
         buf = {p.stdout: "", p.stderr: ""}
-        retval = None
+        retval = {"status": "failed", "result": ""}
 
         def report(line):
             """
@@ -123,25 +147,20 @@ def process_task(worker, task, cancel_event=None):
                 line, buf[p.stdout] = buf[p.stdout].split("\n", 1)
                 r = report(line)
                 if r:
-                    if retval:
-                        retval += ". " + r
-                    else:
-                        retval = r
+                    retval["result"] += ". " + r
 
             # Check for output on stderr - set error message
             while buf[p.stderr].find("\n") > -1:
                 line, buf[p.stderr] = buf[p.stderr].split("\n", 1)
                 r = report(line)
                 if r:
-                    if retval:
-                        retval += ". " + r
-                    else:
-                        retval = r
+                    retval["result"] += ". " + r
 
             # See if the process is still running
             if p.poll() is not None:
                 # Process exited
                 if p.poll() == 0:
+                    retval["status"] = "ok"
                     break
                 # Unexpected
                 raise Exception("IDL exited with exit value %d" % p.poll())
@@ -165,12 +184,14 @@ def process_task(worker, task, cancel_event=None):
                         if max_memory and mem.rss > max_memory:
                             worker.status["idl"] = "killed (memory)"
                             worker.log.error("IDL using too much memory, killing")
+                            retval["status"] = "Killed - memory usage too high (%s > %s)" % (mem.rss, max_memory)
                             p.terminate()
                         break
 
                 if max_time and time.time() - last_working > max_time:
                     worker.log.error("IDL used too long (%s idle), killing" % (time.time() - last_working))
                     worker.status["idl"] = "killed (time)"
+                    retval["status"] = "Killed - idled too long (%s > %s)" % (time.time() - last_working, max_time)
                     p.terminate()
             except:
                 pass
