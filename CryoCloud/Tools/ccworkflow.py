@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 
 Experimenting with dependencies and graphs
@@ -31,6 +33,7 @@ class Pebble:
         self.resolved = []
         self.args = {}
         self.retval_dict = {}
+        self.stats = {}
         self.completed = []
         self.current = None
 
@@ -61,6 +64,8 @@ class Task:
         self.depends = []
         self.parents = []
         self.dir = None  # Directory for execution
+        self.is_input = False
+        self.ccnode = None
 
     def __str__(self):
         return "[%s (%s), %s, %s]: priority %d, args: %s\n" %\
@@ -159,6 +164,7 @@ class Workflow:
     inputs = {}
     handler = None
     description = None
+    options = []
 
     @staticmethod
     def load_file(filename, handler=None):
@@ -223,6 +229,8 @@ class Workflow:
                 task.resolveOnAny = child["resolveOnAny"]
             if "dir" in child:
                 task.dir = child["dir"]
+            if "ccnode" in child:
+                task.ccnode = child["ccnode"]
             wf.nodes[task.name] = task
             return task
 
@@ -255,12 +263,14 @@ class Workflow:
         wf.name = workflow["name"]
         if "description" in workflow:
             wf.description = workflow["description"]
+        if "options" in workflow:
+            wf.options = workflow["options"]
 
         wf.handler = handler
         wf.entry = EntryTask(wf)
 
         # Entries are a bit special
-        for entry in workflow["modules"]:
+        for entry in workflow["nodes"]:
             task = make_task(wf, entry)
             load_children([task], entry)
 
@@ -323,16 +333,19 @@ class Workflow:
                                 (node.module, node.name))
 
             if self.entry in node._upstreams:
-                if "Input" not in node.provides:
-                    raise Exception("Non-input node as parent of entry")
                 if not callable(getattr(loaded_modules[node.module], 'start', None)):
                     raise Exception("Input node must have a runnable 'start' method")
+                node.is_input = True
 
             for dependency in node.depends:
+                found = False
                 for parent in node._upstreams:
-                    if dependency not in parent.provides:
-                        raise Exception("%s (%s) requires %s but it is not provided" %
-                                        (node.name, node.module, dependency))
+                    if dependency in parent.provides:
+                        found = True
+                        break
+                if not found:
+                    raise Exception("%s (%s) requires %s but it is not provided by parents" %
+                                    (node.name, node.module, dependency), [n.name for n in node._upstreams])
 
             # Validate arguments
             for arg in node.args:
@@ -347,8 +360,13 @@ class Workflow:
                                     found = True
                                     break
                             if not found:
-                                raise Exception("Parent doesn't provide  '%s' for task %s (%s)" %
-                                                (param, node.module, node.name))
+                                # Do we have a default?
+                                if "default" not in val:
+                                    raise Exception("Parent doesn't provide  '%s' for task %s (%s)" %
+                                                    (param, node.module, node.name))
+                                else:
+                                    retval.append("WARNING: Parent doesn't provide  '%s' for task %s (%s)" %
+                                                  (param, node.module, node.name))
                         elif name not in self.nodes:
                             raise Exception("Missing name '%s' for task %s (%s)" %
                                             (name, node.module, node.name))
@@ -366,17 +384,37 @@ class Workflow:
                             raise Exception("Config parameter needed but no config defined (%s of %s %s)" %
                                             (arg, node.name, node.module))
 
+                    if "stat" in val:
+                        name, param = val["stat"].split(".")
+                        if name != "parent" and name not in self.nodes:
+                            raise Exception("Stat require for %s, but it's not known %s (%s)" %
+                                            (name, node.module, node.name))
+
+                        # Is it a valid state entry?
+                        if param not in ["node", "worker", "priority", "runtime", "cpu_time", "max_memory"]:
+                            raise Exception("Unknow stat %s required %s (%s)" %
+                                            (param, node.module, node.name))
+
             # Check options
             for arg in node.args:
                 if arg not in node.inputs:
                     raise Exception("Unknown argument '%s' for %s (%s)" % (arg, node.module, node.name))
 
+            # We check ccnode if given
+            if node.ccnode:
+                if isinstance(node.ccnode, dict):
+                    if "config" in node.ccnode:
+                        if not node.config:
+                            raise Exception("ccnode is defined as config, but no config defined (%s %s)" %
+                                            (node.module, node.name))
+
             # Recursively validate children
-            recurseCheckNodes.append(node)
+            rn = recurseCheckNodes[:]
+            rn.append(node)
             for child in node._downstreams:
                 retval.extend(self.validate(child,
                               exceptionOnWarnings=exceptionOnWarnings,
-                              recurseCheckNodes=recurseCheckNodes))
+                              recurseCheckNodes=rn))
 
         return retval
 
@@ -409,18 +447,72 @@ class CryoCloudTask(Task):
 
     def resolve(self, pebble, result):
 
-        if "Input" in self.provides:
+        if self.is_input:
             self.resolve_input(pebble)
             return
 
-        pebble.resolved.append(self.name)
+        # pebble.resolved.append(self.name)
 
         # Create the CC job
+        # Any runtime info we need?
+        runtime_info = self._build_runtime_info(pebble)
         args = self._build_args(pebble)
-        self.workflow.handler._addTask(self, args, pebble)
+        self.workflow.handler._addTask(self, args, runtime_info, pebble)
+
+    def _build_runtime_info(self, pebble):
+        # Guess parent
+        if pebble:
+            parent = pebble.resolved[-2]
+        else:
+            parent = None
+
+        info = {}
+
+        def _get(thing):
+            retval = None
+            if (isinstance(thing, dict)):
+                if "default" in thing:
+                    retval = thing["default"]
+
+                if "stat" in thing:
+                    name, param = thing["stat"].split(".")
+                    if name == "parent":
+                        name = parent
+                    if name not in pebble.stats:
+                        raise Exception("Failed to build runtime config, need %s from unknown module %s. %s (%s)" %
+                                        (param, name, self.module, self.name))
+
+                    if param not in pebble.stats[name]:
+                        raise Exception("Failed to build runtime config, need %s from %s but it's unknown. %s (%s)" %
+                                        (param, name, self.module, self.name))
+
+                    retval = pebble.stats[name][param]
+
+                if "config" in thing:
+                    if not self.config:
+                        raise Exception("Failed to build runtime config - config is required but config root "
+                                        "defined for %s (%s)" % (self.module, self.name))
+                    v = self.config[thing["config"]]
+                    if v:
+                        retval = v
+            else:
+                retval = thing
+
+            return retval
+
+        info["node"] = _get(self.ccnode)
+        info["priority"] = self.priority
+
+        return info
 
     def _build_args(self, pebble):
-        # print("*** Building args for", self.name, self.args, pebble)
+        # Guess parent
+        if pebble:
+            parent = pebble.resolved[-2]
+        else:
+            parent = None
+        # print("*** Building args for", self.name, self.args, "parent:", parent)
+        # print("Pebble:\n", pebble)
         args = {}
         for arg in self.args:
             if (isinstance(self.args[arg], dict)):
@@ -439,19 +531,34 @@ class CryoCloudTask(Task):
                         args[arg] = v
                 elif "output" in self.args[arg]:
                     name, param = self.args[arg]["output"].split(".")
+                    if name == "parent":
+                        name = parent
                     if name in pebble.retval_dict:
                         if param in pebble.retval_dict[name]:
                             args[arg] = pebble.retval_dict[name][param]
-
+                elif "stat" in self.args[arg]:
+                    name, param = self.args[arg]["stat"].split(".")
+                    if name == "parent":
+                        name = parent
+                    if name in pebble.stats:
+                        if param in pebble.stats[name]:
+                            args[arg] = pebble.stats[name][param]
+                    if arg not in args:
+                        raise Exception("Require stat '%s' but no such stat was found for %s (%s), %s has %s" %
+                                        (arg, self.name, self.module, name, str(pebble.stats[name])))
             else:
                 args[arg] = self.args[arg]
+
+            if arg not in args:
+                raise Exception("Failed to resolve argument %s for %s (%s)" % (arg, self.name, self.module))
+
         return args
 
     def resolve_input(self, pebble):
         """
         retval is a dict that contains all return values so far [name] = {retvalname: value}
         """
-        if "Input" not in self.provides:
+        if not self.is_input:
             raise Exception("resolve_input called on non-input task")
 
         # print("Resolve", self.name, "options:", "pebble:", pebble)
@@ -511,6 +618,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         # Generate a Pebble to represent this piece of work
         pebble = Pebble()
+        pebble.resolved.append(task["caller"])
         self._pebbles[pebble.gid] = pebble
 
         # The return value must be created here now
@@ -522,7 +630,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         # We can now resolve this caller with the correct info
         caller.on_completed(pebble, "success")
 
-    def _addTask(self, node, args, pebble):
+    def _addTask(self, node, args, runtime_info, pebble):
         if node.taskid not in self._levels:
             self._levels.append(node.taskid)
 
@@ -541,7 +649,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         else:
             jobt = self.head.TASK_STRING_TO_NUM[node.type]
             self.head.add_job(lvl, None, args, module=node.module, jobtype=jobt,
-                              itemid=pebble.gid, workdir=node.dir, priority=node.priority)
+                              itemid=pebble.gid, workdir=node.dir, priority=runtime_info["priority"],
+                              node=runtime_info["node"])
 
     def onCompleted(self, task):
 
@@ -555,8 +664,19 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             return
 
         pebble = self._pebbles[task["itemid"]]
+        pebble.stats[pebble.current.name] = {
+            "node": task["node"],
+            "worker": task["worker"],
+            "priority": task["priority"]
+        }
+        for i in ["runtime", "cpu_time", "max_memory"]:
+            if i in task:
+                pebble.stats[pebble.current.name][i] = task[i]
         pebble.retval_dict[pebble.current.name] = task["retval"]
-        pebble.current.on_completed(pebble, "success")
+        try:
+            pebble.current.on_completed(pebble, "success")
+        except:
+            self.log.exception("Exception notifying success")
 
     def onError(self, task):
 
@@ -627,29 +747,55 @@ if __name__ == "__main__":
     description = "CryoCloud Workflow head"
 
     if len(sys.argv) > 1 and os.path.exists(sys.argv[1]):
+        print("Loading workflow from", sys.argv[1])
         # We load the handler and create a head here - this way we can get argparser options in too
         # Need to get the workflow...
         workflow = Workflow.load_file(sys.argv[1])
         if workflow.description:
             description = workflow.description
+        name = workflow.name
     else:
         workflow = None
+        name = ""
 
     parser = ArgumentParser(description=description)
     parser.add_argument("--reset-counters", action="store_true", dest="reset",
                         default=False,
                         help="Reset status parameters")
+    parser.add_argument("--name", dest="name",
+                        default=name,
+                        help="Name of this workflow")
+    parser.add_argument("-v", "--version", dest="version",
+                        default="default",
+                        help="Config version to use on")
+
+    def d(n, o):
+        if n in o:
+            return o[n]
+        else:
+            return None
+
+    # Add stuff arguments from workflow if any
+    for o in workflow.options:
+        default = d("default", workflow.options[o])
+        _help = d("help", workflow.options[o])
+        _type = d("type", workflow.options[o])
+        if _type == "bool":
+            parser.add_argument("--" + o, default=default, help=_help, action="store_true")
+        else:
+            parser.add_argument("--" + o, default=default, help=_help)
 
     if "argcomplete" in sys.modules:
         argcomplete.autocomplete(parser)
 
-    options = parser.parse_args()
+    options = parser.parse_args(sys.argv[2:])
 
     if not workflow:
         parser.print_help()
         raise SystemExit(1)
 
     # Create handler
+    print("Creating handler")
     handler = WorkflowHandler(workflow)
 
     try:

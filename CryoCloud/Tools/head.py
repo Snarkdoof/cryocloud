@@ -31,8 +31,6 @@ API.cc_default_expire_time = 24 * 86400  # Default log & status only 1 days
 def load(modulename):
     if modulename not in modules:
         if sys.version_info.major in [2, 3]:
-            # f = open(modulename)
-            # modules[modulename] = imp.load_module(modulename, f, modulename, (".py", "U", 1))  # info[0], info[1], info[2])
             info = imp.find_module(modulename)
             modules[modulename] = imp.load_module(modulename, info[0], info[1], info[2])
         else:
@@ -55,10 +53,17 @@ class HeadNode(threading.Thread):
         self.options = options
         self.neverfail = neverfail
         self.status["state"] = "Initializing"
-        self.status["total_steps"] = self.options.steps
-        # self.status["step"] = 0
-        self.log.debug("Created %s to perform %d steps of %d tasks using" %
-                       (self.name, self.options.steps, self.options.tasks))
+        if "steps" in self.options:
+            self.status["total_steps"] = self.options.steps
+            # self.status["step"] = 0
+            self.log.debug("Created %s to perform %d steps of %d tasks using" %
+                           (self.name, self.options.steps, self.options.tasks))
+        else:
+            self.options.steps = 0
+        if "module" not in self.options:
+            self.options.module = ""
+        if "max_task_time" not in self.options:
+            self.options.max_task_time = None
 
         # Load the handler
         if not callable(getattr(handler, 'Handler', None)):
@@ -134,7 +139,8 @@ class HeadNode(threading.Thread):
                 node=None, expire_time=None, module=None, modulepath=None, workdir=None, itemid=None):
         if expire_time is None:
             expire_time = self.options.max_task_time
-        tid = self._jobdb.add_job(step, taskid, args, expire_time=expire_time, module=module, node=node, priority=priority,
+        tid = self._jobdb.add_job(step, taskid, args, expire_time=expire_time, module=module, node=node,
+                                  priority=priority,
                                   modulepath=modulepath, workdir=workdir, jobtype=jobtype, itemid=itemid)
         self._pending.append(tid)
         # if self.options.steps > 0 and self.options.tasks > 0:
@@ -149,7 +155,8 @@ class HeadNode(threading.Thread):
             expire_time = expire_time = job["expire_time"]
         self._jobdb.remove_job(job["id"])
         self.add_job(job["step"], job["taskid"], job["args"], jobtype=job["type"],
-                     priority=job["priority"], node=node, expire_time=expire_time, module=job["module"], itemid=job["itemid"])
+                     priority=job["priority"], node=node, expire_time=expire_time,
+                     module=job["module"], itemid=job["itemid"])
 
     def remove_job(self, job):
         if job.__class__ == int:
@@ -231,7 +238,8 @@ class HeadNode(threading.Thread):
                                 self._pending.remove(job["taskid"])
                                 self.handler.onAllocated(job)
 
-                            # We don't fetch job stats at this point - we'll do it asynchronously to not block processing
+                            # We don't fetch job stats at this point - we'll do it asynchronously
+                            # to not block processing
                             # stats = self._jobdb.get_jobstats()
                             # print("STATS", stats)
                             # if self.step in stats:
@@ -359,7 +367,8 @@ if __name__ == "__main__":
 
     if "-f" not in supress and "--force" not in supress:
         parser.add_argument("-f", "--force", action="store_true", dest="force", default=False,
-                            help="Force re-processing of all products even if they have been successfully processed before")
+                            help="Force re-processing of all products even if they have been "
+                                 "successfully processed before")
 
     if "-t" not in supress and "--tempdir" not in supress:
         parser.add_argument("-t", "--tempdir", dest="temp_dir",
@@ -434,11 +443,6 @@ if __name__ == "__main__":
     if options.name == "":
         import socket
         options.name = socket.gethostname()
-
-    try:
-        options.module
-    except:
-        options.module = ""
 
     import signal
 

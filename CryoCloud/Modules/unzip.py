@@ -7,7 +7,7 @@ import tempfile
 
 ccmodule = {
     "description": "Unpack various files, zip tar, tgz",
-    "depends": ["Input"],
+    "depends": ["Product"],
     "provides": ["Product"],
     "inputs": {
         "src": "Full path to input file",

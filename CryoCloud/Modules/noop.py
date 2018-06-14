@@ -36,7 +36,7 @@ def process_task(self, task):
     while not self._stop_event.is_set() and progress < 100:
 
         if "time" in task["args"]:
-            t = task["args"]["time"] / 5.0
+            t = float(task["args"]["time"]) / 5.0
         else:
             t = 0.5
         # if random.random() > 0.99:

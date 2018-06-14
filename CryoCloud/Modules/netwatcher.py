@@ -6,7 +6,7 @@ import tempfile
 ccmodule = {
     "description": "Listen to a port for new processing jobs",
     "depends": [],
-    "provides": ["Input"],
+    "provides": ["Product"],
     "job_type": "permanent",
     "inputs": {
         "port": "Full path to watch",
