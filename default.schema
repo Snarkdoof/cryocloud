@@ -1,0 +1,36 @@
+{
+        "type": "object",
+        "properties": {
+            "product": {"type": "string"},
+            "configOverride": {
+                "type": "object",
+                "properties": {
+                    "land_thres": {
+                        "type": "number"
+                    },
+                    "size_ships": {
+                        "type": "number"
+                    },
+                    "pixelsize": {
+                        "type": "array",
+                        "items": {
+                            "type": "number"
+                        }
+                    },
+                    "multilook_factor": {
+                        "type": "number"
+                    },
+                    "maxblock": {
+                        "type": "number"
+                    },
+                    "append": {
+                        "type": "string"
+                    },
+                    "do_shipdetection": {
+                        "type": "number"
+                    }
+                }
+            }
+        },
+        "required": ["product"]
+    }

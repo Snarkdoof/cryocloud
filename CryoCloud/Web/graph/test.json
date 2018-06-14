@@ -1,5 +1,5 @@
 
-{
+var wf = {
   "options": {
     "config_file": {"default": "config.cfg", "help": "Path to config file"},
     "schema_file": {"default": "netposter.schema", "help": "Schema for netposter"}
