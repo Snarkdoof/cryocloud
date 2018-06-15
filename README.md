@@ -1,6 +1,6 @@
 
 
-## Simple overview:
+## CryoCloud Workflows
 
 CryoCloud provides a graph workflow abstraction where a graph can be defined
 in JSON. A workflow describes how processing is performed, and input nodes
@@ -80,6 +80,8 @@ Requires "name" and "description", and must have some modules. The "entry" point
   "runOn": "success/error/timeout/always/never" - when resolved, the parent either succeeded, failed or timed out. Limit when this module runs (can be set default by module)
 
   "resolveOnAny": "Resolve when ALL parents have completed (default) or when ANY parent has completed",
+  
+  "type": "normal/admin" - type of CryoCloud worker that should take this job
 
   "ccnode": "If given, run on the given CryoCloud processing node - or use runtime stats (stat) or config, typically {"stat": "parent.node"}
 
@@ -88,12 +90,11 @@ Requires "name" and "description", and must have some modules. The "entry" point
   "children" [module definitions] - Inline definition of children - same as giving this module a name and set "downstreamOf" to this modules name
 
   "args": {argument definition} - How to resolve input arguments for this module (see below)
-}
 
 
 ### Argument definition:
 
-"args": {argumentname: value} where value can be one of:
+"args": {argumentname: value} where argument is the name of the input argument, value can be one of:
 
   * a string - is delivered as is, example {"ignoreerrors": "true"}
   * Output: another module's return value: {"output": "modulename.returnvaluename"}, e.g.: {"src": {"output": "MyInput.product"}} to use the "product" return value from the "MyInput" module as "src" input argument
@@ -107,3 +108,46 @@ Requires "name" and "description", and must have some modules. The "entry" point
      The output "/tempdisk/foo/bar" would in this case be rewritten to "http://[ip of node that executed the parent]/tempdisk/foo/bar"
 
 
+## Writing a CryoCloud module
+
+When writing a CryoCloud module, a ccmodule definition must be written in your
+file. It should provide both documentation of the module and describe the
+inputs, outputs, processing defaults and inform about which status parameters
+it makes available. This both allows others to use your module more easily and
+it allows CryoCloud to check graphs for inconsistencies.
+
+* Depends: [list of strings] - This module must be connected to parents that provide all items in the list
+* Provides: [list of strings] - This module provides all these items (convention should be used for which strings)
+* inputs: {} - The input arguments of this module in the form "argname": "human readable description"
+* outputs: {} - The output arguments of this module - the return value should be a map with these keys and values. Format is "argname":"human readable description"
+* defaults: {} - Processing defaults. Can be ["priority", "runOn", "resolveOnAny", "type"],
+* status: {} - CryoCloud status parameters provided in the form "name": "human readable description". 
+
+#### Example
+```
+ccmodule = {
+    "description": "Create SAR Wind based on a product from L1 GRD",
+    "depends": ["Product"],
+    "provides": ["SarWind"],
+    "inputs": {
+        "src": "Product",
+        "configOverride": "Override of configuration parameters (as a map)",
+        "program": "IDL Program to run",
+        "configFile": "Config file for IDL program"
+    },
+    "outputs": {
+        "product": "The productID of the processed product",
+        "datafile": "The datafile used for processing",
+        "result": "'ok' or 'error: ...'",
+        "dst": "Destination path of the resulting wind output"
+    },
+    "defaults": {
+        "priority": 50,  # Normal
+        "runOn": "success"
+    },
+    "status": {
+        "progress": "Progress 0-100%",
+        "state": "Current state of processing"
+    }
+}
+```
