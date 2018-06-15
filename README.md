@@ -1,32 +1,38 @@
 
 
-Simple overview:
+## Simple overview:
 
-  * Workflow is a graph describing a workflow. When processing is done, "pebbles" is created by 
-    input modules (e.g. dirwatchers), and these are then passed through the graph.
+CryoCloud provides a graph workflow abstraction where a graph can be defined
+in JSON. A workflow describes how processing is performed, and input nodes
+generate "pebbles" of information that "trickles" through the graph. As such,
+a single job (for example a satellite product) is discovered, the
+corresponding pebble is generated and passed through the graph. Multiple
+pebbles can be run through a graph at the same time, and these are kept fully
+separated.
 
-  * Nodes: Define nodes for the graph. Edges are defined using "downstreamOf"
 
-  * Edges: downstreamOf specifies which nodes are parents of a given node. This can be done
-    implicitly by defining nodes as "children" instead of as separate nodes.
+### Key concepts
 
-  * args: Argument mapping to the input arguments of a node. These can be strings, config, output
-    from other nodes in the graph, or options given on the command line. This is where a lot of the
-    funky stuff happens, as one can map for example the output filename of one module to the input
-    of another etc.
+* Workflow is a graph describing a workflow. When "executing" a workflow, a "pebbles" is created by input modules (e.g. dirwatchers), and these are then passed through the graph.
 
-  * options: A workflow can define options - these will become available as commandline parameters
-    for ccworkflow
+* Nodes: Define nodes for the graph. Edges are defined using "downstreamOf"
 
-  * Special argument options: 
-     * "default": set default value if the given one can't be resolved
-    *  "type": "file" - if the file is remote it will be copied, if it's compressed it will be 
-       uncompressed
+* Edges: downstreamOf specifies which nodes are parents of a given node. This can be done implicitly by defining nodes as "children" instead of as separate nodes.
+
+* args: Argument mapping to the input arguments of a node. These can be strings, config, output from other nodes in the graph, or options given on the command line. This is where a lot of the funky stuff happens, as one can map for example the output filename of one module to the input of another etc.
+
+* options: A workflow can define options - these will become available as commandline parameters for ccworkflow
+
+* Special argument options: 
+  * "default": set default value if the given one can't be resolved
+  *  "type": "file" - if the file is remote it will be copied, if it's compressed it will be uncompressed
+
+
+### Workflow definition file (JSON)
 
 Workflow definitions must be contained within { "workflow": {<put it here>}}
 
-Requires "name" and "description", and must have some modules. The "entry"
-point is implicitily defined.
+Requires "name" and "description", and must have some modules. The "entry" point is implicitily defined.
 
 
 ```
@@ -64,7 +70,7 @@ point is implicitily defined.
 }
 ```
 
-Module definition:
+### Module definition:
   "module": "NAME OF MODULE" - this needs a ccmodule definition in the file (look below on "writing CryoCloud modules")
 
   "name": "Unique name for this workflow" - Use for readability and to get access to return values for later modules
@@ -85,7 +91,7 @@ Module definition:
 }
 
 
-Argument definition:
+### Argument definition:
 
 "args": {argumentname: value} where value can be one of:
 
