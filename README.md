@@ -65,15 +65,22 @@ point is implicitily defined.
 ```
 
 Module definition:
-{
   "module": "NAME OF MODULE" - this needs a ccmodule definition in the file (look below on "writing CryoCloud modules")
+
   "name": "Unique name for this workflow" - Use for readability and to get access to return values for later modules
+
   "config": "The config root for any configs used in this definition (only needed if 'config' is used in arguments)
+
   "runOn": "success/error/timeout/always/never" - when resolved, the parent either succeeded, failed or timed out. Limit when this module runs (can be set default by module)
+
   "resolveOnAny": "Resolve when ALL parents have completed (default) or when ANY parent has completed",
+
   "ccnode": "If given, run on the given CryoCloud processing node - or use runtime stats (stat) or config, typically {"stat": "parent.node"}
+
   "downstreamOf": [parent1, parent2] - These are the edges of the graph, this module processes AFTER some other node. Refers to the unique name
+
   "children" [module definitions] - Inline definition of children - same as giving this module a name and set "downstreamOf" to this modules name
+
   "args": {argument definition} - How to resolve input arguments for this module (see below)
 }
 
