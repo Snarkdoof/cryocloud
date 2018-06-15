@@ -151,3 +151,46 @@ ccmodule = {
     }
 }
 ```
+
+The module must also contain the method "process_task", where cancel_event is
+optional. Cancel_event will be set if the job should be aborted, so if your
+module has a loop, use `while cancel_event.isSet():` rather than `while True`.
+
+Following is an example for simple processing wind using IDL
+
+```
+def process_task(worker, task, cancel_event=None):
+    args = task["args"]
+    if "src" not in args:
+        raise Exception("Can't create wind without data (src argument missing)")
+
+    if "program" not in args:
+        raise Exception("Need a program to run (program argument missing)")
+
+    if "configFile" not in args:
+        raise Exception("Need config file")
+
+    retval = {
+        "datafile": datafile,
+        "product": _get_product(os.path.split(datafile)[1])
+    }
+
+    if "configOverride" in args:
+        idlcmd = os.path.basename(args["program"][:-4] + ", '%s', '%s', configoverride = '%s'" %
+                                  (datafile, args["configFile"], args["configOverride"]))
+    else:
+        idlcmd = os.path.basename(args["program"])[:-4] + ", '%s', '%s'" % (datafile, args["configFile"])
+
+    cmd = ["-IDL_STARTUP", "' '", "-IDL_PATH", "'<IDL_DEFAULT>'", "-e", idlcmd]
+
+    task["args"]["fullPath"] = datafile
+    task["args"]["cmd"] = cmd
+
+    p, ret = idl.process_task(worker, task, cancel_event=cancel_event)
+    for r in ret:
+        retval[r] = ret[r]
+
+    return p, ret
+
+
+```
