@@ -8,6 +8,7 @@ import time
 import socket
 import os
 from argparse import ArgumentParser
+import tempfile
 try:
     import argcomplete
 except:
@@ -21,7 +22,7 @@ except:
 
 
 from CryoCore import API
-from CryoCloud.Common import jobdb
+from CryoCloud.Common import jobdb, fileprep
 
 import multiprocessing
 
@@ -92,6 +93,7 @@ class Worker(multiprocessing.Process):
         self.module = None
         self.log = None
         self.status = None
+        self.cfg = None
         self.inqueue = None
         self._is_ready = False
         self._type = type
@@ -161,6 +163,9 @@ class Worker(multiprocessing.Process):
         self.status = API.get_status(self.wid)
         self._jobdb = jobdb.JobDB(None, None)
         self.status["state"].set_expire_time(600)
+        self.cfg = API.get_config("CryoCloud.Worker")
+        self.cfg.set_default("datadir", tempfile.gettempdir())
+
         last_reported = 0  # We force periodic updates of state as we might be idle for a long time
         while not self._stop_event.is_set():
             try:
@@ -240,13 +245,33 @@ class Worker(multiprocessing.Process):
         return progress, None
 
     def _process_task(self, task):
-        self.status["state"] = "Processing"
         # taskid = "%s.%s-%s_%d" % (task["runname"], self._worker_type, socket.gethostname(), self.workernum)
         # print(taskid, "Processing", task)
 
         # Report that I'm on it
         start_time = time.time()
+        fprep = None
+        for arg in task["args"]:
+            if isinstance(task["args"][arg], str):
+                if task["args"][arg].find("://") > -1:
+                    t = task["args"][arg].split(" ")
+                    if "copy" in t or "unzip" in t:
+                        try:
+                            self.status["state"] = "Preparing files"
+                            if not fprep:
+                                fprep = fileprep.FilePrepare(self.cfg["datadir"])
 
+                            # We take one by one to re-map files with local, unzipped ones
+                            ret = fprep.fix([task["args"][arg]])
+                            task["args"][arg] = ret["fileList"][0]
+                        except Exception as e:
+                            print("DEBUG: I got in trouble preparing stuff", e)
+                            self.log.exception("Preparing %s" % task["args"][arg])
+                            raise Exception("Preparing files failed: %s" % e)
+        if fprep:
+            task["prepare_time"] = time.time() - start_time
+
+        self.status["state"] = "Processing"
         self.log.debug("Processing job %s" % str(task))
         self.status["progress"] = 0
 

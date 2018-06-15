@@ -546,6 +546,20 @@ class CryoCloudTask(Task):
                     if arg not in args:
                         raise Exception("Require stat '%s' but no such stat was found for %s (%s), %s has %s" %
                                         (arg, self.name, self.module, name, str(pebble.stats[name])))
+                # Is this a file? If so, we should tag along a prepare statement
+                if "type" in self.args[arg] and self.args[arg]["type"] == "file":
+                    if "proto" in self.args[arg]:
+                        p = self.args[arg]["proto"] + "://"
+                    else:
+                        p = "ssh://"
+                    p += pebble.stats[parent]["node"] + args[arg]
+                    if "unzip" in self.args[arg] and self.args[arg]["unzip"].lower() == "true":
+                        p += " unzip"
+                    if "copy" in self.args[arg] and self.args[arg]["copy"].lower() == "false":
+                        pass
+                    else:
+                        p += " copy"
+                    args[arg] = p
             else:
                 args[arg] = self.args[arg]
 
@@ -619,6 +633,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         # Generate a Pebble to represent this piece of work
         pebble = Pebble()
         pebble.resolved.append(task["caller"])
+        pebble.stats[task["caller"]] = {"node": self.head.options.ip}
         self._pebbles[pebble.gid] = pebble
 
         # The return value must be created here now
@@ -692,6 +707,14 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         pebble = self._pebbles[task["itemid"]]
         # Add the results
         pebble.retval_dict[pebble.current.name] = task["retval"]
+        pebble.stats[pebble.current.name] = {
+            "node": task["node"],
+            "worker": task["worker"],
+            "priority": task["priority"]
+        }
+        for i in ["runtime", "cpu_time", "max_memory"]:
+            if i in task:
+                pebble.stats[pebble.current.name][i] = task[i]
         pebble.current.on_completed(pebble, "error")
 
 
@@ -742,6 +765,26 @@ if 0:  # Make unittests of this graph stuff ASAP
 
     print("OK")
 
+
+def get_my_ip():
+    """
+    Guess my IP address (use as default value)
+    """
+    try:
+        from netifaces import interfaces, ifaddresses, AF_INET
+        for ifaceName in interfaces():
+            addresses = [i['addr'] for i in ifaddresses(ifaceName).setdefault(AF_INET, [{'addr': 'No IP addr'}])]
+            if "127.0.0.1" in addresses:
+                continue
+            if ifaceName.startswith("docker"):
+                continue
+            if ifaceName.startswith("tun"):
+                continue
+            return addresses[0]
+    except:
+        print("Warning: Can't find my ip address, is netifaces installed?")
+        return None
+
 if __name__ == "__main__":
 
     description = "CryoCloud Workflow head"
@@ -758,7 +801,12 @@ if __name__ == "__main__":
         workflow = None
         name = ""
 
+    my_ip = get_my_ip()
+
     parser = ArgumentParser(description=description)
+    parser.add_argument("--ip", dest="ip",
+                        default=my_ip,
+                        help="The IP of the head node (default: %s)" % my_ip)
     parser.add_argument("--reset-counters", action="store_true", dest="reset",
                         default=False,
                         help="Reset status parameters")
