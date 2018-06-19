@@ -7,6 +7,7 @@ import zipfile
 import shutil
 from urllib.parse import urlparse
 import requests
+import shutil
 
 
 class FilePrepare:
@@ -34,14 +35,28 @@ class FilePrepare:
                 total += entry.stat(follow_symlinks=False).st_size
         return total
 
+    def _get_filelist(self, dir):
+        retval = []
+        for fn in os.listdir(dir):
+            if fn.startswith("."):
+                continue
+            retval.append(os.path.join(dir, fn))
+        return retval
+
     def _uncompress(self, s, keep=True):
         if not os.path.exists(s):
             raise Exception("Missing zip file '%s'" % s)
 
+        retval = []
+
         # We create a directory with the same name, but without extension
         dst = os.path.splitext(s)[0]
-        os.mkdir(dst)
-        retval = []
+        if os.path.exists(dst):
+            self.log.warning("Destination '%s' exists for uncompress, we assume it's done already")
+            retval = self._get_filelist(dst)
+
+        # We unzip into a temporary directory, then rename it (in case of parallel jobs)
+        decomp = tempfile.mkdtemp(dir=os.path.split(s)[0], prefix="cctmp_")
         done = 0
 
         try:
@@ -67,15 +82,29 @@ class FilePrepare:
                     parent = os.path.join(dst, name[:name.find("/")])
                     if parent not in retval:
                         retval.append(parent)
-            f.extractall(dst)
+            f.extractall(decomp)
             done += 1
         except Exception as e:
             retval["errors"] += "%s: %s\n" % (s, e)
             self.log.exception("Unzip of %s failed" % s)
-            shutil.rmtree(dst)
+            shutil.rmtree(decomp)
+
+        # We now rename the temporary directory to the destination name
+        try:
+            os.rename(decomp, dst)
+        except:
+            self.log.warning("Tried to rename temprary unzip of %s to %s but failed - "
+                             "I guess someone else did it for us" % (s, dst))
+
+            # TODO: Ensure that all files are here?
+            shutil.rmtree(decomp)
 
         if not keep:
-            os.remove(s)
+            try:
+                os.remove(s)
+            except:
+                pass  # We guess deleted already
+
         return retval
 
     def fix(self, urls):
@@ -108,12 +137,8 @@ class FilePrepare:
                 # Do we have this one decompressed already?
                 decomp = self.root + os.path.splitext(file)[0]
                 if os.path.isdir(decomp):
-                    # Is this correct or should we just do the directory?
-                    for fn in os.listdir(decomp):
-                        if fn.startswith("."):
-                            continue
-                        fileList.append(os.path.join(decomp, fn))
-                        total_size += self.get_tree_size(decomp)
+                    fileList.extend(self._get_filelist(decomp))
+                    total_size += self.get_tree_size(decomp)
                     continue
 
             local_file = self.root + file
@@ -153,6 +178,38 @@ class FilePrepare:
 
         return {"fileList": fileList, "size": total_size}
 
+    def cleanup(self, urls):
+        """
+        Remove file(s) if they are locally avilable (also any unpacked files)
+        """
+        removed = []
+        for url in urls:
+            if url.find(" ") > -1:
+                sp = url.split(" ")
+                url = sp[0]
+
+            u = urlparse(url)
+            file = u.path
+            compressed = self._is_compressed(file)
+            print("File", file, compressed)
+
+            if file[0] != "/":
+                raise Exception("Need full paths, got relative path %s" % file)
+
+            if compressed:
+                # Do we have this one decompressed already?
+                decomp = self.root + os.path.splitext(file)[0]
+                if os.path.isdir(decomp):
+                    # We have this directory - DELETE IT
+                    shutil.rmtree(decomp)
+                    removed.append(decomp)
+
+            local_file = self.root + file
+            if os.path.exists(local_file):
+                os.remove(local_file)
+                removed.append(local_file)
+        return removed
+
     def copy_scp(self, host, filename, target_dir):
 
         f, dst = tempfile.mkstemp(dir=target_dir, prefix=".cc")
@@ -182,10 +239,31 @@ if __name__ == "__main__":
     """
     try:
 
+        if 1:
+            import threading
+            def entry():
+                f = FilePrepare(root="/tmp/node2")
+                files = f.fix(['ssh://193.156.106.218/tmp/inputdir/S1A_S4_GRDH_1SDV_20171030T193624_20171030T193653_019046_020362_04FE.SAFE.zip unzip copy'])
+                print("Prepared files", files)
+
+            t1 = threading.Thread(target=entry)
+            t1.start()
+            t2 = threading.Thread(target=entry)
+            t2.start()
+            t1.join()
+            t2.join()
+            print("Cleanup")
+            f = FilePrepare(root="/tmp/node2")
+            files = f.cleanup(['ssh://193.156.106.218/tmp/inputdir/S1A_S4_GRDH_1SDV_20171030T193624_20171030T193653_019046_020362_04FE.SAFE.zip unzip copy'])
+            print("Cleaned up files", files)
+            raise SystemExit(0)
+
         f = FilePrepare(root="/tmp/node2")
         files = f.fix(['ssh://193.156.106.218/tmp/inputdir/S1A_S4_GRDH_1SDV_20171030T193624_20171030T193653_019046_020362_04FE.SAFE.zip unzip copy'])
         #files = f.fix(["ssh://almar3.itek.norut.no/homes/njaal/foo.bar copy unzip",
         #                 "ssh://almar3.itek.norut.no/homes/njaal/RS2_20180125_044759_0008_F23_HH_SGF_613800_3232_17771915.zip copy unzip"])
         print("Prepared files", files)
+        # files = f.cleanup(['ssh://193.156.106.218/tmp/inputdir/S1A_S4_GRDH_1SDV_20171030T193624_20171030T193653_019046_020362_04FE.SAFE.zip unzip copy'])
+        # print("Cleaned up", files)
     finally:
         API.shutdown()

@@ -263,7 +263,10 @@ class Worker(multiprocessing.Process):
 
                             # We take one by one to re-map files with local, unzipped ones
                             ret = fprep.fix([task["args"][arg]])
-                            task["args"][arg] = ret["fileList"][0]
+                            if len(ret["fileList"]) == 1:
+                                task["args"][arg] = ret["fileList"][0]
+                            else:
+                                task["args"][arg] = ret["fileList"]
                         except Exception as e:
                             print("DEBUG: I got in trouble preparing stuff", e)
                             self.log.exception("Preparing %s" % task["args"][arg])

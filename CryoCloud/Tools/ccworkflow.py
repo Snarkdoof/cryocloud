@@ -36,6 +36,7 @@ class Pebble:
         self.stats = {}
         self.completed = []
         self.current = None
+        self._multinode = []
 
     def __str__(self):
         return "[Pebble %s]: %s, %s" % (self.gid, self.resolved, self.retval_dict)
@@ -65,7 +66,7 @@ class Task:
         self.parents = []
         self.dir = None  # Directory for execution
         self.is_input = False
-        self.ccnode = None
+        self.ccnode = []
 
     def __str__(self):
         return "[%s (%s), %s, %s]: priority %d, args: %s\n" %\
@@ -87,9 +88,9 @@ class Task:
         if pebble:
             pebble.completed.append(self.name)
         for child in self._downstreams:
-            child._completed(pebble, result)
+            child._completed(pebble, result, self)
 
-    def _completed(self, pebble, result):
+    def _completed(self, pebble, result, parent):
         """
         An upstream node has completed, check if we have been resolved
         """
@@ -106,14 +107,14 @@ class Task:
 
         # Should we run at all?
         if (self.runOn == "always" or self.runOn == result):
-            self.resolve(pebble, result)
+            self.resolve(pebble, result, parent)
         # else:
             # print("Resolved but not running, should only do %s, this was %s" %
             #      (self.runOn, result))
             # Should likely say that this step is either done or not going to happen -
             # just for viewing statistics
 
-    def resolve(self, pebble, result):
+    def resolve(self, pebble, result, caller):
         raise Exception("NOT IMPLEMENTED", pebble, result)
 
     # Some nice functions to do estimates etc
@@ -433,19 +434,19 @@ class EntryTask(Task):
         Task.__init__(self, workflow)
         self.name = "Entry"
 
-    def resolve(self, pebble=None, result=None):
+    def resolve(self, pebble=None, result=None, caller=None):
         self.on_completed(None, "success")
 
 
 class TestTask(Task):
-    def resolve(self, pebble, result):
+    def resolve(self, pebble, result, caller=None):
         time.sleep(10)
         self.on_completed(pebble, "success")
 
 
 class CryoCloudTask(Task):
 
-    def resolve(self, pebble, result):
+    def resolve(self, pebble, result, caller):
 
         if self.is_input:
             self.resolve_input(pebble)
@@ -455,17 +456,36 @@ class CryoCloudTask(Task):
 
         # Create the CC job
         # Any runtime info we need?
-        runtime_info = self._build_runtime_info(pebble)
-        args = self._build_args(pebble)
+
+        # If we only run when all parents have completed and we have ccnode
+        # "parent", we need to run this task on ALL parent nodes if they are
+        # not all the same one
+        if caller and self.resolveOnAny is False and len(self.ccnode) > 1:
+
+            nodes = []
+            for n in self.ccnode:
+                ri = self._build_runtime_info(pebble, n)
+                if ri["node"] and ri["node"] not in nodes:
+                    nodes.append(ri["node"])
+
+            if len(nodes) > 1:
+                print("%s resolving all, but have multiple ccnodes, running on all %s" % (self.name, nodes))
+
+                for n in nodes:
+                    parent = self.workflow.nodes[n]
+
+                    # Parent is "caller"
+                    runtime_info = self._build_runtime_info(pebble, parent)
+                    args = self._build_args(pebble, parent)
+                    self.workflow.handler._addTask(self, args, runtime_info, pebble)
+                return
+
+        # Parent is "caller"
+        runtime_info = self._build_runtime_info(pebble, caller)
+        args = self._build_args(pebble, caller)
         self.workflow.handler._addTask(self, args, runtime_info, pebble)
 
-    def _build_runtime_info(self, pebble):
-        # Guess parent
-        if pebble:
-            parent = pebble.resolved[-2]
-        else:
-            parent = None
-
+    def _build_runtime_info(self, pebble, parent):
         info = {}
 
         def _get(thing):
@@ -501,17 +521,13 @@ class CryoCloudTask(Task):
             return retval
 
         info["node"] = _get(self.ccnode)
+        if info["node"] == []:
+            info["node"] = None
         info["priority"] = self.priority
 
         return info
 
-    def _build_args(self, pebble):
-        # Guess parent
-        if pebble:
-            parent = pebble.resolved[-2]
-        else:
-            parent = None
-        # print("*** Building args for", self.name, self.args, "parent:", parent)
+    def _build_args(self, pebble, parent):
         # print("Pebble:\n", pebble)
         args = {}
         for arg in self.args:
@@ -532,15 +548,29 @@ class CryoCloudTask(Task):
                 elif "output" in self.args[arg]:
                     name, param = self.args[arg]["output"].split(".")
                     if name == "parent":
-                        name = parent
-                    if name in pebble.retval_dict:
+                        if param in pebble.retval_dict[parent.name]:
+                            args[arg] = pebble.retval_dict[parent.name][param]
+                        if arg not in args:  # Check other parents for info
+                            print("%s not provided by calling parent (%s), checking all" % (param, parent.name))
+                            print(pebble.retval_dict)
+                            for p in self._upstreams:
+                                print("Checking", p)
+                                if p.name in pebble.retval_dict and param in pebble.retval_dict[p.name]:
+                                    args[arg] = pebble.retval_dict[p.name][param]
+                    elif name in pebble.retval_dict:
                         if param in pebble.retval_dict[name]:
                             args[arg] = pebble.retval_dict[name][param]
                 elif "stat" in self.args[arg]:
                     name, param = self.args[arg]["stat"].split(".")
                     if name == "parent":
-                        name = parent
-                    if name in pebble.stats:
+                        if param in pebble.retval_dict[parent.name]:
+                            args[arg] = pebble.retval_dict[parent.name]
+                        if arg not in args:
+                            # Check other parents for info
+                            for p in self._upstreams:
+                                if p.name in pebble.stats and param in pebble.stats[p.name]:
+                                    args[arg] = pebble.stats[p.name]
+                    elif name in pebble.stats:
                         if param in pebble.stats[name]:
                             args[arg] = pebble.stats[name][param]
                     if arg not in args:
@@ -552,7 +582,7 @@ class CryoCloudTask(Task):
                         p = self.args[arg]["proto"] + "://"
                     else:
                         p = "ssh://"
-                    p += pebble.stats[parent]["node"] + args[arg]
+                    p += pebble.stats[parent.name]["node"] + args[arg]
                     if "unzip" in self.args[arg] and self.args[arg]["unzip"].lower() == "true":
                         p += " unzip"
                     if "copy" in self.args[arg] and self.args[arg]["copy"].lower() == "false":
@@ -577,7 +607,7 @@ class CryoCloudTask(Task):
 
         # print("Resolve", self.name, "options:", "pebble:", pebble)
 
-        args = self._build_args(pebble)
+        args = self._build_args(pebble, None)
 
         # If we're the entry point, we'll have a start() method defined and should run
         # rather than start something new

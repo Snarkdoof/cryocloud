@@ -34,6 +34,7 @@ Workflow definitions must be contained within { "workflow": {<put it here>}}
 
 Requires "name" and "description", and must have some modules. The "entry" point is implicitily defined.
 
+The following workflow is a simple demonstration of 
 
 ```
 {
@@ -50,21 +51,34 @@ Requires "name" and "description", and must have some modules. The "entry" point
         }
       },
       {
-        "module": "noop",
-        "name": "FakePrepare",
+        "module": "wind",
+        "name": "Wind",
+        "config": "CryoniteOcean.Wave",
         "args": {
-          "time": "3"
+          "src": {"output": "parent.fullpath", "type": "file", "unzip": "true"},
+          "configOverride": "",
+          "program": "wind.sav",
+          "configFile": {"config": "ConfigFile"}
         },
         "downstreamOf": ["Input"]
       },
       {
-        "module": "noop",
-        "name": "FakeDoStuff",
-        "args": {
-          "time": {"stat": "parent.runtime"}
-        },
-        "downstreamOf": ["FakePrepare"]
+      "module": "KSAT_report",
+      "runOn": "success",
+      "downstreamOf": ["Wind"],
+      "args": {
+        "product": {
+          "output": "parent.product"
+        }
       }
+    }, {
+      "module": "remove",
+      "runOn": "always",
+      "downstreamOf": ["Wind"],
+      "args": {
+        "src": {"output": "Input.fullpath"}
+      }
+    }
     ]
   }
 }

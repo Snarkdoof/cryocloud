@@ -15,14 +15,35 @@
 </head>
 <body>
   <div id="container"></div>
-  <script src="cryonite_ocean.json"></script>
-  <!--<script src="test.json"></script>-->
+  <!--<script src="cryonite_ocean.json"></script>-->
+  <!--<script src="test2.json"></script>-->
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.js"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis-network.min.css" rel="stylesheet" type="text/css" />
 
 
   <script>
+
+    var XHR = (function() {
+      var api = {};
+
+      api.get = function(url, params, onResult, onError) {
+        var xhr = new XMLHttpRequest();
+        url += "?";
+        for (var i in params) {
+          url += i + "=" + params[i] + "&";
+        }
+        xhr.open("GET", url, true);
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState == 4) {
+            onResult(JSON.parse(xhr.response));
+          }
+          // TODO: if error, call onError
+        };
+        xhr.send();
+      };
+      return api;
+    })();
 
     // Default colors:
     // https://color.hailpixel.com/#
@@ -33,6 +54,7 @@
     var colors = {
       entry: "black",
       netwatcher: {background: palette[0], border: palette[1]},
+      permanent: {background: palette[0], border: palette[1]},
       remove: {background: palette[3], border: palette[1]},
       unzip: {background: palette[0], border: palette[2]},
       KSAT_report: {background: palette[2], border: palette[0]},
@@ -52,7 +74,6 @@
     var parse = function(modules, parent) {
       for (var idx in modules) {
         var m = modules[idx]
-        console.log("parent", parent);
         if (parent) {
           if (m.downstreamOf) {
             m.downstreamOf.append(parent);            
@@ -68,8 +89,8 @@
         level++;
         var name = m.name || m.module + n_nr;
         levels[name] = level;
-        n_nr++;
-        nodes.push({id: name, label: name + "\n(" + (m.runOn || "always") + ")", level: level, color: colors[m.module] || colors["default"], font: font});
+        n_nr++;        
+        nodes.push({id: name, label: name + "\n(" + (m.runOn || "always") + ")", level: level, color: colors[m.module] || colors[m.name.toLowerCase()] || colors["default"], font: font});
         // Add edges
         for (var eidx in m.downstreamOf) {
           edges.push({from: m.downstreamOf[eidx], to: name, arrows:'to'})
@@ -80,8 +101,12 @@
       }
     }
 
-    // We load the graph here
-    parse(wf.workflow.modules);
+    XHR.get("https://seer2.itek.norut.no/cryonite_ocean2.json", {}, function(wf) {
+      console.log("Loading graph", wf);
+      // We load the graph here
+      parse(wf.workflow.nodes);
+      update();
+    });
 
   // create a network
   var container = document.getElementById('container');
@@ -106,7 +131,7 @@
     physics: false
 };
 
-var options = {
+var foptions = {
   nodes: {borderWidth: 2},
   edges: {
     smooth: {

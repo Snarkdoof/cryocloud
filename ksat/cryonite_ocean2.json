@@ -7,60 +7,21 @@
     "name": "CryoniteOcean",
     "description": "CryoniteOcean SAR Wind and Wave package",
     "nodes": [{
-      "module": "netwatcher",
-      "name": "NetWatcher_GRD",
+      "module": "KSAT_netwatcher",
+      "name": "NetWatcher",
       "config": "Cryonite.NetWatcher",
       "args": {
         "port": {
           "config": "port",
           "default": 1209
-        },
-        "schema": {
-          "option": "schema"
         }
       },
       "downstreamOf": ["entry"]
     }, {
-      "module": "unzip",
-      "name": "Unzip",
-      "runOn": "success",
-      "config": "Cryonite",
-      "args": {
-        "src": {
-          "output": "parent.fullpath", "type": "file", "unzip": "true"
-        },
-        "tempDir": {
-          "config": "tempDir"
-        }
-      },
-      "downstreamOf": ["NetWatcher_GRD"],
-      "resolveOnAny": true,
-      "children": [{
-        "module": "remove",
-        "runOn": "never",
-        "args": {
-          "src": {
-            "output": "NetWatcher_GRD.fullpath"
-          },
-          "ignoreerrors": true
-        }
-      }]
-    }, {
-      "name": "Cleanup zip",
-      "module": "remove",
-      "runOn": "always",
-      "downstreamOf": [],
-      "args": {
-        "src": {
-          "output": "Unzip.destDir"
-        },
-        "recursive": true
-      }
-    }, {
       "module": "wind",
       "runOn": "success",
       "name": "Wind",
-      "downstreamOf": ["NetWatcher_GRD"],
+      "downstreamOf": ["NetWatcher"],
       "dir": "/home/njaal/git/CryoniteOcean/develop/",
       "args": {
         "src": {"output": "parent.fullpath", "type": "file", "unzip": "true"},
@@ -72,15 +33,22 @@
         "configFile": "wind.cfg"
       }
     }, {
+      "module": "sar_processor",
+      "runOn": "success",
+      "name": "SAR_Processor",
+      "downstreamOf": ["NetWatcher"],
+      "dir": "/home/njaal/git/CryoniteOcean/develop/",
+      "args": {
+        "src": {"output": "parent.l0fullpath", "type": "file", "unzip": "true"}
+      }
+    }, {
       "module": "wave",
       "runOn": "success",
       "name": "Wave",
-      "downstreamOf": ["NetWatcher_GRD"],
+      "downstreamOf": ["SAR_Processor"],
       "dir": "/home/njaal/git/CryoniteOcean/develop/",
       "args": {
-        "fileList": {
-          "output": "Unzip.fileList"
-        },
+        "src": {"output": "parent.dst", "type": "file", "unzip": "true"},
         "configOverride": {
           "output": "parent.configOverride",
           "default": ""
@@ -103,8 +71,16 @@
         "configFile": "wave.cfg"
       }
     }, {
+      "module": "remove",
+      "ccnode": {"stat": "parent.node"},
+      "downstreamOf": ["Wind", "WaveMerge"],
+      "args": {
+        "src": {"output": "NetWatcher.fullpath"}
+      }
+    }, {
       "module": "KSAT_report",
       "runOn": "success",
+      "resolveOnAny": "true",
       "downstreamOf": ["WaveMerge", "Wind"],
       "args": {
         "product": {
@@ -114,6 +90,7 @@
     }, {
       "module": "KSAT_report",
       "runOn": "error",
+      "resolveOnAny": "true",
       "downstreamOf": ["WaveMerge", "Wind"],
       "args": {
         "product": {

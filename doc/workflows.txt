@@ -63,7 +63,6 @@ point is implicitily defined.
 
 
 Module definition:
-
 {
   "module": "NAME OF MODULE" - this needs a ccmodule definition in the file (look below on "writing CryoCloud modules")
   "name": "Unique name for this workflow" - Use for readability and to get access to return values for later modules
@@ -86,5 +85,10 @@ Argument definition:
   * Config a config parameter, "blocksize": {"config": "blocksize"}. This requires "config" to be set in the module definition (e.g. "config": "Cryonite.Readers.Sentinel")
   * Stat: Runtime stats, possible stats for now are: "node", "worker", "priority", "runtime", "cpu_time", "max_memory". Difficult to see why you would use this for now.
 
+  * you can also specify that it's a file, allowing the worker to automatically copy/unzip etc. Example:
+     "args": {"src": {"output": "parent.dst", "type": "file", "proto": "http", unzip": "true", "copy": "true"}}
+
+     In this the "copy" is default true, proto is default "ssh" and unzip is default false 
+     The output "/tempdisk/foo/bar" would in this case be rewritten to "http://[ip of node that executed the parent]/tempdisk/foo/bar"
 
 
