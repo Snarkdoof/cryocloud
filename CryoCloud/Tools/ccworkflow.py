@@ -830,6 +830,9 @@ if __name__ == "__main__":
             description = workflow.description
         name = workflow.name
     else:
+        if len(sys.argv) == 1:
+            raise SystemExit("Need a workflow file as first argument")
+        raise SystemExit("Missing workflow file '%s'" % sys.argv[1])
         workflow = None
         name = ""
 
