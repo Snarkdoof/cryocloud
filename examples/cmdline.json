@@ -1,0 +1,23 @@
+{
+  "workflow": {
+    "options": {
+      "time": {"help": "Time to sleep", "default": 10}
+    },
+    "name": "CMDLineTest",
+    "description": "Testing command line options only",
+    "nodes": [
+    {
+      "module": "cmdline",
+      "name": "Start",
+      "downstreamOf": ["entry"]
+    }, {
+      "module": "noop",
+      "name": "Test",
+      "downstreamOf": ["Start"],
+      "args": {
+        "time": {"option": "time"}
+      }
+    }
+  ]
+  }
+}
