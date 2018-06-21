@@ -3,7 +3,7 @@ ccmodule = {
     "description": "Commandline input - doesn't run, anything but passes on options",
     "depends": [],
     "provides": ["Input"],
-    "job_type": "singlerun",
+    "input_type": "singlerun",
     "inputs": {
     },
     "outputs": {

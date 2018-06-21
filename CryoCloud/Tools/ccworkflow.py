@@ -25,6 +25,7 @@ import CryoCloud
 
 CC_DIR = os.getcwd()  # Allow ccdir to be an env variable?
 sys.path.append(os.path.join(CC_DIR, "CryoCloud/Modules/"))  # Add CC modules with full path
+sys.path.append("./CryoCloud/Modules/")  # Add CC modules with full path
 
 
 class Pebble:
@@ -39,6 +40,8 @@ class Pebble:
         self.stats = {}
         self.completed = []
         self.current = None
+        self._sub_pebbles = {}
+        self._stop_on = []
 
     def __str__(self):
         return "[Pebble %s]: %s, %s" % (self.gid, self.resolved, self.retval_dict)
@@ -110,6 +113,10 @@ class Task:
         # Should we run at all?
         if (self.runOn == "always" or self.runOn == result):
             self.resolve(pebble, result, parent)
+        else:
+            print("Resolved but we should not run for this pebble - just flag that we're done")
+            pebble._stop_on.append(self.name)
+            return
         # else:
             # print("Resolved but not running, should only do %s, this was %s" %
             #      (self.runOn, result))
@@ -118,6 +125,26 @@ class Task:
 
     def resolve(self, pebble, result, caller):
         raise Exception("NOT IMPLEMENTED", pebble, result)
+
+    def is_done(self, pebble):
+        """
+        Returns true iff the graph has completed for this pebble
+        """
+        # If I shouldn't run, this tree is complete
+        if self.name in pebble._stop_on:
+            return True  # Will not run further
+
+        # If I'm not done, just return now
+        if self.name != "Entry" and self.name not in pebble.retval_dict:
+            return False  # We've completed
+
+        # I'm done, what about my children?
+        for node in self._downstreams:
+            if not node.is_done(pebble):
+                return False  # Not done
+
+        # I'm done, and so are my children
+        return True
 
     # Some nice functions to do estimates etc
     def estimate_time_left(self, pebble):
@@ -130,14 +157,20 @@ class Task:
         # my_estimate = jobdb.estimate_time(self.module)
         step_time = 10
 
-        # TODO: Need to fetch my state to check if I've been running for a while
-        if self.name not in pebble.resolved:
-            step_time = 0
+        if self.name in pebble.retval_dict:
+            step_time = 0  # We're done
+        elif self.name in pebble.resolved:
+            # TODO: We've been resolved (might be running), but not completed. Estimate time
+            # step_time = 5
+            pass
 
         # Recursively check the time left
         subnodes = 0
         subnodes_parallel = 0
         for node in self._downstreams:
+            if node.name in pebble._stop_on:
+                continue  # These should not be run, no children will either
+
             times = node.estimate_time_left(pebble)
             subnodes += times["time_left"]
             subnodes_parallel = max(subnodes_parallel, times["time_left_parallel"])
@@ -204,6 +237,8 @@ class Workflow:
                 task.resolveOnAny = mod.ccmodule["defaults"]["resolveOnAny"]
             if "type" in mod.ccmodule["defaults"]:
                 task.type = mod.ccmodule["defaults"]["type"]
+            if "input_type" in mod.ccmodule and mod.ccmodule["input_type"] == "permanent":
+                wf._is_single_run = False
 
             task.depends = mod.ccmodule["depends"]
             task.provides = mod.ccmodule["provides"]
@@ -263,6 +298,7 @@ class Workflow:
             raise Exception("Missing name for workflow")
 
         wf = Workflow()
+        wf._is_single_run = True  # If we don't have any "permanent" inputs, we will stop
         wf.name = workflow["name"]
         if "description" in workflow:
             wf.description = workflow["description"]
@@ -337,7 +373,7 @@ class Workflow:
 
             if self.entry in node._upstreams:
                 if not callable(getattr(loaded_modules[node.module], 'start', None)):
-                    print ("Warning: Input node normally have a runnable 'start' method")
+                    print("Warning: Input node normally have a runnable 'start' method")
                 node.is_input = True
 
             for dependency in node.depends:
@@ -444,6 +480,12 @@ class TestTask(Task):
     def resolve(self, pebble, result, caller=None):
         time.sleep(10)
         self.on_completed(pebble, "success")
+
+
+class CommunicationTask(Task):
+
+    def resolve(self, pebble, result, caller):
+        pass
 
 
 class CryoCloudTask(Task):
@@ -692,25 +734,29 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             self._levels.append(node.taskid)
 
         lvl = self._levels.index(node.taskid) + 1
-        pebble.current = node
 
-        # If the module provides a job generator method (it's typically a wrapper of sorts),
-        # get the job from here
-        if 0 and callable(getattr(loaded_modules[node.module], 'define_task', None)):
-            task = loaded_modules[node.module].define_task(args, pebble)
+        jobt = self.head.TASK_STRING_TO_NUM[node.type]
 
-            jobt = self.head.TASK_STRING_TO_NUM[node.type]
-            i = self.head.add_job(lvl, None, task["job"]["args"], module=task["job"].module,
-                                  jobtype=jobt,
-                                  itemid=pebble.gid, workdir=runtime_info["dir"], priority=node.priority)
+        if 0:  # node.splitx or node.splity:
+            for x in range(node.splitx):
+                for y in range(node.splity):
+                    args["_x_"] = x
+                    args["_y_"] = y
 
-        else:
-            jobt = self.head.TASK_STRING_TO_NUM[node.type]
-            i = self.head.add_job(lvl, None, args, module=node.module, jobtype=jobt,
-                                  itemid=pebble.gid, workdir=runtime_info["dir"],
-                                  priority=runtime_info["priority"],
-                                  node=runtime_info["node"])
-        return i
+                    i = self.head.add_job(lvl, None, args, module=node.module, jobtype=jobt,
+                                          itemid=pebble.gid, workdir=runtime_info["dir"],
+                                          priority=runtime_info["priority"],
+                                          node=runtime_info["node"])
+                    # Remember that this job is a part of a bigger one
+                    pebble._sub_pebbles[i] = {"x": x, "y": y, "node": node, "done": False}
+            return
+
+        i = self.head.add_job(lvl, None, args, module=node.module, jobtype=jobt,
+                              itemid=pebble.gid, workdir=runtime_info["dir"],
+                              priority=runtime_info["priority"],
+                              node=runtime_info["node"])
+
+        pebble._sub_pebbles[i] = {"x": None, "y": None, "node": node, "done": False}
 
     def onCompleted(self, task):
 
@@ -724,19 +770,26 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             return
 
         pebble = self._pebbles[task["itemid"]]
-        pebble.stats[pebble.current.name] = {
+        node = pebble._sub_pebbles[task["taskid"]]["node"]
+        pebble._sub_pebbles[task["taskid"]]["done"] = True
+
+        pebble.stats[node.name] = {
             "node": task["node"],
             "worker": task["worker"],
             "priority": task["priority"]
         }
         for i in ["runtime", "cpu_time", "max_memory"]:
             if i in task:
-                pebble.stats[pebble.current.name][i] = task[i]
-        pebble.retval_dict[pebble.current.name] = task["retval"]
+                pebble.stats[node.name][i] = task[i]
+        pebble.retval_dict[node.name] = task["retval"]
         try:
-            pebble.current.on_completed(pebble, "success")
+            node.on_completed(pebble, "success")
         except:
             self.log.exception("Exception notifying success")
+
+        if workflow._is_single_run and workflow.entry.is_done(pebble):
+            print(node.name, "ALL DONE")
+            API.shutdown()
 
     def onError(self, task):
 
@@ -751,8 +804,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         pebble = self._pebbles[task["itemid"]]
         # Add the results
-        pebble.retval_dict[pebble.current.name] = task["retval"]
-        pebble.stats[pebble.current.name] = {
+        node = pebble._sub_pebbles[task["taskid"]]["node"]
+        pebble.retval_dict[node.name] = task["retval"]
+        pebble.stats[node.name] = {
             "node": task["node"],
             "worker": task["worker"],
             "priority": task["priority"]
@@ -762,6 +816,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                 pebble.stats[pebble.current.name][i] = task[i]
         pebble.current.on_completed(pebble, "error")
 
+        if workflow._is_single_run and workflow.entry.is_done(pebble):
+            print(node.name, "ALL DONE (Failed)")
+            API.shutdown()
 
 if 0:  # Make unittests of this graph stuff ASAP
 

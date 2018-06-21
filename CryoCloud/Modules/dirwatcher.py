@@ -4,7 +4,7 @@ ccmodule = {
     "description": "Watch a directory for new files",
     "depends": [],
     "provides": ["Input"],
-    "job_type": "permanent",
+    "input_type": "permanent",
     "inputs": {
         "src": "Full path to watch",
         "recursive": "Recursively watch for updates (default False)"

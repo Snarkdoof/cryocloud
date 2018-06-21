@@ -149,6 +149,7 @@ class HeadNode(threading.Thread):
         #                          expire_time=3 * 81600, initial_value=0)
 
         # self.status["progress"].set_value((step - 1, taskid), 1)
+        return tid
 
     def requeue(self, job, node=None, expire_time=None):
         if expire_time is None:

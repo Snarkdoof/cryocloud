@@ -20,7 +20,7 @@ ccmodule = {
 }
 
 
-def process_task(self, task):
+def process_task(self, task, cancel_event):
     """
     self.status and self.log are ready here.
 
@@ -33,7 +33,7 @@ def process_task(self, task):
     """
     import random
     progress = 0
-    while not self._stop_event.is_set() and progress < 100:
+    while not cancel_event.isSet() and not self._stop_event.is_set() and progress < 100:
 
         if "time" in task["args"]:
             t = float(task["args"]["time"]) / 5.0
@@ -50,4 +50,5 @@ def process_task(self, task):
             progress = min(100, progress + 12.5)
 
         self.status["progress"] = progress
+
     return progress, None

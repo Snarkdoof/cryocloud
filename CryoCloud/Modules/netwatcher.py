@@ -7,7 +7,7 @@ ccmodule = {
     "description": "Listen to a port for new processing jobs",
     "depends": [],
     "provides": ["Product"],
-    "job_type": "permanent",
+    "input_type": "permanent",
     "inputs": {
         "port": "Full path to watch",
         "schema": "Filename to load JSON Schema for the service from"
