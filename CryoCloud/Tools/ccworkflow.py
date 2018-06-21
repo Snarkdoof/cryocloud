@@ -23,6 +23,9 @@ from CryoCloud.Tools.head import HeadNode
 from CryoCore import API
 import CryoCloud
 
+CC_DIR = os.getcwd()
+sys.path.append(os.path.join(CC_DIR, "CryoCloud/Modules/"))  # Add CC modules with full path
+
 
 class Pebble:
 
@@ -335,7 +338,7 @@ class Workflow:
 
             if self.entry in node._upstreams:
                 if not callable(getattr(loaded_modules[node.module], 'start', None)):
-                    raise Exception("Input node must have a runnable 'start' method")
+                    print ("Warning: Input node normally have a runnable 'start' method")
                 node.is_input = True
 
             for dependency in node.depends:
