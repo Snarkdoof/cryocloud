@@ -502,7 +502,7 @@ class CryoCloudTask(Task):
                     options = self.workflow.handler.options
                     if opt not in options:
                         raise Exception("Missing option %s" % opt)
-                    args[arg] = getattr(options, opt)
+                    retval = getattr(options, opt)
                 if "stat" in thing:
                     name, param = thing["stat"].split(".")
                     if name == "parent":
@@ -535,6 +535,7 @@ class CryoCloudTask(Task):
             if self.workflow.handler.options.node:
                 info["node"] = self.workflow.handler.options.node
         info["priority"] = self.priority
+        info["dir"] = _get(self.dir)
 
         return info
 
@@ -701,12 +702,12 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             jobt = self.head.TASK_STRING_TO_NUM[node.type]
             i = self.head.add_job(lvl, None, task["job"]["args"], module=task["job"].module,
                                   jobtype=jobt,
-                                  itemid=pebble.gid, workdir=node.dir, priority=node.priority)
+                                  itemid=pebble.gid, workdir=runtime_info["dir"], priority=node.priority)
 
         else:
             jobt = self.head.TASK_STRING_TO_NUM[node.type]
             i = self.head.add_job(lvl, None, args, module=node.module, jobtype=jobt,
-                                  itemid=pebble.gid, workdir=node.dir,
+                                  itemid=pebble.gid, workdir=runtime_info["dir"],
                                   priority=runtime_info["priority"],
                                   node=runtime_info["node"])
         return i
