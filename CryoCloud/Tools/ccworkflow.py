@@ -821,7 +821,6 @@ def get_my_ip():
 if __name__ == "__main__":
 
     description = "CryoCloud Workflow head"
-
     if len(sys.argv) > 1 and os.path.exists(sys.argv[1]):
         print("Loading workflow from", sys.argv[1])
         # We load the handler and create a head here - this way we can get argparser options in too
@@ -857,14 +856,15 @@ if __name__ == "__main__":
             return None
 
     # Add stuff arguments from workflow if any
-    for o in workflow.options:
-        default = d("default", workflow.options[o])
-        _help = d("help", workflow.options[o])
-        _type = d("type", workflow.options[o])
-        if _type == "bool":
-            parser.add_argument("--" + o, default=default, help=_help, action="store_true")
-        else:
-            parser.add_argument("--" + o, default=default, help=_help)
+    if workflow:
+        for o in workflow.options:
+            default = d("default", workflow.options[o])
+            _help = d("help", workflow.options[o])
+            _type = d("type", workflow.options[o])
+            if _type == "bool":
+                parser.add_argument("--" + o, default=default, help=_help, action="store_true")
+            else:
+                parser.add_argument("--" + o, default=default, help=_help)
 
     if "argcomplete" in sys.modules:
         argcomplete.autocomplete(parser)
