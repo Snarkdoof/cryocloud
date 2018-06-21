@@ -23,7 +23,7 @@ from CryoCloud.Tools.head import HeadNode
 from CryoCore import API
 import CryoCloud
 
-CC_DIR = os.getcwd()
+CC_DIR = os.getcwd()  # Allow ccdir to be an env variable?
 sys.path.append(os.path.join(CC_DIR, "CryoCloud/Modules/"))  # Add CC modules with full path
 
 
@@ -39,7 +39,6 @@ class Pebble:
         self.stats = {}
         self.completed = []
         self.current = None
-        self._multinode = []
 
     def __str__(self):
         return "[Pebble %s]: %s, %s" % (self.gid, self.resolved, self.retval_dict)
@@ -497,6 +496,13 @@ class CryoCloudTask(Task):
                 if "default" in thing:
                     retval = thing["default"]
 
+                if "option" in thing:
+                    # This is an option given on the command line
+                    opt = thing["option"]
+                    options = self.workflow.handler.options
+                    if opt not in options:
+                        raise Exception("Missing option %s" % opt)
+                    args[arg] = getattr(options, opt)
                 if "stat" in thing:
                     name, param = thing["stat"].split(".")
                     if name == "parent":
@@ -526,6 +532,8 @@ class CryoCloudTask(Task):
         info["node"] = _get(self.ccnode)
         if info["node"] == []:
             info["node"] = None
+            if self.workflow.handler.options.node:
+                info["node"] = self.workflow.handler.options.node
         info["priority"] = self.priority
 
         return info
@@ -691,14 +699,17 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             task = loaded_modules[node.module].define_task(args, pebble)
 
             jobt = self.head.TASK_STRING_TO_NUM[node.type]
-            self.head.add_job(lvl, None, task["job"]["args"], module=task["job"].module, jobtype=jobt,
-                              itemid=pebble.gid, workdir=node.dir, priority=node.priority)
+            i = self.head.add_job(lvl, None, task["job"]["args"], module=task["job"].module,
+                                  jobtype=jobt,
+                                  itemid=pebble.gid, workdir=node.dir, priority=node.priority)
 
         else:
             jobt = self.head.TASK_STRING_TO_NUM[node.type]
-            self.head.add_job(lvl, None, args, module=node.module, jobtype=jobt,
-                              itemid=pebble.gid, workdir=node.dir, priority=runtime_info["priority"],
-                              node=runtime_info["node"])
+            i = self.head.add_job(lvl, None, args, module=node.module, jobtype=jobt,
+                                  itemid=pebble.gid, workdir=node.dir,
+                                  priority=runtime_info["priority"],
+                                  node=runtime_info["node"])
+        return i
 
     def onCompleted(self, task):
 
@@ -851,6 +862,9 @@ if __name__ == "__main__":
     parser.add_argument("-v", "--version", dest="version",
                         default="default",
                         help="Config version to use on")
+    parser.add_argument("--node", dest="node",
+                        default="",
+                        help="Specify a particular node to run all jobs on (leave for any)")
 
     def d(n, o):
         if n in o:
