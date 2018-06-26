@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 
 """
-
-Experimenting with dependencies and graphs
+CryoCloud support for workflows - graphs that describe processling
+lines.
 
 """
+
 import time
 import json
 import random
@@ -42,9 +43,12 @@ class Pebble:
         self.current = None
         self._sub_pebbles = {}
         self._stop_on = []
+        self._merge_result = "success"
+        self._resolve_pebble = self
 
     def __str__(self):
-        return "[Pebble %s]: %s, %s" % (self.gid, self.resolved, self.retval_dict)
+        return "[Pebble %s]"% self.gid
+        # return "[Pebble %s]: %s, %s" % (self.gid, self.resolved, self.retval_dict)
 
 
 class Task:
@@ -106,6 +110,7 @@ class Task:
                     # Still at least one unresolved dependency
                     return
 
+        # print(self.name, "All resolved")
         # All has been resolved!
         if pebble:
             pebble.resolved.append(self.name)
@@ -114,7 +119,6 @@ class Task:
         if (self.runOn == "always" or self.runOn == result):
             self.resolve(pebble, result, parent)
         else:
-            print("Resolved but we should not run for this pebble - just flag that we're done")
             pebble._stop_on.append(self.name)
             return
         # else:
@@ -201,6 +205,10 @@ class Workflow:
     handler = None
     description = None
     options = []
+    messages = {}
+    message_callbacks = {}
+    messages_completed = {}
+    _msglock = threading.Lock()
 
     @staticmethod
     def load_file(filename, handler=None):
@@ -219,8 +227,12 @@ class Workflow:
     def load_workflow(workflow, handler=None):
 
         def make_task(wf, child):
-            task = CryoCloudTask(wf)
+            if child["module"] == "communicate":
+                task = CommunicationTask(wf)
+            else:
+                task = CryoCloudTask(wf)
             task.module = child["module"]
+
             # Load defaults from module!
             if task.module not in loaded_modules:
                 info = imp.find_module(task.module)
@@ -466,6 +478,36 @@ class Workflow:
     def estimate_time(self, pebble):
         return self.entry.estimate_time_left(pebble)
 
+    def add_message_watch(self, what, callback, pebble):
+        if what not in self.message_callbacks:
+            self.message_callbacks[what] = []
+        self.message_callbacks[what].append((callback, pebble))
+
+        if what in self.messages:
+            message = self.messages[what]
+            try:
+                callback(pebble, message)
+            except:
+                self.log.exception("Exception in immediate callback for '%s': %s" %
+                                   (what, message))
+
+    def deliver_message(self, what, message):
+        self.messages[what] = message
+        if what in self.message_callbacks:
+            for callback, pebble in self.message_callbacks[what]:
+                try:
+                    callback(pebble, message)
+                except:
+                    self.log.exception("Exception in callback for '%s': %s" % (what, message))
+                self.message_callbacks[what].remove((callback, pebble))  # We only deliver ONCE
+
+    def shouldRun(self, what):
+        with self._msglock:
+            if what not in self.messages_completed:
+                self.messages_completed[what] = time.time()
+                return True
+        return False
+
 
 class EntryTask(Task):
     def __init__(self, workflow):
@@ -480,12 +522,6 @@ class TestTask(Task):
     def resolve(self, pebble, result, caller=None):
         time.sleep(10)
         self.on_completed(pebble, "success")
-
-
-class CommunicationTask(Task):
-
-    def resolve(self, pebble, result, caller):
-        pass
 
 
 class CryoCloudTask(Task):
@@ -677,6 +713,68 @@ class CryoCloudTask(Task):
             API.api_stop_event)
 
 
+class CommunicationTask(CryoCloudTask):
+
+    def _completed(self, pebble, result, caller):
+        """
+        An upstream node has completed, check if we have been resolved
+        """
+        args = self._build_args(pebble, caller)
+        self.workflow.add_message_watch(args["msgid"], self.on_msg, pebble)
+
+        if "resolveOn" in args:
+            resolveOn = args["resolveOn"]
+            if resolveOn.lower() == "any":
+                resolveOn = None
+        else:
+            resolveOn = None
+
+        # I'm done at least
+        message = {"msgid": args["msgid"], "result": result,
+                   "caller": caller, "pebble": pebble, "resolveOn": resolveOn}
+        self.workflow.deliver_message(args["msgid"], message)
+
+    def on_msg(self, pebble, message):
+        caller = message["caller"]
+
+        # print(" --- ", pebble, "got message from", message["pebble"], message["result"])
+        if message["result"] != "success":
+            pebble._merge_result = message["result"]
+
+        # If we're supposed to resolve on a particular flow, don't run if it's not ours
+        if message["resolveOn"] and message["resolveOn"] == message["caller"].name:
+            pebble._resolve_pebble = message["pebble"]
+
+        # If this is not our pebble, we must copy the parent's last value from the
+        # caller too
+        if pebble != message["pebble"]:
+            if message["pebble"]._merge_result != "success":
+                pebble._merge_result = message["pebble"]._merge_result
+            pebble.retval_dict[caller.name] = message["pebble"].retval_dict[caller.name]
+
+        if caller.name not in pebble.completed:
+            pebble.completed.append(caller.name)
+
+        # Are all done?
+        if not self.resolveOnAny and pebble:
+            for node in self._upstreams:
+                if node.name not in pebble.completed:
+                    return
+
+        if not self.resolveOnAny and message["pebble"]:
+            for node in self._upstreams:
+                if node.name not in message["pebble"].completed:
+                    return
+
+        # If this has already run, don't do it again (we'll get multiple resolves due
+        # to a marge of flows)
+        shouldRun = self.workflow.shouldRun(message["msgid"])
+        if not shouldRun:
+            return
+
+        self.on_completed(pebble._resolve_pebble, pebble._merge_result)
+
+
 class WorkflowHandler(CryoCloud.DefaultHandler):
 
     _pebbles = {}
@@ -788,7 +886,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             self.log.exception("Exception notifying success")
 
         if workflow._is_single_run and workflow.entry.is_done(pebble):
-            print(node.name, "ALL DONE")
             API.shutdown()
 
     def onError(self, task):
@@ -813,8 +910,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         }
         for i in ["runtime", "cpu_time", "max_memory"]:
             if i in task:
-                pebble.stats[pebble.current.name][i] = task[i]
-        pebble.current.on_completed(pebble, "error")
+                pebble.stats[node.name][i] = task[i]
+        node.on_completed(pebble, "error")
 
         if workflow._is_single_run and workflow.entry.is_done(pebble):
             print(node.name, "ALL DONE (Failed)")

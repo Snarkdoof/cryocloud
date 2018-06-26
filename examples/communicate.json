@@ -1,0 +1,63 @@
+{
+  "workflow": {
+    "name": "TestComm",
+    "description": "Test communication between pebbles",
+    "nodes": [
+      {
+        "module": "dirwatcher",
+        "name": "Input1",
+        "args": {
+          "src": "/tmp/input"
+        },
+        "downstreamOf": ["entry"]
+      }, {
+        "module": "dirwatcher",
+        "name": "Input2",
+        "args": {
+          "src": "/tmp/input"
+        },
+        "downstreamOf": ["entry"]
+      }, {
+        "module": "fakework",
+        "name": "FakeWork1",
+        "args": {
+          "src": {"output": "parent.fullpath"},
+          "time": 1
+        },
+        "downstreamOf": ["Input1"]
+      }, {
+        "module": "fakework",
+        "name": "FakeWork2",
+        "args": {
+          "src": {"output": "parent.fullpath"},
+          "time": 5
+        },
+        "downstreamOf": ["Input2"]
+      }, {
+        "module": "communicate",
+        "name": "SyncPoint",
+        "args": {
+          "msgid": {"output": "parent.product"},
+          "resolveOn": "FakeWork2"
+        },
+        "downstreamOf": ["FakeWork1", "FakeWork2"]
+      }, {
+        "module": "noop",
+        "name": "End",
+        "runOn": "success",
+        "args": {
+          "time": 0.1
+        },
+        "downstreamOf": ["SyncPoint"]
+      }, {
+        "module": "noop",
+        "name": "Failed",
+        "runOn": "error",
+        "args": {
+          "time": 2
+        },
+        "downstreamOf": ["SyncPoint"]
+      }
+    ]
+  }
+}
