@@ -2,6 +2,20 @@
 # PYTHON_ARGCOMPLETE_OK
 from __future__ import print_function
 
+
+"""
+run a cryocloud module with specified task
+
+--indocker
+if module is run in docker
+- return value serialized to string "{retval} string"
+- progress serialized to string "[progress] string"
+- set umask
+
+this is in accordance with expectations by cryocloud
+docker module
+"""
+
 try:
     import imp
 except:
@@ -27,6 +41,7 @@ parser = ArgumentParser(description="CryoCloud testrun a module")
 parser.add_argument("-f", "--file", type=str, dest="config_file", default="", help="Read task as json from file")
 parser.add_argument("-m", "--module", type=str, dest="module", default="", help="The module to run (Python file)")
 parser.add_argument("-t", "--task", type=str, dest="task", default="", help="The task as json")
+parser.add_argument("--indocker", action='store_true', help="task run in docker")
 
 if "argcomplete" in sys.modules:
     argcomplete.autocomplete(parser)
@@ -60,6 +75,10 @@ try:
     info = imp.find_module(moduleinfo.name)
     mod = imp.load_module(moduleinfo.name, info[0], info[1], info[2])
 
+    # run module
+    if options.indocker:
+        os.umask(0o2)
+
     canStop = False
     import inspect
     members = inspect.getmembers(mod)
@@ -75,5 +94,9 @@ try:
         progress, retval = mod.process_task(worker, task)
 
     print("Completed with", progress, " percent done, retval:", retval)
+
+    if options.indocker:
+        print("{retval} " + json.dumps(retval))
+        print("[progress] {}".format(progress))
 finally:
     API.shutdown()
