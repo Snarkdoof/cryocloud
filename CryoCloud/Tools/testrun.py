@@ -57,7 +57,7 @@ if options.workdir:
         raise Exception("Working directory '%s' does not exist" % options.workdir)
     os.chdir(options.workdir)
 
-print("cwd", os.getcwd())
+sys.path.append(".")  # Add current dir (workdir) to module of the job
 
 moduleinfo = inspect.getmoduleinfo(options.module)
 path = os.path.dirname(os.path.abspath(options.module))
