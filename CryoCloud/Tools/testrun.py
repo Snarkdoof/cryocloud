@@ -23,6 +23,7 @@ except:
 
 import inspect
 import sys
+import os
 import os.path
 import json
 
@@ -42,6 +43,7 @@ parser.add_argument("-f", "--file", type=str, dest="config_file", default="", he
 parser.add_argument("-m", "--module", type=str, dest="module", default="", help="The module to run (Python file)")
 parser.add_argument("-t", "--task", type=str, dest="task", default="", help="The task as json")
 parser.add_argument("--indocker", action='store_true', help="task run in docker")
+parser.add_argument("--workdir", type=str, default="", help="Path to workdir")
 
 if "argcomplete" in sys.modules:
     argcomplete.autocomplete(parser)
@@ -49,6 +51,13 @@ options = parser.parse_args()
 
 if not options.module:
     raise SystemExit("Need module to run")
+
+if options.workdir:
+    if not os.path.exists(options.workdir):
+        raise Exception("Working directory '%s' does not exist" % options.workdir)
+    os.chdir(options.workdir)
+
+print("cwd", os.getcwd())
 
 moduleinfo = inspect.getmoduleinfo(options.module)
 path = os.path.dirname(os.path.abspath(options.module))
