@@ -59,7 +59,7 @@ if options.workdir:
 
 sys.path.append(".")  # Add current dir (workdir) to module of the job
 
-moduleinfo = inspect.getmoduleinfo(options.module)
+modulename = inspect.getmodulename(options.module)
 path = os.path.dirname(os.path.abspath(options.module))
 sys.path.append(path)
 
@@ -72,17 +72,17 @@ elif options.task:
 else:
     raise SystemExit("Need task definition")
 
-print("Running module %s with task: '%s'" % (moduleinfo.name, task))
+print("Running module %s with task: '%s'" % (modulename, task))
 try:
     # Create the worker
     worker = node.Worker(0, API.api_stop_event)
 
-    worker.log = API.get_log("testrun." + moduleinfo.name)
-    worker.status = API.get_status("testrun." + moduleinfo.name)
+    worker.log = API.get_log("testrun." + modulename)
+    worker.status = API.get_status("testrun." + modulename)
 
     # Load it
-    info = imp.find_module(moduleinfo.name)
-    mod = imp.load_module(moduleinfo.name, info[0], info[1], info[2])
+    info = imp.find_module(modulename)
+    mod = imp.load_module(modulename, info[0], info[1], info[2])
 
     # run module
     if options.indocker:
