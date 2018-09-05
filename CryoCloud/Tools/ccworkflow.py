@@ -857,8 +857,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             node.name,
             product=self.workflow.name,
             state=jobdb.STATE_PENDING,
-            priority=runtime_info["priority"]
-            )
+            priority=runtime_info["priority"],
+            type=jobt)
 
 
         if node.splitOn:
