@@ -121,6 +121,10 @@ def process_task(worker, task, cancel_event=None):
                     return msg
                 else:
                     worker.log.error("Unknown log level '%s'" % level)
+
+            m = re.match("(\w+)=(.+)", line)
+            if m:
+                return m.groups()
             else:
                 if debug:
                     worker.log.debug(line)
@@ -146,14 +150,18 @@ def process_task(worker, task, cancel_event=None):
             while buf[p.stdout].find("\n") > -1:
                 line, buf[p.stdout] = buf[p.stdout].split("\n", 1)
                 r = report(line)
-                if r:
+                if isinstance(r, tuple):
+                    retval[r[0]] = r[1]
+                elif r:
                     retval["result"] += ". " + r
 
             # Check for output on stderr - set error message
             while buf[p.stderr].find("\n") > -1:
                 line, buf[p.stderr] = buf[p.stderr].split("\n", 1)
                 r = report(line)
-                if r:
+                if isinstance(r, tuple):
+                    retval[r[0]] = r[1]
+                elif r:
                     retval["result"] += ". " + r
 
             # See if the process is still running

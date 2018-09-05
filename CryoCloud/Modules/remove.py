@@ -38,7 +38,8 @@ def process_task(self, task):
         src = [src]
 
     done = 0
-    errors = ""
+    errors = 0
+    errormsg = ""
     for s in src:
         try:
             if not os.path.exists(s):
@@ -58,7 +59,8 @@ def process_task(self, task):
             self.status["progress"] = 100 * done / float(len(src))
         except Exception as e:
             self.log.error(str(e))
-            errors += "Error removing %s: %s\n" % (s, e)
+            errors += 1
+            errormsg += "Error removing %s: %s\n" % (s, e)
             if "ignoreerrors" in task["args"] and task["args"]["ignoreerrors"]:
                 done += 1
                 self.status["progress"] = 100 * done / float(len(src))
@@ -70,4 +72,4 @@ def process_task(self, task):
             else:
                 break
 
-    return self.status["progress"].get_value(), errors
+    return int(self.status["progress"].get_value()), {"errors": errors, "erromsg": errormsg, "deleted": done}

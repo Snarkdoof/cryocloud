@@ -101,7 +101,7 @@
       }
     }
 
-    XHR.get("https://seer2.itek.norut.no/cryonite_ocean2.json", {}, function(wf) {
+    XHR.get("https://seer2.itek.norut.no/cc/graph/cryonite_ocean2.json", {}, function(wf) {
       console.log("Loading graph", wf);
       // We load the graph here
       parse(wf.workflow.nodes);
