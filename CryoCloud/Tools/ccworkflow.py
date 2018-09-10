@@ -898,7 +898,10 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                                           itemid=pebble.gid, workdir=runtime_info["dir"],
                                           priority=runtime_info["priority"],
                                           node=runtime_info["node"])
+            self.status["%s.pending" % node.name].inc(len(origargs))
             return
+
+        self.status["%s.pending" % node.name].inc()
 
         taskid = random.randint(0, 100000000)  # TODO: Better
         pebble.nodename[taskid] = node.name
@@ -910,6 +913,10 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
     def onAllocated(self, task):
         pebble = self._pebbles[task["itemid"]]
+
+        self.status["%s.processing" % pebble.nodename[task["taskid"]]].inc()
+        self.status["%s.pending" % pebble.nodename[task["taskid"]]].dec()
+
         self._jobdb.update_profile(pebble.gid, 
             pebble.nodename[task["taskid"]],
             state=jobdb.STATE_ALLOCATED,
@@ -929,6 +936,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         pebble = self._pebbles[task["itemid"]]
         node = pebble.nodename[task["taskid"]]
+
+        self.status["%s.processing" % pebble.nodename[task["taskid"]]].dec()
+
         # print("Completed", pebble, node, task)
         # node = pebble._sub_pebbles[task["taskid"]]["node"]
         # pebble._sub_pebbles[task["taskid"]]["done"] = True
@@ -1023,6 +1033,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         pebble = self._pebbles[task["itemid"]]
         node = workflow.nodes[pebble.nodename[task["taskid"]]]
+        self.status["%s.failed" % node].inc()
+
         # Add the results
         # node = pebble._sub_pebbles[task["taskid"]]["node"]
         pebble.retval_dict[node.name] = task["retval"]

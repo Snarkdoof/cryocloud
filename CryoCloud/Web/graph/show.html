@@ -18,11 +18,29 @@
   <!--<script src="cryonite_ocean.json"></script>-->
   <!--<script src="test2.json"></script>-->
 
+  <script src="https://mcorp.no/lib/timingsrc-min-v2.js"></script>
+  <script src="/cryocore/cryocore.js"></script>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.js"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis-network.min.css" rel="stylesheet" type="text/css" />
 
 
   <script>
+
+
+function getParameterByName(name) {
+  name = name.replace(/[\[]/, "\\\[").replace(/[\]]/, "\\\]");
+  var regex = new RegExp("[\\?&]" + name + "=([^&#]*)"),
+    results = regex.exec(location.search);
+  return results == null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
+}
+
+var app = {};
+
+
+  var timingObject = new TIMINGSRC.TimingObject();
+  timingObject.update({position: new Date()/1000, velocity: 1});
+  CryoCore.setServer("/cryocore")
 
     var XHR = (function() {
       var api = {};
@@ -66,7 +84,7 @@
     var n_nr = 0;
     var e_nr = 0;
 
-    var nodes = [{id: "entry", label: "Workflow entry", "level": 0, color: colors["entry"], font: font}];
+    var nodes = [{id: "entry", label: "WorkFlow", "level": 0, color: colors["entry"], font: font}];
     var edges = [];
 
     var levels = {entry: 0}
@@ -89,11 +107,12 @@
         level++;
         var name = m.name || m.module + n_nr;
         levels[name] = level;
-        n_nr++;        
-        nodes.push({id: name, label: name + "\n(" + (m.runOn || "always") + ")", level: level, color: colors[m.module] || colors[m.name.toLowerCase()] || colors["default"], font: font});
+        n_nr++;
+        var runOn = {"never": "N", "always": "", "success": "S", "error": "E"}[m.runOn] || "";
+        nodes.push({id: name, value: 1, runOn: runOn, label: runOn + "\n" + name + "\n[ - ]", level: level, color: colors[m.module] || colors[m.name.toLowerCase()] || colors["default"], font: font});
         // Add edges
         for (var eidx in m.downstreamOf) {
-          edges.push({from: m.downstreamOf[eidx], to: name, arrows:'to'})
+          edges.push({from: m.downstreamOf[eidx], to: name, arrows:'to', dashes: true, font: {align: 'bottom', size:15}})
         }
         if (m.children) {
           parse(m.children, name);
@@ -101,10 +120,78 @@
       }
     }
 
-    XHR.get("https://seer2.itek.norut.no/cc/graph/cryonite_ocean2.json", {}, function(wf) {
+    var url = (getParameterByName("graph") || "wave") + ".json";
+    XHR.get(url, {}, function(wf) {
       console.log("Loading graph", wf);
+      app.workflow = wf.workflow;
       // We load the graph here
       parse(wf.workflow.nodes);
+
+      app.dataset = CryoCore.Dataset({
+        timingObject: timingObject,
+        history_size: 5,
+        refresh: 500,
+        onReady: function() {
+          var stats = app.dataset.resolveParams({channel: app.workflow.name});
+          console.log("Stats", stats);
+
+          // Build a map of what to update (param to node or edge)
+          var map = {};
+          for (var i=0; i<stats.length; i++) {
+            var info = app.dataset.getParamInfo(stats[i]);
+            var id = info.param.split(".", 2);
+            if (id[1] === "processing") {
+              //console.log("Update node", id[0], stats[i]);
+              for (var node in nodes) {
+                if (nodes[node].id  === id[0]) {
+                  map[stats[i]] = ["node", node];
+                  break;
+                }
+              }
+            } else if (id[1] === "pending") {
+                for (var edge in edges) {
+                  if (edges[edge].to  === id[0]) {
+                    map[stats[i]] = ["edge", edge];
+                    break;
+                  }
+                }
+            }
+          }
+          console.log(map);
+
+          // We want updates on all of these
+          app.dataset.addMonitor(stats, function(e, vals) {
+            // console.log("Updated", app.dataset.getParamInfo(e).param)
+            if (map[e]) {
+              val = parseInt(vals[vals.length - 1][1])
+              var active = val !== 0;
+
+              if (map[e][0] === "edge") {
+                edges[map[e][1]].dashes = !active;
+                if (val > 0) {
+                  edges[map[e][1]].label = String(val);
+                } else {
+                  edges[map[e][1]].label = "";
+                }
+
+              } else {
+                if (active) {
+                  nodes[map[e][1]].shadow = {color: 'rgb(255, 0, 0)'};
+                  nodes[map[e][1]].label = nodes[map[e][1]].runOn + "\n" + nodes[map[e][1]].id + "\n[ " + val + " ]";
+                } else {
+                  nodes[map[e][1]].shadow = undefined;
+                  nodes[map[e][1]].label = nodes[map[e][1]].runOn + "\n" + nodes[map[e][1]].id + "\n[ - ]";
+                }
+                // nodes[map[e][1]].value = vals[vals.length - 1][1] + 1;
+                // console.log("Node", nodes[map[e][1]].id, vals[vals.length - 1][1])                
+              }
+            }
+            update();
+            // console.log("Changed", app.dataset.getParamInfo(e), vals);
+          });
+        }
+      });
+
       update();
     });
 
@@ -115,7 +202,7 @@
     edges: edges
   };
   var options = {
-    nodes: {borderWidth: 2},
+    nodes: {borderWidth: 2, shadow: true},
     edges: {
         smooth: {
             type: 'cubicBezier',
@@ -134,7 +221,7 @@
 var foptions = {
   nodes: {borderWidth: 2},
   edges: {
-    smooth: {
+    fsmooth: {
       "forceDirection": "none",
       "roundness": 0.45
     }
