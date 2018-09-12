@@ -1021,7 +1021,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             API.shutdown()
 
     def onError(self, task):
-        print("*** ERROR", task)
+        # print("*** ERROR", task)
         if "itemid" not in task:
             self.log.error("Got task without itemid: %s" % task)
             return
@@ -1032,13 +1032,13 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             return
 
         pebble = self._pebbles[task["itemid"]]
-        node = workflow.nodes[pebble.nodename[task["taskid"]]]
+        node = pebble.nodename[task["taskid"]]
         self.status["%s.failed" % node].inc()
 
         # Add the results
         # node = pebble._sub_pebbles[task["taskid"]]["node"]
-        pebble.retval_dict[node.name] = task["retval"]
-        pebble.stats[node.name] = {
+        pebble.retval_dict[node] = task["retval"]
+        pebble.stats[node] = {
             "node": task["node"],
             "worker": task["worker"],
             "priority": task["priority"]
@@ -1055,10 +1055,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             memory=pebble.stats[node]["max_memory"],
             cpu=pebble.stats[node]["cpu_time"])
 
-        node.on_completed(pebble, "error")
+        workflow.nodes[node].on_completed(pebble, "error")
 
         if workflow._is_single_run and workflow.entry.is_done(pebble):
-            print(node.name, "ALL DONE (Failed)")
             API.shutdown()
 
 if 0:  # Make unittests of this graph stuff ASAP

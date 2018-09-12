@@ -18,7 +18,7 @@ import re
 import select
 import psutil
 import time
-
+import json
 
 ccmodule = {
     "description": "Run IDL tasks",
@@ -150,8 +150,18 @@ def process_task(worker, task, cancel_event=None):
             while buf[p.stdout].find("\n") > -1:
                 line, buf[p.stdout] = buf[p.stdout].split("\n", 1)
                 r = report(line)
+                print("Line:", line)
+                print("   r:", r)
                 if isinstance(r, tuple):
-                    retval[r[0]] = r[1]
+                    print("Multi", r)
+                    if r[0] == "ret":
+                        try:
+                            retval = json.loads(r[1])
+                            print("OVERWROTE RETVAL", retval)
+                        except:
+                            worker.log.exception("Exception parsing json return value: '%s'" % line)
+                    else:
+                        retval[r[0]] = r[1]
                 elif r:
                     retval["result"] += ". " + r
 
@@ -159,10 +169,7 @@ def process_task(worker, task, cancel_event=None):
             while buf[p.stderr].find("\n") > -1:
                 line, buf[p.stderr] = buf[p.stderr].split("\n", 1)
                 r = report(line)
-                if isinstance(r, tuple):
-                    retval[r[0]] = r[1]
-                elif r:
-                    retval["result"] += ". " + r
+                retval["result"] += ". " + str(r)
 
             # See if the process is still running
             if p.poll() is not None:
