@@ -150,14 +150,10 @@ def process_task(worker, task, cancel_event=None):
             while buf[p.stdout].find("\n") > -1:
                 line, buf[p.stdout] = buf[p.stdout].split("\n", 1)
                 r = report(line)
-                print("Line:", line)
-                print("   r:", r)
                 if isinstance(r, tuple):
-                    print("Multi", r)
                     if r[0] == "ret":
                         try:
                             retval = json.loads(r[1])
-                            print("OVERWROTE RETVAL", retval)
                         except:
                             worker.log.exception("Exception parsing json return value: '%s'" % line)
                     else:
