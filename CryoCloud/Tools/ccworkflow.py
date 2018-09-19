@@ -31,6 +31,9 @@ CC_DIR = os.getcwd()  # Allow ccdir to be an env variable?
 sys.path.append(os.path.join(CC_DIR, "CryoCloud/Modules/"))  # Add CC modules with full path
 sys.path.append("./CryoCloud/Modules/")  # Add CC modules with full path
 
+sys.path.append("./Modules/")  # Add module path for the working dir of the job
+sys.path.append("./modules/")  # Add module path for the working dir of the job
+
 
 class Pebble:
 
