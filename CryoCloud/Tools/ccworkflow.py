@@ -131,7 +131,8 @@ class Task:
         if (self.runOn == "always" or self.runOn == result):
             self.resolve(pebble, result, parent)
         else:
-            pebble._stop_on.append(self.name)
+            if pebble:
+                pebble._stop_on.append(self.name)
             return
         # else:
             # print("Resolved but not running, should only do %s, this was %s" %
