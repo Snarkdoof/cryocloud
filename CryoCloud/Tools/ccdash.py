@@ -177,8 +177,11 @@ class DashBoard:
             resources = []
             tasks = []
             workers = []
+            import json
+            f = open("/tmp/debug.log", "w")
             with self._lock:
                 for parameter in self.parameters:
+                    f.write("%s %s: %s\n" % (parameter.channel, parameter.name, parameter.value))
                     # parameter.ts, parameter.value = self.statusdb.get_last_status_value_by_id(parameter.paramid)
                     if parameter.value is None:
                         continue
@@ -215,10 +218,11 @@ class DashBoard:
                 self.resourceWindow.addstr(1, 0, memory, curses.color_pair(self.resource_color))
                 self.resourceWindow.addstr(2, 0, disk, curses.color_pair(self.resource_color))
 
+                # Workers
                 workerinfo = {}
                 for worker in workers:
                     if worker.channel not in workerinfo:
-                        workerinfo[worker.channel] = {"ts": 0, "state": "unknown", "progress": 0.0}
+                        workerinfo[worker.channel] = {"ts": 0, "state": "unknown", "progress": 0.0, "module": "unknown"}
                     workerinfo[worker.channel][worker.name] = worker.value
                     workerinfo[worker.channel]["ts"] = max(worker.ts, workerinfo[worker.channel]["ts"])
 
@@ -232,7 +236,9 @@ class DashBoard:
                     infostr = "% 23s: % 10s [% 4d%%] (%s)" %\
                         (worker, workerinfo[worker]["state"],
                          float(workerinfo[worker]["progress"]),
-                         time.ctime(float(workerinfo[worker]["ts"])))
+                         workerinfo[worker]["module"]
+                         )
+                         # time.ctime(float(workerinfo[worker]["ts"])))
                     infostr = infostr[:self.width - 2]
                     self.workerWindow.addstr(idx, 2, infostr, curses.color_pair(self.worker_color))
                     idx += 1
@@ -264,7 +270,7 @@ class DashBoard:
 
         except:
             self.log.exception("Refresh failed")
-
+        f.close()
         # self.screen.refresh()
 
     def _get_input(self):
