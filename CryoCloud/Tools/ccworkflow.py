@@ -890,11 +890,12 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                         priority=runtime_info["priority"])
                     self._pebbles[subpebble.gid] = subpebble
                     taskid = random.randint(0, 100000000)  # TODO: Better
-                    subpebble.nodename[taskid] = node.name
+                    subpebble.nodename[pebble.taskid] = node.name
                     i = self.head.add_job(lvl, taskid, args, module=node.module, jobtype=jobt,
                                           itemid=subpebble.gid, workdir=runtime_info["dir"],
                                           priority=runtime_info["priority"],
                                           node=runtime_info["node"])
+                    subpebble.jobid = i
 
                 else:
                     pebble._sub_tasks[x] = pebble.gid
@@ -904,6 +905,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                                           itemid=pebble.gid, workdir=runtime_info["dir"],
                                           priority=runtime_info["priority"],
                                           node=runtime_info["node"])
+                    pebble.jobid = i
             self.status["%s.pending" % node.name].inc(len(origargs))
             return
 
@@ -915,6 +917,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                               itemid=pebble.gid, workdir=runtime_info["dir"],
                               priority=runtime_info["priority"],
                               node=runtime_info["node"])
+        pebble.jobid = i
         # pebble._sub_pebbles[i] = {"x": None, "y": None, "node": node, "done": False}
 
     def onAllocated(self, task):
@@ -1046,6 +1049,13 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             return
 
         pebble = self._pebbles[task["itemid"]]
+
+        # We should cancel any siblings - this will not succeed!
+        if len(pebble._sub_pebbles) > 0:
+            print("*** Error in task or subtask, cancelling the whole shebang")
+            for p in pebble._sub_pebbles:
+                self._jobdb.cancel_job(p.jobid)
+
         node = pebble.nodename[task["taskid"]]
         self.status["%s.failed" % node].inc()
 
