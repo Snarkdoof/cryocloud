@@ -165,7 +165,10 @@ def process_task(worker, task, cancel_event=None):
             while buf[p.stderr].find("\n") > -1:
                 line, buf[p.stderr] = buf[p.stderr].split("\n", 1)
                 r = report(line)
-                retval["result"] += ". " + str(r)
+                if "result" not in retval:
+                    retval["result"] = str(r)
+                else:
+                    retval["result"] += ". " + str(r)
 
             # See if the process is still running
             if p.poll() is not None:
