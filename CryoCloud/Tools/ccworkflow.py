@@ -303,7 +303,7 @@ class Workflow:
             # If global, remember this
             if "global" in child:
                 task.is_global = True
-                global_nodes.append(task)
+                wf.global_nodes.append(task)
 
             wf.nodes[task.name] = task
             return task
