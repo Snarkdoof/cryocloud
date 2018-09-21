@@ -1063,7 +1063,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             parent = self._pebbles[pebble._master_task]
             for p in parent._sub_tasks.values():
                 print("CANCEL: ", self._pebbles[p].jobid)
-                self._jobdb.cancel_job(self._pebbles[p].jobid)
+                self._jobdb.cancel_job_by_taskid(self._pebbles[p].jobid)
 
         node = pebble.nodename[task["taskid"]]
         self.status["%s.failed" % node].inc()

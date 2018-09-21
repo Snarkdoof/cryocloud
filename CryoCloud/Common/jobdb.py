@@ -241,6 +241,9 @@ class JobDB(mysql):
                 self._execute(SQL[:-1], args)
             self._addlist = []
 
+    def cancel_job_by_taskid(self, taskid):
+        self._execute("UPDATE jobs SET state=%s WHERE taskid=%s", (STATE_CANCELLED, taskid))
+
     def cancel_job(self, jobid):
         self._execute("UPDATE jobs SET state=%s WHERE jobid=%s", (STATE_CANCELLED, jobid))
 
