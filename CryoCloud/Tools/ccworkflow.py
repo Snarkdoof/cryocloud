@@ -87,6 +87,7 @@ class Task:
         self.dir = None  # Directory for execution
         self.is_input = False
         self.ccnode = []
+        self.is_global = False
 
     def __str__(self):
         return "[%s (%s), %s, %s]: priority %d, args: %s\n" %\
@@ -214,6 +215,7 @@ class Workflow:
     entry = None
     nodes = {}
     inputs = {}
+    global_nodes = []
     handler = None
     description = None
     options = []
@@ -297,6 +299,11 @@ class Workflow:
                 task.splitOn = child["splitOn"]
             if "merge" in child:
                 task.merge = child["merge"]
+
+            # If global, remember this
+            if "global" in child:
+                task.is_global = True
+                global_nodes.append(task)
 
             wf.nodes[task.name] = task
             return task
@@ -1080,6 +1087,11 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             cpu=pebble.stats[node]["cpu_time"])
 
         workflow.nodes[node].on_completed(pebble, "error")
+
+        # Do we have any global error handlers
+        for g in workflow.global_nodes:
+            print("Calling global handler for error")
+            g.on_completed(pebble, "error")
 
         if workflow._is_single_run and workflow.entry.is_done(pebble):
             API.shutdown()
