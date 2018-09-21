@@ -431,6 +431,9 @@ class Workflow:
                 if isinstance(val, dict):
                     if "output" in val:
                         name, param = val["output"].split(".")
+                        if param == "error":  # We can always get an error message
+                            found = True
+                            break 
                         if name == "parent":
                             found = False
                             for parent in node._upstreams:
