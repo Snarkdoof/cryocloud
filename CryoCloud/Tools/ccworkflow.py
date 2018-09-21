@@ -48,6 +48,7 @@ class Pebble:
         self.stats = {}
         self.completed = []
         self.current = None
+        self.is_sub_pebble = False
         self._subpebble = None  # This will be a number if we're a subpebble
         self._stop_on = []
         self._sub_tasks = {}  # If we have a split, we must remember which pebbles are the "siblings"
@@ -879,6 +880,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                     # SHOULD MAKE A COPY OF THE PEBBLE AND GO ON FROM HERE
                     subpebble = copy.deepcopy(pebble)
                     subpebble.gid = random.randint(0, 100000000)  # TODO: DO this better
+                    subpebble.is_sub_pebble = True
                     pebble._sub_tasks[x] = subpebble.gid
                     self._jobdb.update_profile(subpebble.gid,
                         node.name,
@@ -1015,7 +1017,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         if workflow.entry.is_done(pebble):
             self._jobdb.update_profile(pebble.gid, self.workflow.name, state=jobdb.STATE_COMPLETED)  # The whole job
-            print("The pebble is done (TODO: CLEAN UP)")
+
+            if not pebble.is_sub_pebble:
+                print("The task %s is done (TODO: CLEAN UP)" % pebble.gid)
             # self._jobdb.update_profile(pebble.gid,
             #    self.workflow.name, 
             #    state=jobdb.STATE_COMPLETED)

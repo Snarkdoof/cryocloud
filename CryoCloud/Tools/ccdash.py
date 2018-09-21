@@ -80,6 +80,10 @@ class DashBoard:
         self.cfg.set_default("params.state.name", "state")
         self.cfg.set_default("params.state.type", "Worker")
 
+        self.cfg.set_default("params.module.source", "Worker.*")
+        self.cfg.set_default("params.module.name", "module")
+        self.cfg.set_default("params.module.type", "Worker")
+
         self.cfg.set_default("worker_lines", 20)
         self._worker_lines = options.num_workers
 
