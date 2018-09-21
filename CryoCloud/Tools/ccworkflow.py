@@ -154,11 +154,6 @@ class Task:
         if self.name != "Entry" and self.name not in pebble.retval_dict:
             return False  # We've completed
 
-        # If a sub-pebble, check that all siblings are done too
-        for sibling in pebble._sub_tasks:
-            if not node.is_done(sibling):
-                return False  # Siblings still not done
-
         # I'm done, what about my children?
         for node in self._downstreams:
             if not node.is_done(pebble):
