@@ -1061,7 +1061,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         # We should cancel any siblings - this will not succeed!
         if len(pebble._sub_tasks) > 0:
             print("*** Error in task or subtask, cancelling the whole shebang")
-            for p in pebble._sub_tasks:
+            for p in pebble._sub_tasks.values():
                 self._jobdb.cancel_job(self._pebbles[p].jobid)
 
         node = pebble.nodename[task["taskid"]]
