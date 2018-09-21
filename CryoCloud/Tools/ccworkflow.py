@@ -105,7 +105,6 @@ class Task:
         This task has completed, notify downstreams
         """
         # Pebble.retval[self.name] = retval
-
         if pebble:
             pebble.completed.append(self.name)
         for child in self._downstreams:
@@ -1098,7 +1097,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         # Do we have any global error handlers
         for g in workflow.global_nodes:
             print("Calling global handler for error", g)
-            g.on_completed(pebble, "error")
+            g.resolve(pebble, "error", node)
         else:
             print("No more global nodes (%d)" % len(workflow.global_nodes))
 
