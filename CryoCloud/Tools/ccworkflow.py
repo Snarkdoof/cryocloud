@@ -813,7 +813,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         workflow.handler = self
         self._jobdb = jobdb.JobDB("Ignored", self.workflow.name)
 
-
     def onReady(self, options):
 
         self.log = API.get_log(self.workflow.name)

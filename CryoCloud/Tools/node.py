@@ -328,11 +328,15 @@ class Worker(multiprocessing.Process):
 
             # Stop the monitor if it's running
             stop_monitor.set()
-            task["progress"] = progress
-            if int(progress) != 100:
-                raise Exception("ProcessTask returned unexpected progress: %s vs 100" % progress)
-            task["result"] = "Ok"
-            new_state = jobdb.STATE_COMPLETED
+            if canStop and cancel_event.isSet():
+                new_state = STATE_CANCELLED
+                task["result"] = "Cancelled"
+            else:
+                task["progress"] = progress
+                if int(progress) != 100:
+                    raise Exception("ProcessTask returned unexpected progress: %s vs 100" % progress)
+                task["result"] = "Ok"
+                new_state = jobdb.STATE_COMPLETED
             self.status["last_processing_time"] = time.time() - start_time
         except Exception as e:
             print("Processing failed", e)
