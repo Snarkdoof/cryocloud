@@ -1066,6 +1066,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         node = pebble.nodename[task["taskid"]]
         self.status["%s.failed" % node].inc()
 
+        print("Adding result")
         # Add the results
         # node = pebble._sub_pebbles[task["taskid"]]["node"]
         pebble.retval_dict[node] = task["retval"]
@@ -1080,18 +1081,22 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             else:
                 pebble.stats[node][i] = 0
 
+        print("Updating profile")
         self._jobdb.update_profile(pebble.gid,
             node,
             state=jobdb.STATE_FAILED,
             memory=pebble.stats[node]["max_memory"],
             cpu=pebble.stats[node]["cpu_time"])
 
+        print("Resolving as ERROR")
         workflow.nodes[node].on_completed(pebble, "error")
 
         # Do we have any global error handlers
         for g in workflow.global_nodes:
             print("Calling global handler for error")
             g.on_completed(pebble, "error")
+
+        print("Check if done")
 
         if workflow._is_single_run and workflow.entry.is_done(pebble):
             API.shutdown()
