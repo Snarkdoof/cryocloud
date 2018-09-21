@@ -1095,6 +1095,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         for g in workflow.global_nodes:
             print("Calling global handler for error")
             g.on_completed(pebble, "error")
+        else:
+            print("No more global nodes (%d)" % len(workflow.global_nodes))
 
         print("Check if done")
 
