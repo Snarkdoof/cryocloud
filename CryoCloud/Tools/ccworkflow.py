@@ -1033,7 +1033,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             if not pebble.is_sub_pebble:
                 print("The task %s is done (TODO: CLEAN UP)" % pebble.gid)
 
-                for pbl in pebble._sub_tasks:
+                for pbl in pebble._sub_tasks.values():
                     del self._pebbles[pbl.gid]
                 del self._pebbles[pebble.gid]
                 print("Current pebbles:", len(self._pebbles))
