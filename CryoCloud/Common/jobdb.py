@@ -242,7 +242,7 @@ class JobDB(mysql):
             self._addlist = []
 
     def cancel_job(self, jobid):
-        self._execute("UPDATE jobs SET state=%d WHERE jobid=%s", (STATE_CANCELLED, jobid))
+        self._execute("UPDATE jobs SET state=%s WHERE jobid=%s", (STATE_CANCELLED, jobid))
 
     def force_stopped(self, workerid, node):
         self._execute("UPDATE jobs SET state=%s, retval='{\"error\":\"Worker killed\"}' WHERE worker=%s AND node=%s AND state=%s",
