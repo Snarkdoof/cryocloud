@@ -342,7 +342,7 @@ class Worker(multiprocessing.Process):
             self.status["last_error"] = str(e)
             self.status["state"] = "Failed"
             if not ret:
-                ret = str(e)
+                ret = {"error": str(e)}
 
         my_cpu_time = proc.cpu_times().user + proc.cpu_times().system - cpu_time
         self.max_memory = max(self.max_memory, proc.memory_info().rss)
