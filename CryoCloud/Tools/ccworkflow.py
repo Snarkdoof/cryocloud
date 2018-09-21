@@ -1035,7 +1035,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             API.shutdown()
 
     def onError(self, task):
-        # print("*** ERROR", task)
+        print("*** ERROR", task)
         if "itemid" not in task:
             self.log.error("Got task without itemid: %s" % task)
             return
