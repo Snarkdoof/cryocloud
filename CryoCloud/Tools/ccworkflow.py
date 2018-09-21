@@ -407,7 +407,7 @@ class Workflow:
                 raise Exception("Node already visited - graph loop detected %s (%s)" %
                                 (node.module, node.name))
 
-            if self.entry in node._upstreams:
+            if self.entry in node._upstreams and not self.is_global:
                 if not callable(getattr(loaded_modules[node.module], 'start', None)):
                     print("Warning: Input node normally have a runnable 'start' method")
                 node.is_input = True
@@ -556,7 +556,6 @@ class TestTask(Task):
 class CryoCloudTask(Task):
 
     def resolve(self, pebble, result, caller):
-
         if self.is_input:
             self.resolve_input(pebble)
             return
@@ -589,7 +588,6 @@ class CryoCloudTask(Task):
                 return
 
         # Parent is "caller"
-        print("Building runtime and args for", pebble, caller)
         runtime_info = self._build_runtime_info(pebble, caller)
         args = self._build_args(pebble, caller)
         self.workflow.handler._addTask(self, args, runtime_info, pebble)
