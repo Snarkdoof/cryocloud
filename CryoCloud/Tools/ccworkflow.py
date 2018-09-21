@@ -1097,7 +1097,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         # Do we have any global error handlers
         for g in workflow.global_nodes:
-            print("Calling global handler for error")
+            print("Calling global handler for error", g)
             g.on_completed(pebble, "error")
         else:
             print("No more global nodes (%d)" % len(workflow.global_nodes))
