@@ -145,6 +145,10 @@ class Task:
         """
         Returns true iff the graph has completed for this pebble
         """
+
+        # If a sub-pebble, check that all siblings are done too
+        for sibling in pebble.
+
         # If I shouldn't run, this tree is complete
         if self.name in pebble._stop_on:
             return True  # Will not run further
@@ -1020,6 +1024,12 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
             if not pebble.is_sub_pebble:
                 print("The task %s is done (TODO: CLEAN UP)" % pebble.gid)
+
+                for pbl in pebble._sub_tasks:
+                    del self._pebbles[pbl.gid]
+                del self._pebbles[pebble.gid]
+                print("Current pebbles:", len(self._pebbles))
+                
             # self._jobdb.update_profile(pebble.gid,
             #    self.workflow.name, 
             #    state=jobdb.STATE_COMPLETED)
