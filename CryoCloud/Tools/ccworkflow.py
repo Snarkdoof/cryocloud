@@ -890,7 +890,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                         priority=runtime_info["priority"])
                     self._pebbles[subpebble.gid] = subpebble
                     taskid = random.randint(0, 100000000)  # TODO: Better
-                    subpebble.nodename[pebble.taskid] = node.name
+                    subpebble.nodename[taskid] = node.name
                     i = self.head.add_job(lvl, taskid, args, module=node.module, jobtype=jobt,
                                           itemid=subpebble.gid, workdir=runtime_info["dir"],
                                           priority=runtime_info["priority"],
