@@ -1117,25 +1117,11 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         # Add the results
         # node = pebble._sub_pebbles[task["taskid"]]["node"]
+        if not "retval" in task:
+            task["retval"] = {}
         if not "error" in task["retval"]:
             task["retval"]["error"] = "Cancelled, unknown reason"
         pebble.retval_dict[node] = task["retval"]
-        pebble.stats[node] = {
-            "node": task["node"],
-            "worker": task["worker"],
-            "priority": task["priority"]
-        }
-        for i, nick in [("runtime", "runtime"), ("cpu_time", "cpu"), ("max_memory", "mem")]:
-            if nick in task:
-                pebble.stats[node][i] = task[nick]
-            else:
-                pebble.stats[node][i] = 0
-
-        self._jobdb.update_profile(pebble.gid,
-            node,
-            state=jobdb.STATE_FAILED,
-            memory=pebble.stats[node]["max_memory"],
-            cpu=pebble.stats[node]["cpu_time"])
 
         workflow.nodes[node].on_completed(pebble, "cancel")
 
