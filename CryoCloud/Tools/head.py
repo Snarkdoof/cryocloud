@@ -229,14 +229,12 @@ class HeadNode(threading.Thread):
                         elif job["state"] == jobdb.STATE_FAILED:
                             if job["taskid"] in self._pending:
                                 self._pending.remove(job["taskid"])
-                                self.handler.onAllocated(job)
                             # self.status["progress"].set_value((job["step"] - 1, job["taskid"]), 2)
                             self.handler.onError(job)
 
                         elif job["state"] == jobdb.STATE_CANCELLED:
                             if job["taskid"] in self._pending:
                                 self._pending.remove(job["taskid"])
-                                self.handler.onAllocated(job)
                             self.handler.onCancelled(job)
 
                         elif job["state"] == jobdb.STATE_COMPLETED:
