@@ -934,7 +934,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         # task["itemid"] is the graph identifier
         if task["itemid"] not in self._pebbles:
-            self.log.error("Got allocated task for unknown Pebble %s" % task)
+            self.log.warning("Got allocated task for unknown Pebble %s" % task)
             return
 
         pebble = self._pebbles[task["itemid"]]
