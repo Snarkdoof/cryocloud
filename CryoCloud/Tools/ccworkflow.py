@@ -928,6 +928,15 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         # pebble._sub_pebbles[i] = {"x": None, "y": None, "node": node, "done": False}
 
     def onAllocated(self, task):
+        if "itemid" not in task:
+            self.log.error("Got allocated task without itemid: %s" % task)
+            return
+
+        # task["itemid"] is the graph identifier
+        if task["itemid"] not in self._pebbles:
+            self.log.error("Got allocated task for unknown Pebble %s" % task)
+            return
+
         pebble = self._pebbles[task["itemid"]]
 
         self.status["%s.processing" % pebble.nodename[task["taskid"]]].inc()
