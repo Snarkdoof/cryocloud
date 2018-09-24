@@ -1029,20 +1029,23 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         if workflow.entry.is_done(pebble):
             self._jobdb.update_profile(pebble.gid, self.workflow.name, state=jobdb.STATE_COMPLETED)  # The whole job
 
-            if not pebble.is_sub_pebble:
-                print("The task %s is done (TODO: CLEAN UP)" % pebble.gid)
-
-                for pbl in pebble._sub_tasks.values():
-                    del self._pebbles[pbl]
-                del self._pebbles[pebble.gid]
-                print("Current pebbles:", len(self._pebbles))
-
+            self._cleanup_pebble(pebble)
             # self._jobdb.update_profile(pebble.gid,
             #    self.workflow.name, 
             #    state=jobdb.STATE_COMPLETED)
 
         if workflow._is_single_run and workflow.entry.is_done(pebble):
             API.shutdown()
+
+    def _cleanup_pebble(self, pebble)
+        if not pebble.is_sub_pebble:
+            print("Cleaning pebble %s" % pebble.gid)
+
+            for pbl in pebble._sub_tasks.values():
+                del self._pebbles[pbl]
+            del self._pebbles[pebble.gid]
+            print("Current pebbles:", len(self._pebbles))
+
 
     def onError(self, task):
         print("*** ERROR", task)
@@ -1096,6 +1099,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             for g in workflow.global_nodes:
                 print("*** Error and not a sub-pebble, reporting as global error")
                 g.resolve(pebble, "error", workflow.nodes[node])
+            self._cleanup_pebble(pebble)
 
         if workflow._is_single_run and workflow.entry.is_done(pebble):
             API.shutdown()
@@ -1129,8 +1133,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         # Do we have any global error handlers
         if not pebble.is_sub_pebble:
             for g in workflow.global_nodes:
-                print("*** Cancelled and not a sub-pebble, reporting as global error")
+                print("*** Cancelled and not a sub-pebble, reporting as global error", pebble)
                 g.resolve(pebble, "error", workflow.nodes[node])
+            self._cleanup_pebble(pebble)
 
 
 if 0:  # Make unittests of this graph stuff ASAP
