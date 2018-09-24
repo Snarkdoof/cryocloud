@@ -233,11 +233,15 @@ class DashBoard:
                     # if workerinfo[worker]["state"] == "unknown":
                         # self._debug("Worker %s has unknown state (%s)" % (worker, time.ctime(workerinfo[worker]["ts"])))
                         # continue
-                    infostr = "% 23s: % 10s [% 4d%%] - %s" %\
-                        (worker, workerinfo[worker]["state"],
-                         float(workerinfo[worker]["progress"]),
-                         workerinfo[worker]["module"]
-                         ) + " " * 25
+                    if workerinfo[worker]["state"] == "Idle":
+                        infostr = "% 23s: % 10s" %\
+                            (worker, workerinfo[worker]["state"]) + " " * 55
+                    else:
+                        infostr = "% 23s: % 10s [% 4d%%] - %s" %\
+                            (worker, workerinfo[worker]["state"],
+                             float(workerinfo[worker]["progress"]),
+                             workerinfo[worker]["module"]
+                             ) + " " * 25
                          # time.ctime(float(workerinfo[worker]["ts"])))
                     infostr = infostr[:self.width - 2]
                     self.workerWindow.addstr(idx, 2, infostr, curses.color_pair(self.worker_color))
