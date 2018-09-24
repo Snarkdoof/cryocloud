@@ -1045,7 +1045,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             API.shutdown()
 
     def onError(self, task):
-        # print("*** ERROR", task)
+        print("*** ERROR", task)
         if "itemid" not in task:
             self.log.error("Got error for task without itemid: %s" % task)
             return
@@ -1059,7 +1059,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         # We should cancel any siblings - this will not succeed!
         if len(pebble._sub_tasks) > 0:
-            print("*** Error in task or subtask, cancelling the whole shebang")
+            self.log.info("Error in task or subtask, cancelling the whole job")
             parent = self._pebbles[pebble._master_task]
             for p in parent._sub_tasks.values():
                 self._jobdb.cancel_job_by_taskid(self._pebbles[p].jobid)
