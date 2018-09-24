@@ -1055,7 +1055,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         # task["itemid"] is the graph identifier
         if task["itemid"] not in self._pebbles:
-            self.log.error("Got error task for unknown Pebble %s" % task)
+            # Expected if cleaned up
+            # self.log.error("Got error task for unknown Pebble %s" % task)
             return
 
         pebble = self._pebbles[task["itemid"]]
@@ -1115,7 +1116,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         # task["itemid"] is the graph identifier
         if task["itemid"] not in self._pebbles:
-            self.log.error("Got cancelled task for unknown Pebble %s" % task)
+            # self.log.error("Got cancelled task for unknown Pebble %s" % task)
+            # Expected if cleaned up
             return
 
         pebble = self._pebbles[task["itemid"]]
