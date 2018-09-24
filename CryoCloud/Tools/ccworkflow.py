@@ -1030,6 +1030,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             pebble.retval_dict[node] = retvals
             pebble.stats[node] = stats
         try:
+            if task["module"] == "KSAT_report":
+                print("Report success")
             workflow.nodes[node].on_completed(pebble, "success")
         except:
             self.log.exception("Exception notifying success")
