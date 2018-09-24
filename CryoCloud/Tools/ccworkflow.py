@@ -1127,8 +1127,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         workflow.nodes[node].on_completed(pebble, "error")
 
-        # Do we have any global error handlers
-        if not pebble.is_sub_pebble:
+        # Do we have any global error handlers (and is THIS one of them?)
+        if not pebble.is_sub_pebble and not workflow.nodes[node].is_global:
             for g in workflow.global_nodes:
                 print("*** Error and not a sub-pebble, reporting as global error")
                 g.resolve(pebble, "error", workflow.nodes[node])
