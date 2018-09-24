@@ -1040,7 +1040,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         if workflow.entry.is_done(pebble):
             self._jobdb.update_profile(pebble.gid, self.workflow.name, state=jobdb.STATE_COMPLETED)  # The whole job
-
+            print(pebble, "is done, cleaning it")
             self._cleanup_pebble(pebble)
             # self._jobdb.update_profile(pebble.gid,
             #    self.workflow.name, 
@@ -1117,6 +1117,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                 print("*** Error and not a sub-pebble, reporting as global error")
                 g.resolve(pebble, "error", workflow.nodes[node])
 
+            print(pebble, "failed, cleaning just it")
             del self._pebbles[pebble.gid]
             print("Current pebbles:", len(self._pebbles))
 
@@ -1156,7 +1157,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             for g in workflow.global_nodes:
                 print("*** Cancelled and not a sub-pebble, reporting as global error", pebble)
                 g.resolve(pebble, "error", workflow.nodes[node])
-            self._cleanup_pebble(pebble)
+
+                print(pebble, "canceled, cleaning")
+                self._cleanup_pebble(pebble)
 
 
 if 0:  # Make unittests of this graph stuff ASAP
