@@ -154,7 +154,7 @@ class Task:
             return True  # Will not run further
 
         # If I'm not done, just return now
-        if self.name != "Entry" and self.name not in pebble.retval_dict and self._is_single_run:
+        if self.name != "Entry" and self.name not in pebble.retval_dict and self.is_input:
             print("Child lacks", self.name,"?", pebble.retval_dict.keys())
             return False  # We've NOT completed
 
