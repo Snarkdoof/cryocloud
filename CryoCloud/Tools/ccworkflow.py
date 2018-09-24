@@ -823,6 +823,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         self.status = API.get_status(self.workflow.name)
         self.options = options
 
+        self._cleanup = []  # Pebbles that should be cleaned up (we do it lazily to ensure that we finish all tasks)
+
         print(self.workflow)
         # Entry has been resolved, just go
         self.workflow.entry.resolve()
@@ -860,6 +862,10 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         # We can now resolve this caller with the correct info
         caller.on_completed(pebble, "success")
+
+        # Should we clean anything?
+        for i in self._cleanup:
+            self._cleanup_pebble(i)
 
     def _addTask(self, node, args, runtime_info, pebble):
         if node.taskid not in self._levels:
@@ -1047,7 +1053,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         if workflow.entry.is_done(pebble):
             self._jobdb.update_profile(pebble.gid, self.workflow.name, state=jobdb.STATE_COMPLETED)  # The whole job
             print(pebble, "is done, cleaning it")
-            self._cleanup_pebble(pebble)
+            self._flag_cleanup_pebble(pebble)
             # self._jobdb.update_profile(pebble.gid,
             #    self.workflow.name, 
             #    state=jobdb.STATE_COMPLETED)
@@ -1055,10 +1061,15 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         if workflow._is_single_run and workflow.entry.is_done(pebble):
             API.shutdown()
 
-    def _cleanup_pebble(self, pebble):
+    def _flag_cleanup_pebble(self, pebble):
 
         if not workflow.entry.is_done(pebble):
             return
+
+        if not pebble.is_sub_pebble:
+            self._cleanup_pebble.append(pebble)
+
+    def _cleanup_pebble(self, pebble):
 
         if not pebble.is_sub_pebble:
             print("Cleaning pebble %s" % pebble.gid)
@@ -1129,7 +1140,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                 g.resolve(pebble, "error", workflow.nodes[node])
 
         print(pebble, "failed, clean?")
-        self._cleanup_pebble(pebble)
+        self._flag_cleanup_pebble(pebble)
 
         if workflow._is_single_run and workflow.entry.is_done(pebble):
             API.shutdown()
@@ -1168,7 +1179,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                 g.resolve(pebble, "error", workflow.nodes[node])
 
         print(pebble, "canceled, cleaning?")
-        self._cleanup_pebble(pebble)
+        self._flag_cleanup_pebble(pebble)
 
 
 if 0:  # Make unittests of this graph stuff ASAP
