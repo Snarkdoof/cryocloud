@@ -1118,7 +1118,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         # Add the results
         # node = pebble._sub_pebbles[task["taskid"]]["node"]
-        if not "retval" in task:
+        if "retval" not in task or task["retval"] is None:
             task["retval"] = {}
         if "error" not in task["retval"]:
             task["retval"]["error"] = "Cancelled, unknown reason"
