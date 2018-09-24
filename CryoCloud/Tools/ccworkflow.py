@@ -864,8 +864,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         caller.on_completed(pebble, "success")
 
         # Should we clean anything?
-        for i in self._cleanup:
-            self._cleanup_pebble(i)
+        while len(self._cleanup) > 0:
+            pbl = self._cleanup.pop(0)
+            self._cleanup_pebble(pbl)
 
     def _addTask(self, node, args, runtime_info, pebble):
         if node.taskid not in self._levels:
@@ -1067,7 +1068,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             return
 
         if not pebble.is_sub_pebble:
-            self._cleanup_pebble.append(pebble)
+            self._cleanup.append(pebble)
 
     def _cleanup_pebble(self, pebble):
 
