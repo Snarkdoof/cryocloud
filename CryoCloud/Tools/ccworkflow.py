@@ -959,6 +959,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             self.log.error("Got completed task for unknown Pebble %s" % task)
             return
 
+        if task["module"] == "KSAT_report":
+            print("*** Completed", task)
+
         pebble = self._pebbles[task["itemid"]]
         node = pebble.nodename[task["taskid"]]
 
@@ -1057,7 +1060,11 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
 
     def onError(self, task):
-        print("*** ERROR", task)
+
+        if task["module"] == "KSAT_report":
+            print("*** Error", task)
+
+        # print("*** ERROR", task)
         if "itemid" not in task:
             self.log.error("Got error for task without itemid: %s" % task)
             return
