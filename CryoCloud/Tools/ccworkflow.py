@@ -158,6 +158,7 @@ class Task:
         # I'm done, what about my children?
         for node in self._downstreams:
             if not node.is_done(pebble):
+                print("Child", node, "is not done")
                 return False  # Not done
 
         # I'm done, and so are my children
