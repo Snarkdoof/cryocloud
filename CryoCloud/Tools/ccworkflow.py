@@ -834,6 +834,11 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         Add is a special case for CryoCloud - it's provided Input from
         modules
         """
+        # Should we clean anything?
+        while len(self._cleanup) > 0:
+            pbl = self._cleanup.pop(0)
+            self._cleanup_pebble(pbl)
+
         self.log.debug("INPUT TASK added: %s" % task)
         # We need to find the source if this addition
         if "caller" not in task:
@@ -862,11 +867,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         # We can now resolve this caller with the correct info
         caller.on_completed(pebble, "success")
-
-        # Should we clean anything?
-        while len(self._cleanup) > 0:
-            pbl = self._cleanup.pop(0)
-            self._cleanup_pebble(pbl)
 
     def _addTask(self, node, args, runtime_info, pebble):
         if node.taskid not in self._levels:
@@ -1048,7 +1048,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         if workflow.entry.is_done(pebble):
             self._jobdb.update_profile(pebble.gid, self.workflow.name, state=jobdb.STATE_COMPLETED)  # The whole job
-            print(pebble, "is done, cleaning it")
             self._flag_cleanup_pebble(pebble)
             # self._jobdb.update_profile(pebble.gid,
             #    self.workflow.name, 
@@ -1073,7 +1072,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             for pbl in pebble._sub_tasks.values():
                 del self._pebbles[pbl]
 
-            del self._pebbles[pebble.gid]
+            if pebble.gid in self._pebbles:
+                del self._pebbles[pebble.gid]
+
             print("Current pebbles:", len(self._pebbles))
 
 
