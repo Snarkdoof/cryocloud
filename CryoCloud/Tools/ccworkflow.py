@@ -1050,6 +1050,10 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             API.shutdown()
 
     def _cleanup_pebble(self, pebble):
+
+        if not workflow.entry.is_done(pebble):
+            return
+
         if not pebble.is_sub_pebble:
             print("Cleaning pebble %s" % pebble.gid)
 
@@ -1117,10 +1121,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                 print("*** Error and not a sub-pebble, reporting as global error")
                 g.resolve(pebble, "error", workflow.nodes[node])
 
-            print(pebble, "failed, cleaning just it")
-            del self._pebbles[pebble.gid]
-            print("Current pebbles:", len(self._pebbles))
-
+        print(pebble, "failed, clean?")
+        self._cleanup_pebble(pebble)
 
         if workflow._is_single_run and workflow.entry.is_done(pebble):
             API.shutdown()
@@ -1158,8 +1160,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                 print("*** Cancelled and not a sub-pebble, reporting as global error", pebble)
                 g.resolve(pebble, "error", workflow.nodes[node])
 
-                print(pebble, "canceled, cleaning")
-                self._cleanup_pebble(pebble)
+        print(pebble, "canceled, cleaning?")
+        self._cleanup_pebble(pebble)
 
 
 if 0:  # Make unittests of this graph stuff ASAP
