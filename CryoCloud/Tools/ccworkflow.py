@@ -1047,12 +1047,12 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
     def onError(self, task):
         print("*** ERROR", task)
         if "itemid" not in task:
-            self.log.error("Got task without itemid: %s" % task)
+            self.log.error("Got error for task without itemid: %s" % task)
             return
 
         # task["itemid"] is the graph identifier
         if task["itemid"] not in self._pebbles:
-            self.log.error("Got failed task for unknown Pebble %s" % task)
+            self.log.error("Got error task for unknown Pebble %s" % task)
             return
 
         pebble = self._pebbles[task["itemid"]]
@@ -1094,28 +1094,55 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         # Do we have any global error handlers
         if not pebble.is_sub_pebble:
             for g in workflow.global_nodes:
+                print("*** Error and not a sub-pebble, reporting as global error")
                 g.resolve(pebble, "error", workflow.nodes[node])
 
         if workflow._is_single_run and workflow.entry.is_done(pebble):
             API.shutdown()
 
     def onCancelled(self, task):
-        print("*** Cancelled", task)
         if "itemid" not in task:
-            self.log.error("Got task without itemid: %s" % task)
+            self.log.error("Got cancelled task without itemid: %s" % task)
             return
 
         # task["itemid"] is the graph identifier
         if task["itemid"] not in self._pebbles:
-            self.log.error("Got failed task for unknown Pebble %s" % task)
+            self.log.error("Got cancelled task for unknown Pebble %s" % task)
             return
 
         pebble = self._pebbles[task["itemid"]]
         node = pebble.nodename[task["taskid"]]
 
+        self.status["%s.failed" % node].inc()
+
+        # Add the results
+        # node = pebble._sub_pebbles[task["taskid"]]["node"]
+        if not "error" in task["retval"]:
+            task["retval"]["error"] = "Cancelled, unknown reason"
+        pebble.retval_dict[node] = task["retval"]
+        pebble.stats[node] = {
+            "node": task["node"],
+            "worker": task["worker"],
+            "priority": task["priority"]
+        }
+        for i, nick in [("runtime", "runtime"), ("cpu_time", "cpu"), ("max_memory", "mem")]:
+            if nick in task:
+                pebble.stats[node][i] = task[nick]
+            else:
+                pebble.stats[node][i] = 0
+
+        self._jobdb.update_profile(pebble.gid,
+            node,
+            state=jobdb.STATE_FAILED,
+            memory=pebble.stats[node]["max_memory"],
+            cpu=pebble.stats[node]["cpu_time"])
+
+        workflow.nodes[node].on_completed(pebble, "cancel")
+
         # Do we have any global error handlers
         if not pebble.is_sub_pebble:
             for g in workflow.global_nodes:
+                print("*** Cancelled and not a sub-pebble, reporting as global error")
                 g.resolve(pebble, "error", workflow.nodes[node])
 
 
