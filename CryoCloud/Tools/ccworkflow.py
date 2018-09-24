@@ -1062,7 +1062,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             print("*** Error in task or subtask, cancelling the whole shebang")
             parent = self._pebbles[pebble._master_task]
             for p in parent._sub_tasks.values():
-                print("CANCEL: ", self._pebbles[p].jobid)
                 self._jobdb.cancel_job_by_taskid(self._pebbles[p].jobid)
 
         node = pebble.nodename[task["taskid"]]
@@ -1093,11 +1092,30 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         workflow.nodes[node].on_completed(pebble, "error")
 
         # Do we have any global error handlers
-        for g in workflow.global_nodes:
+        for g in workflow.global_nodes and not pebble.is_sub_pebble:
             g.resolve(pebble, "error", workflow.nodes[node])
 
         if workflow._is_single_run and workflow.entry.is_done(pebble):
             API.shutdown()
+
+    def onCancelled(self, task):
+        print("*** Cancelled", task)
+        if "itemid" not in task:
+            self.log.error("Got task without itemid: %s" % task)
+            return
+
+        # task["itemid"] is the graph identifier
+        if task["itemid"] not in self._pebbles:
+            self.log.error("Got failed task for unknown Pebble %s" % task)
+            return
+
+        pebble = self._pebbles[task["itemid"]]
+        node = pebble.nodename[task["taskid"]]
+
+        # Do we have any global error handlers
+        for g in workflow.global_nodes and not pebble.is_sub_pebble:
+            g.resolve(pebble, "error", workflow.nodes[node])
+
 
 if 0:  # Make unittests of this graph stuff ASAP
 

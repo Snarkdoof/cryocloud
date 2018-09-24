@@ -43,6 +43,9 @@ class DefaultHandler:
     def onError(self, task):
         pass
 
+    def onCancelled(self, task):
+        pass
+
     def onStepCompleted(self, step):
         pass
 

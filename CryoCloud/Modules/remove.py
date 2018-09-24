@@ -8,7 +8,7 @@ ccmodule = {
     "inputs": {
         "src": "Full path to file or directory to delete",
         "recursive": "Recurse, default False",
-        "ignoreerrors": "Igore any errors, will always succeed"
+        "ignoreerrors": "Igore any errors, will always succeed",
     },
     "outputs": {},
     "defaults": {
@@ -72,4 +72,4 @@ def process_task(self, task):
             else:
                 break
 
-    return int(self.status["progress"].get_value()), {"errors": errors, "errormsg": errormsg, "deleted": done}
+    return int(self.status["progress"].get_value()), {"errors": errors, "error": errormsg, "deleted": done}
