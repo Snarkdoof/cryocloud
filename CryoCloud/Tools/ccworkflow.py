@@ -1037,7 +1037,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         if workflow._is_single_run and workflow.entry.is_done(pebble):
             API.shutdown()
 
-    def _cleanup_pebble(self, pebble)
+    def _cleanup_pebble(self, pebble):
         if not pebble.is_sub_pebble:
             print("Cleaning pebble %s" % pebble.gid)
 
