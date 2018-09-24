@@ -1101,6 +1101,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             API.shutdown()
 
     def onCancelled(self, task):
+        print("** C **", task)
         if "itemid" not in task:
             self.log.error("Got cancelled task without itemid: %s" % task)
             return
@@ -1119,7 +1120,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         # node = pebble._sub_pebbles[task["taskid"]]["node"]
         if not "retval" in task:
             task["retval"] = {}
-        if not "error" in task["retval"]:
+        if "error" not in task["retval"]:
             task["retval"]["error"] = "Cancelled, unknown reason"
         pebble.retval_dict[node] = task["retval"]
 
