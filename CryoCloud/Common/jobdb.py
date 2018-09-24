@@ -519,7 +519,7 @@ class JobDB(mysql):
             if product:
                 if not addtime:
                     addtime = time.time()
-                SQL = "INSERT INTO profile (itemid, module, product, addtime, datasize, priority, type) "\
+                SQL = "INSERT IGNORE INTO profile (itemid, module, product, addtime, datasize, priority, type) "\
                       "VALUES (%s, %s, %s, %s, %s, %s, %s)"
                 self._execute(SQL, [itemid, module, product, addtime, datasize, priority, type])
             elif state:
