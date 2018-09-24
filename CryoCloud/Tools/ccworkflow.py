@@ -146,6 +146,8 @@ class Task:
         """
         Returns true iff the graph has completed for this pebble
         """
+        if self.is_global:
+            return True  # These never block anything - it's global error handlers
 
         # If I shouldn't run, this tree is complete
         if self.name in pebble._stop_on:
