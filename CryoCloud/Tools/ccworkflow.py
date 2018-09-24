@@ -1070,6 +1070,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         # Add the results
         # node = pebble._sub_pebbles[task["taskid"]]["node"]
+        if not "error" in task["retval"]:
+            task["retval"]["error"] = "Unknown error"
         pebble.retval_dict[node] = task["retval"]
         pebble.stats[node] = {
             "node": task["node"],
