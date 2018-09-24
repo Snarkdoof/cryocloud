@@ -1099,7 +1099,10 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             for g in workflow.global_nodes:
                 print("*** Error and not a sub-pebble, reporting as global error")
                 g.resolve(pebble, "error", workflow.nodes[node])
-            self._cleanup_pebble(pebble)
+
+            del self._pebbles[pebble.gid]
+            print("Current pebbles:", len(self._pebbles))
+
 
         if workflow._is_single_run and workflow.entry.is_done(pebble):
             API.shutdown()
