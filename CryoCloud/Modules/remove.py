@@ -72,4 +72,4 @@ def process_task(self, task):
             else:
                 break
 
-    return int(self.status["progress"].get_value()), {"errors": errors, "erromsg": errormsg, "deleted": done}
+    return int(self.status["progress"].get_value()), {"errors": errors, "errormsg": errormsg, "deleted": done}
