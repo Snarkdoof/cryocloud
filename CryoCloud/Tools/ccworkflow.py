@@ -153,7 +153,8 @@ class Task:
 
         # If I'm not done, just return now
         if self.name != "Entry" and self.name not in pebble.retval_dict:
-            return False  # We've completed
+            print("Child lacks", self.name,"?", pebble.retval_dict.keys())
+            return False  # We've NOT completed
 
         # I'm done, what about my children?
         for node in self._downstreams:
@@ -1060,6 +1061,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
             for pbl in pebble._sub_tasks.values():
                 del self._pebbles[pbl]
+
             del self._pebbles[pebble.gid]
             print("Current pebbles:", len(self._pebbles))
 
