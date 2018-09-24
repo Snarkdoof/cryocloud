@@ -970,9 +970,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             self.log.error("Got completed task for unknown Pebble %s" % task)
             return
 
-        if task["module"] == "KSAT_report":
-            print("*** Completed", task)
-
         pebble = self._pebbles[task["itemid"]]
         node = pebble.nodename[task["taskid"]]
 
@@ -1039,8 +1036,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             pebble.retval_dict[node] = retvals
             pebble.stats[node] = stats
         try:
-            if task["module"] == "KSAT_report":
-                print("Report success")
             workflow.nodes[node].on_completed(pebble, "success")
         except:
             self.log.exception("Exception notifying success")
@@ -1083,9 +1078,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
 
     def onError(self, task):
-
-        if task["module"] == "KSAT_report":
-            print("*** Error", task)
 
         # print("*** ERROR", task)
         if "itemid" not in task:
@@ -1140,7 +1132,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                 print("*** Error and not a sub-pebble, reporting as global error")
                 g.resolve(pebble, "error", workflow.nodes[node])
 
-        print(pebble, "failed, clean?")
         self._flag_cleanup_pebble(pebble)
 
         if workflow._is_single_run and workflow.entry.is_done(pebble):
@@ -1179,7 +1170,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                 print("*** Cancelled and not a sub-pebble, reporting as global error", pebble)
                 g.resolve(pebble, "error", workflow.nodes[node])
 
-        print(pebble, "canceled, cleaning?")
         self._flag_cleanup_pebble(pebble)
 
 
