@@ -1092,8 +1092,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         workflow.nodes[node].on_completed(pebble, "error")
 
         # Do we have any global error handlers
-        for g in workflow.global_nodes and not pebble.is_sub_pebble:
-            g.resolve(pebble, "error", workflow.nodes[node])
+        if not pebble.is_sub_pebble:
+            for g in workflow.global_nodes:
+                g.resolve(pebble, "error", workflow.nodes[node])
 
         if workflow._is_single_run and workflow.entry.is_done(pebble):
             API.shutdown()
@@ -1113,8 +1114,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         node = pebble.nodename[task["taskid"]]
 
         # Do we have any global error handlers
-        for g in workflow.global_nodes and not pebble.is_sub_pebble:
-            g.resolve(pebble, "error", workflow.nodes[node])
+        if not pebble.is_sub_pebble:
+            for g in workflow.global_nodes:
+                g.resolve(pebble, "error", workflow.nodes[node])
 
 
 if 0:  # Make unittests of this graph stuff ASAP
