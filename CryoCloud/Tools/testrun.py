@@ -79,7 +79,7 @@ else:
     raise SystemExit("Need task definition")
 
 if options.docker:
-    task["args"]["target"] = options.module
+    task["args"]["target"] = os.path.abspath(options.module)
     task["args"]["arguments"] = ["cctestrun", "--indocker"]
     task["args"]["arguments"].extend(sys.argv[3:])
 
