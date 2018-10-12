@@ -5,6 +5,8 @@ import os
 import select
 import re
 import json
+import psutil
+
 
 from CryoCore import API
 
@@ -14,8 +16,22 @@ class DockerProcess():
     A local config file .dockercfg is read which overrides a few important bits for security reasons
     """
 
-    def __init__(self, cmd, status, log, stop_event, env={}, dirs={}, gpu=False,
-                 userid=None, groupid=None, log_all=False, args=[], cancel_event=None):
+    def __init__(self, cmd, status, log, stop_event,
+                 env={}, dirs=[], gpu=False,
+                 userid=None, groupid=None, log_all=False,
+                 args=[], cancel_event=None):
+
+        # Read in all partitions on this machine, used to identify volumes
+        # TODO: Might not work with automounts, is this an issue?
+        self.partitions = []
+        for part in psutil.disk_partitions():
+            self.partitions.append(part.mountpoint)
+        self.partitions.sort(key=lambda k: -len(k))
+
+        def lookup(path):
+            for p in self.partitions:
+                if path.startswith(p):
+                    return p
 
         # if not os.path.exists(".dockercfg"):
         #    raise SystemExit("Missing .dockercfg for system wide config")
@@ -28,6 +44,7 @@ class DockerProcess():
         else:
             # defaults
             self._dockercfg = {"scratch": "/tmp"}
+
         self.cmd = cmd
         self.status = status
         self.log = log
@@ -62,6 +79,18 @@ class DockerProcess():
         if len(self.cmd) == 0:
             raise Exception("Command needs to be at least a docker target")
 
+        # We go through all arguments and check if there are any files
+        for c in self.cmd:
+            if c.startswith("/"):  # We guess this is a path, map it
+                volume = lookup(c)
+                mapped = False
+                for d in self.dirs:
+                    if d[0] == volume:
+                        mapped = True
+                        break
+                if not mapped:
+                    self.dirs.append((volume, volume, "rw"))
+
     def run(self):
         docker = "docker"
         if self.gpu:
@@ -77,11 +106,16 @@ class DockerProcess():
 
         cmd = [docker, "run"]
 
-        for source, destination in self.dirs:
-            if destination.startswith("/scratch"):
-                continue  # We ignore scratch
-            options = ":rw"
-            if destination == "/input":
+        for d in self.dirs:
+            if len(d) == 3:
+                source, destination, mode = d
+            else:
+                source, destination = d
+                mode = "ro"
+
+            if mode == "rw":
+                options = ":rw"
+            else:
                 options = ":ro"
             cmd.extend(["-v", "%s:%s%s" % (source, destination, options)])
 
@@ -92,6 +126,13 @@ class DockerProcess():
         # cmd.extend(["-e", ....])
         cmd.extend(["-u=%s:%s" % (self.userid, self.groupid)])
 
+        # If we've provided -u in cmd or args, freak out
+        for c in self.cmd:
+            if c.find("-u") > -1:
+                raise Exception("-u specified in cmd, not allowed")
+        for c in self.args:
+            if c.find("-u") > -1:
+                raise Exception("-u specified in args, not allowed")
         cmd.extend(self.cmd)
         cmd.extend(self.args)
 
@@ -211,8 +252,8 @@ if __name__ == "__main__":
     try:
         status = API.get_status("test")
         log = API.get_log("test")
-        dirs = {"/tmp": "/mnt/data"}
-        DP = DockerProcess([sys.argv[1]], status, log, API.api_stop_event, dirs=dirs)
+        dirs = [("/tmp", "/mnt/data", "ro")]
+        DP = DockerProcess([sys.argv[1], "/home/jallababy"], status, log, API.api_stop_event)
         # DP.start()
         # DP.join()
         DP.run()
