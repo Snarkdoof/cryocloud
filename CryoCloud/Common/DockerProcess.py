@@ -120,7 +120,7 @@ class DockerProcess():
             cmd.extend(["-v", "%s:%s%s" % (source, destination, options)])
 
         # We also add "/scratch"
-        cmd.extend(["-v", "%s:/scratch" % self._dockercfg["scratch"]])
+        # cmd.extend(["-v", "%s:/scratch" % self._dockercfg["scratch"]])
 
         # also allow ENV
         # cmd.extend(["-e", ....])

@@ -44,6 +44,7 @@ parser.add_argument("-m", "--module", type=str, dest="module", default="", help=
 parser.add_argument("-t", "--task", type=str, dest="task", default="", help="The task as json")
 parser.add_argument("--indocker", action='store_true', help="task run in docker")
 parser.add_argument("--workdir", type=str, default="", help="Path to workdir")
+parser.add_argument("--docker", type=str, default="", help="Run in a docker environment")
 
 if "argcomplete" in sys.modules:
     argcomplete.autocomplete(parser)
@@ -59,9 +60,14 @@ if options.workdir:
 
 sys.path.append(".")  # Add current dir (workdir) to module of the job
 
-modulename = inspect.getmodulename(options.module)
-path = os.path.dirname(os.path.abspath(options.module))
-sys.path.append(path)
+# If we want to run this in a docker, fire up a docker process with all the
+# parameters
+if options.docker:
+    modulename = "docker"
+else:
+    modulename = inspect.getmodulename(options.module)
+    path = os.path.dirname(os.path.abspath(options.module))
+    sys.path.append(path)
 
 if options.config_file:
     f = open(options.config_file, "r")
@@ -71,6 +77,11 @@ elif options.task:
     task = json.loads(options.task)
 else:
     raise SystemExit("Need task definition")
+
+if options.docker:
+    task["args"]["target"] = options.module
+    task["args"]["arguments"] = ["cctestrun", "--indocker"]
+    task["args"]["arguments"].extend(sys.argv[3:])
 
 print("Running module %s with task: '%s'" % (modulename, task))
 try:
