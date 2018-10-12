@@ -252,8 +252,7 @@ if __name__ == "__main__":
     try:
         status = API.get_status("test")
         log = API.get_log("test")
-        dirs = [("/tmp", "/mnt/data", "ro")]
-        DP = DockerProcess([sys.argv[1], "/home/jallababy"], status, log, API.api_stop_event)
+        DP = DockerProcess(sys.argv[1:], status, log, API.api_stop_event)
         # DP.start()
         # DP.join()
         DP.run()
