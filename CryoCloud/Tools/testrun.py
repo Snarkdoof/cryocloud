@@ -62,7 +62,7 @@ sys.path.append(".")  # Add current dir (workdir) to module of the job
 
 # If we want to run this in a docker, fire up a docker process with all the
 # parameters
-if options.docker:
+if options.docker and not options.indocker:
     modulename = "docker"
 else:
     modulename = inspect.getmodulename(options.module)
@@ -78,9 +78,15 @@ elif options.task:
 else:
     raise SystemExit("Need task definition")
 
-if options.docker:
-    task["args"]["target"] = os.path.abspath(options.module)
-    task["args"]["arguments"] = ["cctestrun", "--indocker"]
+# If running in a docker, we don't create a new docker command
+print("Docker", options.docker, "indocker:", options.indocker)
+if options.docker and not options.indocker:
+    print("Thingy")
+    task["args"]["target"] = options.docker
+    if "arguments" not in task["args"]:
+        task["args"]["arguments"] = []
+    task["args"]["arguments"].extend(["cctestrun", "--indocker"])
+    task["args"]["arguments"].extend(["-m", os.path.abspath(options.module)])
     task["args"]["arguments"].extend(sys.argv[3:])
 
 print("Running module %s with task: '%s'" % (modulename, task))
