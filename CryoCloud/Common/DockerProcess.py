@@ -18,7 +18,7 @@ class DockerProcess():
 
     def __init__(self, cmd, status, log, stop_event,
                  env={}, dirs=[], gpu=False,
-                 userid=None, groupid=None, log_all=False,
+                 userid=None, groupid=None, log_all=True,
                  args=[], cancel_event=None):
 
         # Read in all partitions on this machine, used to identify volumes
@@ -80,7 +80,7 @@ class DockerProcess():
             raise Exception("Command needs to be at least a docker target")
 
         # We go through all arguments and check if there are any files
-        for c in self.cmd:
+        for c in self.args:
             if c.startswith("/"):  # We guess this is a path, map it
                 volume = lookup(c)
                 mapped = False
