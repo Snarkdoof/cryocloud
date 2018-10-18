@@ -56,7 +56,7 @@ class Pebble:
         self._resolve_pebble = self
 
     def __str__(self):
-        return "[Pebble %s]"% self.gid
+        return "[Pebble %s]" % self.gid
         # return "[Pebble %s]: %s, %s" % (self.gid, self.resolved, self.retval_dict)
 
 
@@ -85,6 +85,8 @@ class Task:
         self.depends = []
         self.parents = []
         self.dir = None  # Directory for execution
+        self.docker = None
+        self.volumes = []
         self.is_input = False
         self.ccnode = []
         self.is_global = False
@@ -155,7 +157,7 @@ class Task:
 
         # If I'm not done, just return now
         if self.name != "Entry" and self.name not in pebble.retval_dict and self.is_input:
-            print("Child lacks", self.name,"?", pebble.retval_dict.keys())
+            print("Child lacks", self.name, "?", pebble.retval_dict.keys())
             return False  # We've NOT completed
 
         # I'm done, what about my children?
@@ -303,6 +305,10 @@ class Workflow:
                 task.splitOn = child["splitOn"]
             if "merge" in child:
                 task.merge = child["merge"]
+            if "docker" in child:
+                task.docker = child["docker"]
+            if "volumes" in child:
+                task.volumes = child["volumes"].split(",")
 
             # If global, remember this
             if "global" in child:
@@ -436,7 +442,7 @@ class Workflow:
                         name, param = val["output"].split(".")
                         if param == "error":  # We can always get an error message
                             found = True
-                            break 
+                            break
                         if name == "parent":
                             found = False
                             for parent in node._upstreams:
@@ -854,7 +860,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         # Generate a Pebble to represent this piece of work
         pebble = Pebble()
         self._jobdb.update_profile(pebble.gid, self.workflow.name, product=self.workflow.name, type=0)  # The whole job
-        
+
         pebble.resolved.append(task["caller"])
         pebble.stats[task["caller"]] = {"node": self.head.options.ip}
         self._pebbles[pebble.gid] = pebble
@@ -877,12 +883,23 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         jobt = self.head.TASK_STRING_TO_NUM[node.type]
 
         self._jobdb.update_profile(pebble.gid,
-            node.name,
-            product=self.workflow.name,
-            state=jobdb.STATE_PENDING,
-            priority=runtime_info["priority"],
-            type=jobt)
+                                   node.name,
+                                   product=self.workflow.name,
+                                   state=jobdb.STATE_PENDING,
+                                   priority=runtime_info["priority"],
+                                   type=jobt)
 
+        # Should this be run in a docker environment?
+        mod = node.module
+        if node.docker:
+            mod = "docker"
+            t = copy.copy(args)
+            args["target"] = node.docker
+            if "arguments" not in args:
+                args["arguments"] = []
+            args["arguments"].extend(["cctestrun", "--indocker"])
+            args["arguments"].extend(["-m", os.path.abspath(node.module)])
+            # args["arguments"].extend(sys.argv[3:])
 
         if node.splitOn:
             if not isinstance(args[node.splitOn], list):
@@ -902,14 +919,14 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                     subpebble.is_sub_pebble = True
                     pebble._sub_tasks[x] = subpebble.gid
                     self._jobdb.update_profile(subpebble.gid,
-                        node.name,
-                        product=self.workflow.name,
-                        state=jobdb.STATE_PENDING,
-                        priority=runtime_info["priority"])
+                                               node.name,
+                                               product=self.workflow.name,
+                                               state=jobdb.STATE_PENDING,
+                                               priority=runtime_info["priority"])
                     self._pebbles[subpebble.gid] = subpebble
                     taskid = random.randint(0, 100000000)  # TODO: Better
                     subpebble.nodename[taskid] = node.name
-                    i = self.head.add_job(lvl, taskid, args, module=node.module, jobtype=jobt,
+                    i = self.head.add_job(lvl, taskid, args, module=mod, jobtype=jobt,
                                           itemid=subpebble.gid, workdir=runtime_info["dir"],
                                           priority=runtime_info["priority"],
                                           node=runtime_info["node"])
@@ -919,7 +936,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                     pebble._sub_tasks[x] = pebble.gid
                     taskid = random.randint(0, 100000000)  # TODO: Better
                     pebble.nodename[taskid] = node.name
-                    i = self.head.add_job(lvl, taskid, args, module=node.module, jobtype=jobt,
+                    i = self.head.add_job(lvl, taskid, args, module=mod, jobtype=jobt,
                                           itemid=pebble.gid, workdir=runtime_info["dir"],
                                           priority=runtime_info["priority"],
                                           node=runtime_info["node"])
@@ -931,7 +948,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         taskid = random.randint(0, 100000000)  # TODO: Better
         pebble.nodename[taskid] = node.name
-        i = self.head.add_job(lvl, taskid, args, module=node.module, jobtype=jobt,
+        i = self.head.add_job(lvl, taskid, args, module=mod, jobtype=jobt,
                               itemid=pebble.gid, workdir=runtime_info["dir"],
                               priority=runtime_info["priority"],
                               node=runtime_info["node"])
@@ -953,11 +970,11 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         self.status["%s.processing" % pebble.nodename[task["taskid"]]].inc()
         self.status["%s.pending" % pebble.nodename[task["taskid"]]].dec()
 
-        self._jobdb.update_profile(pebble.gid, 
-            pebble.nodename[task["taskid"]],
-            state=jobdb.STATE_ALLOCATED,
-            worker=task["worker"],
-            node=task["node"])
+        self._jobdb.update_profile(pebble.gid,
+                                   pebble.nodename[task["taskid"]],
+                                   state=jobdb.STATE_ALLOCATED,
+                                   worker=task["worker"],
+                                   node=task["node"])
 
     def onCompleted(self, task):
 
@@ -995,10 +1012,10 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         if workflow.nodes[node].merge:
 
             self._jobdb.update_profile(pebble.gid,
-                node,
-                state=jobdb.STATE_COMPLETED,
-                memory=pebble.stats[node]["max_memory"],
-                cpu=pebble.stats[node]["cpu_time"])
+                                       node,
+                                       state=jobdb.STATE_COMPLETED,
+                                       memory=pebble.stats[node]["max_memory"],
+                                       cpu=pebble.stats[node]["cpu_time"])
             master = self._pebbles[pebble._master_task]
             pebble.completed.append(node)
 
@@ -1009,11 +1026,11 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             # Sanity
             if len(master._sub_tasks) > pebble._num_subtasks:
                 self.log.exception("Internal - does not happen, %s tasks present, %s defined" %
-                                    (len(master._sub_tasks), pebble._num_subtasks))
+                                   (len(master._sub_tasks), pebble._num_subtasks))
 
             # We only continue if ALL subtasks and the master task has completed
             for t in master._sub_tasks.values():
-                if not node in self._pebbles[t].completed:
+                if node not in self._pebbles[t].completed:
                     return
             # print(node, "All", len(master._sub_tasks), "subtasks have completed, MERGE NOW")
 
@@ -1041,16 +1058,16 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             self.log.exception("Exception notifying success")
 
         self._jobdb.update_profile(pebble.gid,
-            node,
-            state=jobdb.STATE_COMPLETED,
-            memory=pebble.stats[node]["max_memory"],
-            cpu=pebble.stats[node]["cpu_time"])
+                                   node,
+                                   state=jobdb.STATE_COMPLETED,
+                                   memory=pebble.stats[node]["max_memory"],
+                                   cpu=pebble.stats[node]["cpu_time"])
 
         if workflow.entry.is_done(pebble):
             self._jobdb.update_profile(pebble.gid, self.workflow.name, state=jobdb.STATE_COMPLETED)  # The whole job
             self._flag_cleanup_pebble(pebble)
             # self._jobdb.update_profile(pebble.gid,
-            #    self.workflow.name, 
+            #    self.workflow.name,
             #    state=jobdb.STATE_COMPLETED)
 
         if workflow._is_single_run and workflow.entry.is_done(pebble):
@@ -1077,7 +1094,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                 del self._pebbles[pebble.gid]
 
             print("Current pebbles:", len(self._pebbles))
-
 
     def onError(self, task):
 
@@ -1106,7 +1122,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         # Add the results
         # node = pebble._sub_pebbles[task["taskid"]]["node"]
-        if not "error" in task["retval"]:
+        if "error" not in task["retval"]:
             task["retval"]["error"] = "Unknown error"
         pebble.retval_dict[node] = task["retval"]
         pebble.stats[node] = {
@@ -1121,10 +1137,10 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                 pebble.stats[node][i] = 0
 
         self._jobdb.update_profile(pebble.gid,
-            node,
-            state=jobdb.STATE_FAILED,
-            memory=pebble.stats[node]["max_memory"],
-            cpu=pebble.stats[node]["cpu_time"])
+                                   node,
+                                   state=jobdb.STATE_FAILED,
+                                   memory=pebble.stats[node]["max_memory"],
+                                   cpu=pebble.stats[node]["cpu_time"])
 
         workflow.nodes[node].on_completed(pebble, "error")
 
@@ -1298,7 +1314,6 @@ if __name__ == "__main__":
                 parser.add_argument("--" + o, default=default, help=_help)
             if _type == "list":
                 lists.append(o)
-
 
     if "argcomplete" in sys.modules:
         argcomplete.autocomplete(parser)

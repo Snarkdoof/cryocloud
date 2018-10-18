@@ -6,6 +6,21 @@ import re
 
 import CryoCore
 
+ccmodule = {
+    "description": "Build dockers",
+    "depends": [],
+    "provides": [],
+    "inputs": {
+        "target": "Target docker to build",
+        "directory": "Directory to build it in",
+    },
+    "outputs": {},
+    "defaults": {
+        "priority": 0,  # Bulk
+        "run": "success"
+    }
+}
+
 
 def process_task(worker, task, cancel_event):
     args = task["args"]
@@ -19,6 +34,8 @@ def process_task(worker, task, cancel_event):
 
     if os.path.exists("build_docker.sh"):
         cmd = ["./build_docker.sh", args["target"]]
+    elif os.path.exists("dockerbuild"):
+        cmd = ["./dockerbuild", args["target"]]
     else:
         cmd = ["docker", "build", "-t", args["target"], "."]
 
