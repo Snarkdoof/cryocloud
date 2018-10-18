@@ -898,7 +898,13 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             if "arguments" not in args:
                 args["arguments"] = []
             args["arguments"].extend(["cctestrun", "--indocker"])
-            args["arguments"].extend(["-m", os.path.abspath(node.module)])
+
+            info = imp.find_module(node.module, node.dir)
+            if not info:
+                raise Exception("Can't find module %s" % node.module)
+            path = info[1]
+            args["arguments"].extend(["-m", path])
+            args["arguments"].extend(["-t", json.dumps({"args": t})])
             # args["arguments"].extend(sys.argv[3:])
 
         if node.splitOn:
