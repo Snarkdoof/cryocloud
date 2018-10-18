@@ -74,9 +74,7 @@ else:
     raise SystemExit("Need task definition")
 
 # If running in a docker, we don't create a new docker command
-print("Docker", options.docker, "indocker:", options.indocker)
 if options.docker and not options.indocker:
-    print("Thingy")
     task["args"]["target"] = options.docker
     if "arguments" not in task["args"]:
         task["args"]["arguments"] = []
@@ -91,7 +89,6 @@ if options.workdir:
 
 sys.path.append(".")  # Add current dir (workdir) to module of the job
 
-print("Running module %s with task: '%s'" % (modulename, task))
 try:
     # Create the worker
     worker = node.Worker(0, API.api_stop_event)

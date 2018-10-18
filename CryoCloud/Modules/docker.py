@@ -36,13 +36,11 @@ def process_task(worker, task, cancel_event=None):
         dirs = task["args"]["dirs"]
 
     if "arguments" in task["args"]:
-        print("Got arguments")
         args = task["args"]["arguments"]
 
     log_all = False
     if "log_all" in task["args"]:
         log_all = task["args"]["log_all"]
-    print("DOCKER args", args)
     dp = DockerProcess(target, worker.status, worker.log, API.api_stop_event,
                        dirs=dirs, env=env, gpu=gpu, args=args, log_all=log_all,
                        cancel_event=cancel_event)

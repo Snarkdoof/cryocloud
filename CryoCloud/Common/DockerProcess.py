@@ -28,7 +28,6 @@ class DockerProcess():
             if len(part.mountpoint) > 1:
                 self.partitions.append(part.mountpoint)
         self.partitions.sort(key=lambda k: -len(k))
-        print("Got partitions", self.partitions)
 
         def lookup(path):
             for p in self.partitions:
@@ -36,7 +35,7 @@ class DockerProcess():
                     return p
             # We didn't find a particular mount point, return the base dir
             # of the path
-            return os.path.split(p)[0]
+            return os.path.split(path)[0]
 
         # if not os.path.exists(".dockercfg"):
         #    raise SystemExit("Missing .dockercfg for system wide config")
