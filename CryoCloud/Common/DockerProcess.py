@@ -35,7 +35,10 @@ class DockerProcess():
                     return p
             # We didn't find a particular mount point, return the base dir
             # of the path
-            return os.path.split(path)[0]
+            p = os.path.split(path)[0]
+            p = p[0:p.find("/", 1)]
+            self.partitions.append(p)
+            return p
 
         # if not os.path.exists(".dockercfg"):
         #    raise SystemExit("Missing .dockercfg for system wide config")
