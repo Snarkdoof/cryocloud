@@ -1,0 +1,27 @@
+{
+  "workflow": {
+    "options": {
+      "workdir": {"help": "Directory to find docker building stuff"},
+      "fnode": {"help": "Target node to build on, blank for any"},
+      "target": {"help": "Target docker(s) to build (comma separated)"}
+    },
+    "name": "DockerBuild",
+    "description": "Build dockers",
+    "nodes": [
+    {
+      "module": "cmdline",
+      "name": "Start",
+      "downstreamOf": ["entry"]
+    }, {
+      "module": "build_docker",
+      "name": "Build",
+      "downstreamOf": ["Start"],
+      "node": {"options": "node"},
+      "args": {
+        "directory": {"option": "workdir"},
+        "target": {"option": "target"}
+      }
+    }
+  ]
+  }
+}
