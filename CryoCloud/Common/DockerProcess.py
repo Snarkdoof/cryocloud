@@ -30,11 +30,15 @@ class DockerProcess():
         self.partitions.sort(key=lambda k: -len(k))
 
         def lookup(path):
+            for d in dirs:
+                if (path.startswith(d[1])):
+                    return d[1]
             for p in self.partitions:
                 if path.startswith(p):
                     return p
             # We didn't find a particular mount point, return the base dir
             # of the path
+            print("Didn't find a match for", path, "in", dirs)
             p = os.path.split(path)[0]
             p = p[0:p.find("/", 1)]
             self.partitions.append(p)
@@ -92,7 +96,7 @@ class DockerProcess():
                 volume = lookup(c)
                 mapped = False
                 for d in self.dirs:
-                    if d[0] == volume:
+                    if d[1] == volume:
                         mapped = True
                         break
                 if not mapped:

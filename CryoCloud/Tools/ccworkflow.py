@@ -308,7 +308,14 @@ class Workflow:
             if "docker" in child:
                 task.docker = child["docker"]
             if "volumes" in child:
-                task.volumes = child["volumes"].split(",")
+                task.volumes = child["volumes"]
+                if not isinstance(task.volumes, list):
+                    raise Exception("Volumes must be a list")
+                for volume in task.volumes:
+                    if not isinstance(volume, list):
+                        raise Exception("Volumes must be a list")
+                    if len(volume) < 2 or len(volume) > 3:
+                        raise Exception("Volumes should be on the format [[source, dest, ro], [s,d,rw], [s,d]]")
 
             # If global, remember this
             if "global" in child:
@@ -893,7 +900,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         mod = node.module
         if node.docker:
             mod = "docker"
-            t = copy.copy(args)
+            t = copy.deepcopy(args)
             args["target"] = node.docker
             if "arguments" not in args:
                 args["arguments"] = []
@@ -905,6 +912,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             path = info[1]
             args["arguments"].extend(["-m", path])
             args["arguments"].extend(["-t", json.dumps({"args": t})])
+            args["dirs"] = node.volumes
             # args["arguments"].extend(sys.argv[3:])
 
         if node.splitOn:
