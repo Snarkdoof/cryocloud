@@ -53,20 +53,15 @@ options = parser.parse_args()
 if not options.module:
     raise SystemExit("Need module to run")
 
-if options.workdir:
-    if not os.path.exists(options.workdir):
-        raise Exception("Working directory '%s' does not exist" % options.workdir)
-    os.chdir(options.workdir)
-
-sys.path.append(".")  # Add current dir (workdir) to module of the job
 
 # If we want to run this in a docker, fire up a docker process with all the
 # parameters
 if options.docker and not options.indocker:
     modulename = "docker"
 else:
+    options.module = os.path.abspath(options.module)
     modulename = inspect.getmodulename(options.module)
-    path = os.path.dirname(os.path.abspath(options.module))
+    path = os.path.dirname(options.module)
     sys.path.append(path)
 
 if options.config_file:
@@ -88,6 +83,13 @@ if options.docker and not options.indocker:
     task["args"]["arguments"].extend(["cctestrun", "--indocker"])
     task["args"]["arguments"].extend(["-m", os.path.abspath(options.module)])
     task["args"]["arguments"].extend(sys.argv[3:])
+
+if options.workdir:
+    if not os.path.exists(options.workdir):
+        raise Exception("Working directory '%s' does not exist" % options.workdir)
+    os.chdir(options.workdir)
+
+sys.path.append(".")  # Add current dir (workdir) to module of the job
 
 print("Running module %s with task: '%s'" % (modulename, task))
 try:
