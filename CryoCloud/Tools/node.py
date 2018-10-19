@@ -281,7 +281,10 @@ class Worker(multiprocessing.Process):
 
         # Measure CPU times
         proc = psutil.Process(os.getpid())
-        cpu_time = proc.cpu_times().user + proc.cpu_times().system
+        try:
+            cpu_time = proc.cpu_times().user + proc.cpu_times().system
+        except:
+            cpu_time = 0
         self.max_memory = 0
 
         cancel_event = threading.Event()
