@@ -354,8 +354,12 @@ class Worker(multiprocessing.Process):
             if not ret:
                 ret = {"error": str(e)}
 
-        my_cpu_time = proc.cpu_times().user + proc.cpu_times().system - cpu_time
-        self.max_memory = max(self.max_memory, proc.memory_info().rss)
+        try:
+            my_cpu_time = proc.cpu_times().user + proc.cpu_times().system - cpu_time
+            self.max_memory = max(self.max_memory, proc.memory_info().rss)
+        except:
+            my_cpu_time = 0
+            self.max_memory = 0
 
         task["state"] = "Stopped"
         task["processing_time"] = time.time() - start_time
