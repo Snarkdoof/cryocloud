@@ -14,7 +14,7 @@
       "module": "noop",
       "name": "Test",
       "docker": "gdar-core",
-      "fvolumes": [["/tmp/", "/home/njaal", "ro"]],
+      "fvolumes": [["/somesource/", "/mountpoint/", "ro"]],
       "downstreamOf": ["Start"],
       "args": {
         "time": {"option": "time"}
