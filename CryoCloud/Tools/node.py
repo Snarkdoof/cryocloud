@@ -301,7 +301,10 @@ class Worker(multiprocessing.Process):
                 elif status is None:
                     self.log.info("Cancelling job as it was removed from the job db")
                     cancel_event.set()
-                self.max_memory = max(self.max_memory, proc.memory_info().rss)
+                try:
+                    self.max_memory = max(self.max_memory, proc.memory_info().rss)
+                except:
+                    self.max_memory = 0
                 time.sleep(1)
 
         new_state = jobdb.STATE_FAILED
