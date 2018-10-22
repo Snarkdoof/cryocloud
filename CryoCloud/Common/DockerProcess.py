@@ -38,9 +38,9 @@ class DockerProcess():
                     return p
             # We didn't find a particular mount point, return the base dir
             # of the path
-            print("Didn't find a match for", path, "in", dirs)
             p = os.path.split(path)[0]
-            p = p[0:p.find("/", 1)]
+            if p.find("/", 1) > -1:
+                p = p[0:p.find("/", 1)]
             self.partitions.append(p)
             return p
 
@@ -101,6 +101,27 @@ class DockerProcess():
                         break
                 if not mapped:
                     self.dirs.append((volume, volume, "rw"))
+
+        # We must map any arguments in the task description too
+        task = None
+        if self.args.count("-t") == 1:
+            p = self.args.index("-t")
+            task = json.loads(self.args[p + 1])
+        if self.args.count("-f") == 1:
+            p = self.args.index("-f")
+            task = json.loads(open(self.args[p + 1]).read())
+        if task and "args" in task:
+            for c in task["args"].values():
+                if c.startswith("/"):  # We guess this is a path, map it
+                    volume = lookup(c)
+                    mapped = False
+                    for d in self.dirs:
+                        if d[1] == volume:
+                            mapped = True
+                            break
+                    if not mapped:
+                        self.dirs.append((volume, volume, "rw"))
+
 
     def run(self):
         docker = "docker"
