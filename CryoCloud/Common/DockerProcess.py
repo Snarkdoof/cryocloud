@@ -30,6 +30,9 @@ class DockerProcess():
         self.partitions.sort(key=lambda k: -len(k))
 
         def lookup(path):
+            if not isinstance(path, str):
+                return path
+
             for d in dirs:
                 if (path.startswith(d[1])):
                     return d[1]
@@ -112,7 +115,7 @@ class DockerProcess():
             task = json.loads(open(self.args[p + 1]).read())
         if task and "args" in task:
             for c in task["args"].values():
-                if c.startswith("/"):  # We guess this is a path, map it
+                if isinstance(c, str) and c.startswith("/"):
                     volume = lookup(c)
                     mapped = False
                     for d in self.dirs:
