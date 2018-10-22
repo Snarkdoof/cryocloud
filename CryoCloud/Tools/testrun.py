@@ -82,6 +82,11 @@ if options.docker and not options.indocker:
     task["args"]["arguments"].extend(["-m", os.path.abspath(options.module)])
     task["args"]["arguments"].extend(sys.argv[3:])
 
+    # Should convert -f to full path
+    if task["args"]["arguments"].count("-f") == 1:
+        p = task["args"]["arguments"].index("-f")
+        task["args"]["arguments"][p + 1] = os.path.abspath(task["args"]["arguments"][p + 1])
+
 if options.workdir:
     if not os.path.exists(options.workdir):
         raise Exception("Working directory '%s' does not exist" % options.workdir)
