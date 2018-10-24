@@ -335,7 +335,7 @@ class Worker(multiprocessing.Process):
             # Stop the monitor if it's running
             stop_monitor.set()
             if canStop and cancel_event.isSet():
-                new_state = STATE_CANCELLED
+                new_state = jobdb.STATE_CANCELLED
                 task["result"] = "Cancelled"
             else:
                 task["progress"] = progress
