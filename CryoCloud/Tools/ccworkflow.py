@@ -906,7 +906,10 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                 args["arguments"] = []
             args["arguments"].extend(["cctestrun", "--indocker"])
 
-            info = imp.find_module(node.module, node.dir)
+            if node.dir:
+                info = imp.find_module(node.module, [node.dir])
+            else:
+                info = imp.find_module(node.module)
             if not info:
                 raise Exception("Can't find module %s" % node.module)
             path = info[1]
