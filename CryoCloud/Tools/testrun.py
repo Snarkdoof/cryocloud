@@ -114,7 +114,7 @@ try:
     members = inspect.getmembers(mod)
     for name, member in members:
         if name == "process_task":
-            if len(inspect.getargspec(member).args) > 2:
+            if len(inspect.getfullargspec(member).args) > 2:
                 canStop = True
                 break
 
