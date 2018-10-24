@@ -297,6 +297,8 @@ class Workflow:
                 task.parents = child["downstreamOf"]
             if "resolveOnAny" in child:
                 task.resolveOnAny = child["resolveOnAny"]
+            if "workdir" in child:
+                task.dir = child["workdir"]
             if "dir" in child:
                 task.dir = child["dir"]
             if "ccnode" in child:
@@ -657,7 +659,7 @@ class CryoCloudTask(Task):
             if self.workflow.handler.options.node:
                 info["node"] = self.workflow.handler.options.node
         info["priority"] = self.priority
-        info["dir"] = _get(self.dir)
+        info["workdir"] = _get(self.dir)
 
         return info
 
@@ -944,7 +946,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                     taskid = random.randint(0, 100000000)  # TODO: Better
                     subpebble.nodename[taskid] = node.name
                     i = self.head.add_job(lvl, taskid, args, module=mod, jobtype=jobt,
-                                          itemid=subpebble.gid, workdir=runtime_info["dir"],
+                                          itemid=subpebble.gid, workdir=runtime_info["workdir"],
                                           priority=runtime_info["priority"],
                                           node=runtime_info["node"])
                     subpebble.jobid = i
@@ -954,7 +956,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                     taskid = random.randint(0, 100000000)  # TODO: Better
                     pebble.nodename[taskid] = node.name
                     i = self.head.add_job(lvl, taskid, args, module=mod, jobtype=jobt,
-                                          itemid=pebble.gid, workdir=runtime_info["dir"],
+                                          itemid=pebble.gid, workdir=runtime_info["workdir"],
                                           priority=runtime_info["priority"],
                                           node=runtime_info["node"])
                     pebble.jobid = i
@@ -966,7 +968,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         taskid = random.randint(0, 100000000)  # TODO: Better
         pebble.nodename[taskid] = node.name
         i = self.head.add_job(lvl, taskid, args, module=mod, jobtype=jobt,
-                              itemid=pebble.gid, workdir=runtime_info["dir"],
+                              itemid=pebble.gid, workdir=runtime_info["workdir"],
                               priority=runtime_info["priority"],
                               node=runtime_info["node"])
         pebble.jobid = i
