@@ -600,14 +600,14 @@ class JobDB(mysql):
         SQL = "SELECT module, AVG(waittime), AVG(processtime), AVG(totaltime), AVG(cpu_time) " + \
               "FROM profile_summary GROUP BY module"
         c = self._execute(SQL)
-        retvals = {}
+        retval = {}
         for row in c.fetchall():
             retval[row[0]] = {
                 "waittime": row[1],
                 "processtime": row[2],
                 "totaltime": row[3],
                 "cpu_time": row[4]
-            };
+            }
         return retval
 
     def estimate_resources(self, module, datasize=None, priority=None):
