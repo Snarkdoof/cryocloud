@@ -184,9 +184,9 @@ class Task:
             estimate = jobdb.estimate_resources(self.module, priority=self.priority)
             if estimate == {}:
                 print("WARNING: Missing stats for module %s, can't estimate" % self.module)
-
                 # raise Exception("Missing stats for module %s, can't estimate" % self.module)
-            step_time = estimate["totaltime"]
+            else:
+                step_time = estimate["totaltime"]
 
         if pebble:
             if self.name in pebble.retval_dict:
