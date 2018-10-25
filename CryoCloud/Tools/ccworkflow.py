@@ -181,7 +181,7 @@ class Task:
         # step_time = 10
         step_time = 0
         if self.module and not self.is_input:
-            estimate = jobdb.estimate_resources(self.module, priority=self.priority)
+            estimate = jobdb.estimate_resources(self.name, priority=self.priority)
             if estimate == {}:
                 print("WARNING: Missing stats for module %s, can't estimate" % self.module)
                 # raise Exception("Missing stats for module %s, can't estimate" % self.module)
