@@ -596,7 +596,17 @@ class JobDB(mysql):
                      " GROUP BY module, priority, datasize / 1073741824"
         self._execute("INSERT INTO profile_summary " + ERRS)
 
-        # self._execute("TRUNCATE profile")
+    def get_profiles(self):
+        SQL = "SELECT AVG(waittime), AVG(processtime), AVG(totaltime), AVG(cpu_time) " + \
+              "FROM profile_summary"
+        c = self._execute(SQL)
+        retval = {}
+        for row in c.fetchall():
+            retval["waittime"] = row[0]
+            retval["processtime"] = row[1]
+            retval["totaltime"] = row[2]
+            retval["cpu_time"] = row[3]
+        return retval
 
     def estimate_resources(self, module, datasize=None, priority=None):
         args = [module]
@@ -629,6 +639,8 @@ if __name__ == "__main__":
         if len(sys.argv) == 2:
             if sys.argv[1] == "summarize":
                 db.summarize_profiles()
+            elif sys.argv[1] == "list":
+                print(db.get_profiles())
             else:
                 print(db.estimate_resources(sys.argv[1]))
         # db = JobDB(None, None)
