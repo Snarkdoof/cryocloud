@@ -597,15 +597,16 @@ class JobDB(mysql):
         self._execute("INSERT INTO profile_summary " + ERRS)
 
     def get_profiles(self):
-        SQL = "SELECT AVG(waittime), AVG(processtime), AVG(totaltime), AVG(cpu_time) " + \
+        SQL = "SELECT module, AVG(waittime), AVG(processtime), AVG(totaltime), AVG(cpu_time) " + \
               "FROM profile_summary"
         c = self._execute(SQL)
         retval = {}
         for row in c.fetchall():
-            retval["waittime"] = row[0]
-            retval["processtime"] = row[1]
-            retval["totaltime"] = row[2]
-            retval["cpu_time"] = row[3]
+            retval["module"] = row[0]
+            retval["waittime"] = row[1]
+            retval["processtime"] = row[2]
+            retval["totaltime"] = row[3]
+            retval["cpu_time"] = row[4]
         return retval
 
     def estimate_resources(self, module, datasize=None, priority=None):
