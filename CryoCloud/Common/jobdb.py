@@ -598,7 +598,7 @@ class JobDB(mysql):
 
     def get_profiles(self):
         SQL = "SELECT module, AVG(waittime), AVG(processtime), AVG(totaltime), AVG(cpu_time) " + \
-              "FROM profile_summary"
+              "FROM profile_summary GROUP BY module"
         c = self._execute(SQL)
         retval = {}
         for row in c.fetchall():
