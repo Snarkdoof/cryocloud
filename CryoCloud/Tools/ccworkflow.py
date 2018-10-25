@@ -170,7 +170,7 @@ class Task:
         return True
 
     # Some nice functions to do estimates etc
-    def estimate_time_left(self, pebble):
+    def estimate_time_left(self, jobdb, pebble=None):
         """
         Estimate processing time from this node and down the graph
         """
@@ -178,23 +178,30 @@ class Task:
 
         # DB Lookup of typical time for this module
         # my_estimate = jobdb.estimate_time(self.module)
-        step_time = 10
+        # step_time = 10
+        step_time = 0
+        if self.module and not self.is_input:
+            estimate = jobdb.estimate_resources(self.module, priority=self.priority)
+            if estimate == {}:
+                raise Exception("Missing stats for module %s, can't estimate" % self.module)
+            step_time = estimate["totaltime"]
 
-        if self.name in pebble.retval_dict:
-            step_time = 0  # We're done
-        elif self.name in pebble.resolved:
-            # TODO: We've been resolved (might be running), but not completed. Estimate time
-            # step_time = 5
-            pass
+        if pebble:
+            if self.name in pebble.retval_dict:
+                step_time = 0  # We're done
+            elif self.name in pebble.resolved:
+                # TODO: We've been resolved (might be running), but not completed. Estimate time
+                # step_time = 5
+                pass
 
         # Recursively check the time left
         subnodes = 0
         subnodes_parallel = 0
         for node in self._downstreams:
-            if node.name in pebble._stop_on:
+            if pebble and node.name in pebble._stop_on:
                 continue  # These should not be run, no children will either
 
-            times = node.estimate_time_left(pebble)
+            times = node.estimate_time_left(jobdb, pebble)
             subnodes += times["time_left"]
             subnodes_parallel = max(subnodes_parallel, times["time_left_parallel"])
 
@@ -523,9 +530,6 @@ class Workflow:
         """
         return self.entry.get_max_priority()
 
-    def estimate_time(self, pebble):
-        return self.entry.estimate_time_left(pebble)
-
     def add_message_watch(self, what, callback, pebble):
         if what not in self.message_callbacks:
             self.message_callbacks[what] = []
@@ -831,6 +835,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         self.workflow = workflow
         workflow.handler = self
         self._jobdb = jobdb.JobDB("Ignored", self.workflow.name)
+
+    def estimate_time(self, pebble=None):
+        return self.workflow.entry.estimate_time_left(self._jobdb, pebble)
 
     def onReady(self, options):
 
@@ -1313,6 +1320,9 @@ if __name__ == "__main__":
     parser.add_argument("--node", dest="node",
                         default="",
                         help="Specify a particular node to run all jobs on (leave for any)")
+    parser.add_argument("--estimate", dest="estimate",
+                        action="store_true", default=False,
+                        help="Estimate how long this will take and exit")
 
     def d(n, o):
         if n in o:
@@ -1353,6 +1363,11 @@ if __name__ == "__main__":
     handler = WorkflowHandler(workflow)
 
     try:
+        if options.estimate:
+            estimate = handler.estimate_time()
+            print("Estimate: ", estimate)
+            raise SystemExit(0)
+
         headnode = HeadNode(handler, options, neverfail=True)
         headnode.start()
 

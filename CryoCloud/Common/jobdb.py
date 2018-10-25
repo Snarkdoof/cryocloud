@@ -120,8 +120,24 @@ class JobDB(mysql):
                 cpu_time FLOAT DEFAULT 0,
                 PRIMARY KEY (itemid, module)
             )""",
+            """CREATE TABLE IF NOT EXISTS profile_summary (
+                module VARCHAR(128),
+                time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                runs INT,
+                datasize BIGINT UNSIGNED DEFAULT NULL,
+                waittime FLOAT,
+                processtime FLOAT,
+                totaltime FLOAT,
+                cpu_time FLOAT,
+                priority FLOAT,
+                errors INT,
+                timeouts INT,
+                cancelled INT,
+                PRIMARY KEY(module, time)
+            )""",
             "CREATE INDEX job_state ON jobs(state)",
-            "CREATE INDEX job_type ON jobs(type)"
+            "CREATE INDEX job_type ON jobs(type)",
+            "CREATE INDEX profile_module ON profile_summary(module)"
         ]
 
         # Minor upgrade-hack
@@ -555,10 +571,66 @@ class JobDB(mysql):
         except Exception as e:
             print("Exception updating profile:", e)
 
+    def summarize_profiles(self):
+
+        SQL = "SELECT module,NOW(),COUNT(*)"
+        avgs = ["datasize", "waittime", "processtime", "totaltime", "cpu_time", "priority"]
+        sums = ["errors", "timeouts", "cancelled"]
+        mins = []
+        maxes = []
+
+        for a in avgs:
+            SQL += ",AVG(%s)" % a
+        for a in sums:
+            SQL += ",SUM(%s)" % a
+        for a in mins:
+            SQL += ",MIN(%s)" % a
+        for a in maxes:
+            SQL += ",MAX(%s)" % a
+
+        NOERRS = SQL + " FROM profile WHERE state>2 AND errors=0 AND cancelled=0" +\
+                       " GROUP BY module, priority, datasize / 1073741824"
+        self._execute("INSERT INTO profile_summary " + NOERRS)
+
+        ERRS = SQL + " FROM profile WHERE state>2 AND errors>0 AND cancelled>0" +\
+                     " GROUP BY module, priority, datasize / 1073741824"
+        self._execute("INSERT INTO profile_summary " + ERRS)
+
+        # self._execute("TRUNCATE profile")
+
+    def estimate_resources(self, module, datasize=None, priority=None):
+        args = [module]
+        SQL = "SELECT AVG(waittime), AVG(processtime), AVG(totaltime), AVG(cpu_time) " + \
+              "FROM profile_summary WHERE module=%s AND "
+        if datasize or priority:
+            if datasize:
+                SQL += "datasize=%s AND "
+                args.append(datasize)
+            if priority:
+                SQL += "priority<=%s AND "
+                args.append(priority)
+        SQL = SQL[:-4] + "GROUP BY module"
+        print(SQL)
+        c = self._execute(SQL, args)
+        retval = {}
+        for row in c.fetchall():
+            retval["waittime"] = row[0]
+            retval["processtime"] = row[1]
+            retval["totaltime"] = row[2]
+            retval["cpu_time"] = row[3]
+        return retval
+
 if __name__ == "__main__":
     try:
         print("Testing")
         db = JobDB("test1", "hello", 2)
+        import sys
+        print(len(sys.argv))
+        if len(sys.argv) == 2:
+            if sys.argv[1] == "summarize":
+                db.summarize_profiles()
+            else:
+                print(db.estimate_resources(sys.argv[1]))
         # db = JobDB(None, None)
         # db.add_job(0, 1, {"param1":1, "param2": "param2"})
         # jobs = db.allocate_job(max_jobs=2)
