@@ -642,7 +642,9 @@ if __name__ == "__main__":
             if sys.argv[1] == "summarize":
                 db.summarize_profiles()
             elif sys.argv[1] == "list":
-                print(db.get_profiles())
+                profiles = db.get_profiles()
+                for profile in profiles:
+                    print(profile, profiles[profile])
             else:
                 print(db.estimate_resources(sys.argv[1]))
         # db = JobDB(None, None)
