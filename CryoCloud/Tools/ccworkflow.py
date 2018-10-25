@@ -187,6 +187,7 @@ class Task:
                 # raise Exception("Missing stats for module %s, can't estimate" % self.module)
             else:
                 step_time = estimate["totaltime"]
+        print("CALCULATING STEP", self.name, step_time)
 
         if pebble:
             if self.name in pebble.retval_dict:

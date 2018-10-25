@@ -622,7 +622,6 @@ class JobDB(mysql):
                 SQL += "priority<=%s AND "
                 args.append(priority)
         SQL = SQL[:-4] + "GROUP BY module"
-        print(SQL)
         c = self._execute(SQL, args)
         retval = {}
         for row in c.fetchall():
