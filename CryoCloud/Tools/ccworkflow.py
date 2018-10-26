@@ -180,6 +180,7 @@ class Task:
         # my_estimate = jobdb.estimate_time(self.module)
         # step_time = 10
         step_time = 0
+        process_time = 0
         if self.module and not self.is_input:
             estimate = jobdb.estimate_resources(self.name, priority=self.priority)
             if estimate == {}:
@@ -187,7 +188,9 @@ class Task:
                 # raise Exception("Missing stats for module %s, can't estimate" % self.module)
             else:
                 step_time = estimate["totaltime"]
-        print("CALCULATING STEP", self.name, step_time)
+                process_time = estimate["processtime"]
+
+        print("CALCULATING STEP", self.name, step_time, process_time)
 
         if pebble:
             if self.name in pebble.retval_dict:
@@ -200,6 +203,7 @@ class Task:
         # Recursively check the time left
         subnodes = 0
         subnodes_parallel = 0
+        subnodes_process_time = 0
         for node in self._downstreams:
             if pebble and node.name in pebble._stop_on:
                 continue  # These should not be run, no children will either
@@ -207,11 +211,14 @@ class Task:
             times = node.estimate_time_left(jobdb, pebble)
             subnodes += times["time_left"]
             subnodes_parallel = max(subnodes_parallel, times["time_left_parallel"])
+            subnodes_process_time = max(subnodes_process_time, times["process_time_left"])
 
         time_left = step_time - run_time + subnodes
         time_left_parallel = step_time - run_time + subnodes_parallel
+        process_time_left = process_time - run_time + subnodes_process_time
         return {"runtime": run_time, "steptime": step_time,
-                "time_left": time_left, "time_left_parallel": time_left_parallel}
+                "time_left": time_left, "time_left_parallel": time_left_parallel,
+                "process_time_left": process_time_left}
 
     def get_max_priority(self):
         """
@@ -719,6 +726,7 @@ class CryoCloudTask(Task):
                     if arg not in args:
                         raise Exception("Require stat '%s' but no such stat was found for %s (%s), %s has %s" %
                                         (arg, self.name, self.module, name, str(pebble.stats[name])))
+
                 # Is this a file? If so, we should tag along a prepare statement
                 if "type" in self.args[arg] and self.args[arg]["type"] == "file":
                     if "proto" in self.args[arg]:
@@ -738,6 +746,8 @@ class CryoCloudTask(Task):
 
             if arg not in args:
                 raise Exception("Failed to resolve argument %s for %s (%s)" % (arg, self.name, self.module))
+
+        # print("ARGS", self.args, "->", args)
 
         return args
 
