@@ -612,7 +612,7 @@ class JobDB(mysql):
 
     def estimate_resources(self, module, datasize=None, priority=None):
         args = [module]
-        SQL = "SELECT AVG(waittime), AVG(processtime), AVG(totaltime), AVG(cpu_time) " + \
+        SQL = "SELECT AVG(waittime), AVG(processtime), AVG(totaltime), AVG(cpu_time), " + \
               "AVG(waittime) FROM profile_summary WHERE module=%s AND "
         if datasize or priority:
             if datasize:
