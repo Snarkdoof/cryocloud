@@ -596,6 +596,9 @@ class JobDB(mysql):
                      " GROUP BY module, priority, datasize / 1073741824"
         self._execute("INSERT INTO profile_summary " + ERRS)
 
+        # Cleanup
+        self._execute("DELETE FROM profile WHERE state>2")
+
     def get_profiles(self):
         SQL = "SELECT module, AVG(waittime), AVG(processtime), AVG(totaltime), AVG(cpu_time) " + \
               "FROM profile_summary GROUP BY module"
