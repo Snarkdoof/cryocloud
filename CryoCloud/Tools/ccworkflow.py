@@ -626,55 +626,55 @@ class CryoCloudTask(Task):
         args = self._build_args(pebble, caller)
         self.workflow.handler._addTask(self, args, runtime_info, pebble)
 
+    def _map(self, thing, pebble, parent):
+        retval = None
+        if (isinstance(thing, dict)):
+            if "default" in thing:
+                retval = thing["default"]
+
+            if "option" in thing:
+                # This is an option given on the command line
+                opt = thing["option"]
+                options = self.workflow.handler.options
+                if opt not in options:
+                    raise Exception("Missing option %s" % opt)
+                retval = getattr(options, opt)
+            if "stat" in thing and pebble:
+                name, param = thing["stat"].split(".")
+                if name == "parent":
+                    name = parent
+                if name not in pebble.stats:
+                    raise Exception("Failed to build runtime config, need %s from unknown module %s. %s (%s)" %
+                                    (param, name, self.module, self.name))
+
+                if param not in pebble.stats[name]:
+                    raise Exception("Failed to build runtime config, need %s from %s but it's unknown. %s (%s)" %
+                                    (param, name, self.module, self.name))
+
+                retval = pebble.stats[name][param]
+
+            if "config" in thing:
+                if not self.config:
+                    raise Exception("Failed to build runtime config - config is required but config root "
+                                    "defined for %s (%s)" % (self.module, self.name))
+                v = self.config[thing["config"]]
+                if v:
+                    retval = v
+        else:
+            retval = thing
+
+        return retval
+
     def _build_runtime_info(self, pebble, parent):
         info = {}
 
-        def _get(thing):
-            retval = None
-            if (isinstance(thing, dict)):
-                if "default" in thing:
-                    retval = thing["default"]
-
-                if "option" in thing:
-                    # This is an option given on the command line
-                    opt = thing["option"]
-                    options = self.workflow.handler.options
-                    if opt not in options:
-                        raise Exception("Missing option %s" % opt)
-                    retval = getattr(options, opt)
-                if "stat" in thing:
-                    name, param = thing["stat"].split(".")
-                    if name == "parent":
-                        name = parent
-                    if name not in pebble.stats:
-                        raise Exception("Failed to build runtime config, need %s from unknown module %s. %s (%s)" %
-                                        (param, name, self.module, self.name))
-
-                    if param not in pebble.stats[name]:
-                        raise Exception("Failed to build runtime config, need %s from %s but it's unknown. %s (%s)" %
-                                        (param, name, self.module, self.name))
-
-                    retval = pebble.stats[name][param]
-
-                if "config" in thing:
-                    if not self.config:
-                        raise Exception("Failed to build runtime config - config is required but config root "
-                                        "defined for %s (%s)" % (self.module, self.name))
-                    v = self.config[thing["config"]]
-                    if v:
-                        retval = v
-            else:
-                retval = thing
-
-            return retval
-
-        info["node"] = _get(self.ccnode)
+        info["node"] = self._map(self.ccnode, pebble, parent)
         if info["node"] == []:
             info["node"] = None
             if self.workflow.handler.options.node:
                 info["node"] = self.workflow.handler.options.node
         info["priority"] = self.priority
-        info["workdir"] = _get(self.dir)
+        info["workdir"] = self._map(self.dir, pebble, parent)
 
         return info
 
@@ -918,14 +918,20 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             args["arguments"].extend(["cctestrun", "--indocker"])
 
             if n.dir:
-                info = imp.find_module(n.module, [n.dir])
+                d = n._map(n.dir, None, None)
+                print("DIR", n.dir, d)
+                os.chdir(d)
+                info = imp.find_module(n.module)  # , [d])
             else:
                 info = imp.find_module(n.module)
             if not info:
                 raise Exception("Can't find module %s" % n.module)
             path = os.path.abspath(info[1])
             args["arguments"].extend(["-m", path])
-            args["arguments"].extend(["-t", json.dumps({"args": t})])
+            a = {"args": t}
+            if workdir:
+                args["arguments"].extend(["--workdir", workdir])
+            args["arguments"].extend(["-t", json.dumps(a)])
             args["dirs"] = n.volumes
 
         return self.head.add_job(lvl, taskid, args, module=module, jobtype=jobtype,
@@ -971,7 +977,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             # args["arguments"].extend(sys.argv[3:])
 
         if node.splitOn:
-            print("SPLITON", node.splitOn)
             if not isinstance(args[node.splitOn], list):
                 raise Exception("Can't split on non-list argument '%s'" % node.splitOn)
 
@@ -981,7 +986,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             pebble._sub_tasks = {}
             for x in range(len(origargs)):
                 args[node.splitOn] = origargs[x]
-                print("SPLIT TO", args[node.splitOn])
                 if x < len(origargs) - 1:
                     # SHOULD MAKE A COPY OF THE PEBBLE AND GO ON FROM HERE
                     subpebble = copy.deepcopy(pebble)

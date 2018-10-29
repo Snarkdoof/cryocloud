@@ -36,6 +36,7 @@ def process_task(worker, task, cancel_event=None):
         dirs = task["args"]["dirs"]
 
     if "arguments" in task["args"]:
+        print("ARGUMENTS", task["args"]["arguments"])
         args = task["args"]["arguments"]
 
     log_all = False

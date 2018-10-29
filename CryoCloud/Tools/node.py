@@ -165,7 +165,7 @@ class Worker(multiprocessing.Process):
         self._jobdb = jobdb.JobDB(None, None)
         self.status["state"].set_expire_time(600)
         self.cfg = API.get_config("CryoCloud.Worker")
-        self.cfg.set_default("datadir", tempfile.gettempdir())
+        self.cfg.set_default("datadir", "/")
 
         last_reported = 0  # We force periodic updates of state as we might be idle for a long time
         while not self._stop_event.is_set():
@@ -254,7 +254,7 @@ class Worker(multiprocessing.Process):
         fprep = None
         for arg in task["args"]:
             if isinstance(task["args"][arg], str):
-                if task["args"][arg].find("://") > -1:
+                if 1 or task["args"][arg].find("://") > -1:
                     t = task["args"][arg].split(" ")
                     if "copy" in t or "unzip" in t:
                         try:
@@ -272,6 +272,23 @@ class Worker(multiprocessing.Process):
                             print("DEBUG: I got in trouble preparing stuff", e)
                             self.log.exception("Preparing %s" % task["args"][arg])
                             raise Exception("Preparing files failed: %s" % e)
+        if task["module"] == "docker":
+            a = task["args"]["arguments"]
+            if a.count("-t") == 1:
+                import json
+                subargs = json.loads(a[a.index("-t") + 1])
+                for arg in subargs["args"]:
+                    t = subargs["args"][arg].split(" ")
+                    if "copy" in t or "unzip" in t:
+                        if not fprep:
+                            fprep = fileprep.FilePrepare(self.cfg["datadir"])
+                        ret = fprep.fix([subargs["args"][arg]])
+                        subargs["args"][arg] = ret["fileList"][0]
+                a[a.index("-t") + 1] = json.dumps(subargs)
+
+
+                self.log.debug("Converted to %s" % str(a));
+
         if fprep:
             task["prepare_time"] = time.time() - start_time
 

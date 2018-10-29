@@ -5,6 +5,7 @@ import tempfile
 import tarfile
 import zipfile
 import shutil
+import socket
 from urllib.parse import urlparse
 import requests
 import shutil
@@ -65,7 +66,6 @@ class FilePrepare:
                 f = tarfile.open(s)
                 names = f.getnames()
             else:
-                print("Unzipping %s to %s" % (s, dst))
                 self.log.debug("Unzipping %s to %s" % (s, dst))
                 f = zipfile.ZipFile(s)
                 names = f.namelist()
@@ -127,7 +127,6 @@ class FilePrepare:
 
             u = urlparse(url)
             file = u.path
-
             compressed = self._is_compressed(file)
 
             if file[0] != "/":
@@ -135,13 +134,13 @@ class FilePrepare:
 
             if compressed:
                 # Do we have this one decompressed already?
-                decomp = self.root + os.path.splitext(file)[0]
+                decomp = (self.root + os.path.splitext(file)[0]).replace("//", "/")
                 if os.path.isdir(decomp):
                     fileList.extend(self._get_filelist(decomp))
                     total_size += self.get_tree_size(decomp)
                     continue
 
-            local_file = self.root + file
+            local_file = (self.root + file).replace("//", "/")
             if os.path.exists(local_file):
                 if not compressed:
                     fileList.append(local_file)
@@ -191,7 +190,6 @@ class FilePrepare:
             u = urlparse(url)
             file = u.path
             compressed = self._is_compressed(file)
-            print("File", file, compressed)
 
             if file[0] != "/":
                 raise Exception("Need full paths, got relative path %s" % file)
