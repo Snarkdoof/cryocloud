@@ -261,7 +261,7 @@ class Workflow:
         return Workflow.load_workflow(workflow["workflow"], handler)
 
     @staticmethod
-    def load_workflow(workflow, handler=None):
+    def load_workflow(workflow, handler=None, validate=True):
 
         def make_task(wf, child):
             if child["module"] == "communicate":
@@ -385,10 +385,10 @@ class Workflow:
             task = make_task(wf, entry)
             load_children([task], entry)
 
-        wf.build_graph()
+        wf.build_graph(validate)
         return wf
 
-    def build_graph(self):
+    def build_graph(self, validate=True):
         """
         Go through all modules and check that they are all connected to the correct place
         """
@@ -398,7 +398,8 @@ class Workflow:
                     node.downstreamOf(self.entry)
                 else:
                     node.downstreamOf(self.nodes[parent])
-        self.validate()
+        if validate:
+            self.validate()
 
     def __str__(self):
         """
@@ -903,6 +904,35 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         # We can now resolve this caller with the correct info
         caller.on_completed(pebble, "success")
 
+    def _addJob(self, n, lvl, taskid, args, module, jobtype,
+                itemid, workdir, priority, node):
+
+        self.log.debug("_addJob %s" % json.dumps(args))
+        if n.docker:
+            module = "docker"
+            t = copy.deepcopy(args)
+            args = copy.deepcopy(args)
+            args["target"] = n.docker
+            if "arguments" not in args:
+                args["arguments"] = []
+            args["arguments"].extend(["cctestrun", "--indocker"])
+
+            if n.dir:
+                info = imp.find_module(n.module, [n.dir])
+            else:
+                info = imp.find_module(n.module)
+            if not info:
+                raise Exception("Can't find module %s" % n.module)
+            path = os.path.abspath(info[1])
+            args["arguments"].extend(["-m", path])
+            args["arguments"].extend(["-t", json.dumps({"args": t})])
+            args["dirs"] = n.volumes
+
+        return self.head.add_job(lvl, taskid, args, module=module, jobtype=jobtype,
+                                 itemid=itemid, workdir=workdir,
+                                 priority=priority,
+                                 node=node)
+
     def _addTask(self, node, args, runtime_info, pebble):
         if node.taskid not in self._levels:
             self._levels.append(node.taskid)
@@ -920,7 +950,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         # Should this be run in a docker environment?
         mod = node.module
-        if node.docker:
+        if 0 and node.docker:
             mod = "docker"
             t = copy.deepcopy(args)
             args["target"] = node.docker
@@ -941,6 +971,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             # args["arguments"].extend(sys.argv[3:])
 
         if node.splitOn:
+            print("SPLITON", node.splitOn)
             if not isinstance(args[node.splitOn], list):
                 raise Exception("Can't split on non-list argument '%s'" % node.splitOn)
 
@@ -950,7 +981,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             pebble._sub_tasks = {}
             for x in range(len(origargs)):
                 args[node.splitOn] = origargs[x]
-
+                print("SPLIT TO", args[node.splitOn])
                 if x < len(origargs) - 1:
                     # SHOULD MAKE A COPY OF THE PEBBLE AND GO ON FROM HERE
                     subpebble = copy.deepcopy(pebble)
@@ -965,7 +996,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                     self._pebbles[subpebble.gid] = subpebble
                     taskid = random.randint(0, 100000000)  # TODO: Better
                     subpebble.nodename[taskid] = node.name
-                    i = self.head.add_job(lvl, taskid, args, module=mod, jobtype=jobt,
+                    i = self._addJob(node, lvl, taskid, args, module=mod, jobtype=jobt,
                                           itemid=subpebble.gid, workdir=runtime_info["workdir"],
                                           priority=runtime_info["priority"],
                                           node=runtime_info["node"])
@@ -975,7 +1006,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                     pebble._sub_tasks[x] = pebble.gid
                     taskid = random.randint(0, 100000000)  # TODO: Better
                     pebble.nodename[taskid] = node.name
-                    i = self.head.add_job(lvl, taskid, args, module=mod, jobtype=jobt,
+                    i = self._addJob(node, lvl, taskid, args, module=mod, jobtype=jobt,
                                           itemid=pebble.gid, workdir=runtime_info["workdir"],
                                           priority=runtime_info["priority"],
                                           node=runtime_info["node"])
@@ -987,7 +1018,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         taskid = random.randint(0, 100000000)  # TODO: Better
         pebble.nodename[taskid] = node.name
-        i = self.head.add_job(lvl, taskid, args, module=mod, jobtype=jobt,
+        i = self._addJob(node, lvl, taskid, args, module=mod, jobtype=jobt,
                               itemid=pebble.gid, workdir=runtime_info["workdir"],
                               priority=runtime_info["priority"],
                               node=runtime_info["node"])
