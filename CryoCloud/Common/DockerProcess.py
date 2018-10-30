@@ -199,7 +199,7 @@ class DockerProcess():
 
                 m = re.match("^\<(\w+)\> (.+)", line)
                 if m:
-                    level = m.groups()[0]
+                    level = m.groups()[0].lower()
                     msg = m.groups()[1]
                     if level == "debug":
                         self.log.debug(msg)
