@@ -17,9 +17,9 @@ docker module
 """
 
 try:
-    import imp
-except:
     import importlib as imp
+except:
+    import imp
 
 import inspect
 import sys

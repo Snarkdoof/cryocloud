@@ -156,16 +156,16 @@ class Task:
             return True  # Will not run further
 
         # If I'm not done, just return now
-        if self.name != "Entry" and self.name not in pebble.retval_dict and self.is_input:
-            print("Child lacks", self.name, "?", pebble.retval_dict.keys())
+        if self.name != "Entry" and self.name not in pebble.retval_dict and not self.is_input:
+            # print(self.name, "I'm not completed yet")
             return False  # We've NOT completed
 
         # I'm done, what about my children?
         for node in self._downstreams:
             if not node.is_done(pebble):
-                print("Child", node, "is not done")
+                # print("Child", node, "is not done")
                 return False  # Not done
-
+        # print(self.name, "I'm all done")
         # I'm done, and so are my children
         return True
 
@@ -1001,9 +1001,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                     taskid = random.randint(0, 100000000)  # TODO: Better
                     subpebble.nodename[taskid] = node.name
                     i = self._addJob(node, lvl, taskid, args, module=mod, jobtype=jobt,
-                                          itemid=subpebble.gid, workdir=runtime_info["workdir"],
-                                          priority=runtime_info["priority"],
-                                          node=runtime_info["node"])
+                                     itemid=subpebble.gid, workdir=runtime_info["workdir"],
+                                     priority=runtime_info["priority"],
+                                     node=runtime_info["node"])
                     subpebble.jobid = i
 
                 else:
@@ -1011,9 +1011,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                     taskid = random.randint(0, 100000000)  # TODO: Better
                     pebble.nodename[taskid] = node.name
                     i = self._addJob(node, lvl, taskid, args, module=mod, jobtype=jobt,
-                                          itemid=pebble.gid, workdir=runtime_info["workdir"],
-                                          priority=runtime_info["priority"],
-                                          node=runtime_info["node"])
+                                     itemid=pebble.gid, workdir=runtime_info["workdir"],
+                                     priority=runtime_info["priority"],
+                                     node=runtime_info["node"])
                     pebble.jobid = i
             self.status["%s.pending" % node.name].inc(len(origargs))
             return
@@ -1023,9 +1023,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         taskid = random.randint(0, 100000000)  # TODO: Better
         pebble.nodename[taskid] = node.name
         i = self._addJob(node, lvl, taskid, args, module=mod, jobtype=jobt,
-                              itemid=pebble.gid, workdir=runtime_info["workdir"],
-                              priority=runtime_info["priority"],
-                              node=runtime_info["node"])
+                         itemid=pebble.gid, workdir=runtime_info["workdir"],
+                         priority=runtime_info["priority"],
+                         node=runtime_info["node"])
         pebble.jobid = i
         # pebble._sub_pebbles[i] = {"x": None, "y": None, "node": node, "done": False}
 
@@ -1123,9 +1123,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             # retvals.append(master.retval_dict[node])
             # for i in ["runtime", "cpu_time", "max_memory"]:
             #     stats[i] = master.stats[node][i]
-
+            print("MERGED TO", retvals)
             pebble.retval_dict[node] = retvals
-            pebble.stats[node] = stats
+            pebble.stats[node].update(stats)  # This is not really all that good, have stats pr job on merge
         try:
             workflow.nodes[node].on_completed(pebble, "success")
         except:
@@ -1138,6 +1138,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                                    cpu=pebble.stats[node]["cpu_time"])
 
         if workflow.entry.is_done(pebble):
+            print("Workflow is DONE")
             self._jobdb.update_profile(pebble.gid, self.workflow.name, state=jobdb.STATE_COMPLETED)  # The whole job
             self._flag_cleanup_pebble(pebble)
             # self._jobdb.update_profile(pebble.gid,

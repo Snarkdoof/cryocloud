@@ -278,14 +278,23 @@ class Worker(multiprocessing.Process):
                 import json
                 subargs = json.loads(a[a.index("-t") + 1])
                 for arg in subargs["args"]:
-                    t = subargs["args"][arg].split(" ")
-                    if "copy" in t or "unzip" in t:
-                        if not fprep:
-                            fprep = fileprep.FilePrepare(self.cfg["datadir"])
-                        ret = fprep.fix([subargs["args"][arg]])
-                        subargs["args"][arg] = ret["fileList"][0]
+                    if isinstance(subargs["args"][arg], list):
+                        for x in range(len(subargs["args"][arg])):
+                            t = subargs["args"][arg][x].split(" ")
+                            if "copy" in t or "unzip" in t:
+                                if not fprep:
+                                    fprep = fileprep.FilePrepare(self.cfg["datadir"])
+                                ret = fprep.fix([subargs["args"][arg][x]])
+                                subargs["args"][arg][x] = ret["fileList"][0]
+                    else:
+                        print("GOT ARGS", arg, subargs["args"][arg])
+                        t = subargs["args"][arg].split(" ")
+                        if "copy" in t or "unzip" in t:
+                            if not fprep:
+                                fprep = fileprep.FilePrepare(self.cfg["datadir"])
+                            ret = fprep.fix([subargs["args"][arg]])
+                            subargs["args"][arg] = ret["fileList"][0]
                 a[a.index("-t") + 1] = json.dumps(subargs)
-
 
                 self.log.debug("Converted to %s" % str(a));
 
