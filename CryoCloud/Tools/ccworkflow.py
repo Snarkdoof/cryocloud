@@ -72,6 +72,7 @@ class Task:
         self._upstreams = []
         self._downstreams = []
         self.priority = 50
+        self.max_parallel = None
         self.type = "normal"
         self.args = {}
         self.runOn = "always"
@@ -90,6 +91,9 @@ class Task:
         self.is_input = False
         self.ccnode = []
         self.is_global = False
+        self._mp_unblocked = 0
+        self._mp_blocked = 0
+        self.lock = threading.Lock()
 
     def __str__(self):
         return "[%s (%s), %s, %s]: priority %d, args: %s\n" %\
@@ -302,6 +306,8 @@ class Workflow:
                 task.args = child["args"]
             if "priority" in child:
                 task.priority = int(child["priority"])
+            if "max_parallel" in child:
+                task.max_parallel = int(child["max_parallel"])
             if "provides" in child:
                 task.provides = child["provides"]
             if "depends" in child:
@@ -667,7 +673,6 @@ class CryoCloudTask(Task):
 
     def _build_runtime_info(self, pebble, parent):
         info = {}
-
         info["node"] = self._map(self.ccnode, pebble, parent)
         if info["node"] == []:
             info["node"] = None
@@ -904,6 +909,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         # We can now resolve this caller with the correct info
         caller.on_completed(pebble, "success")
 
+        return pebble.gid
+
     def _addJob(self, n, lvl, taskid, args, module, jobtype,
                 itemid, workdir, priority, node):
 
@@ -934,10 +941,20 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             args["arguments"].extend(["-t", json.dumps(a)])
             args["dirs"] = n.volumes
 
+        blocked = 0
+        if n.max_parallel:
+            # We must ensure that we don't go OVER this
+            with n.lock:
+                if n._mp_unblocked < n.max_parallel:
+                    n._mp_unblocked += 1
+                else:
+                    n._mp_blocked += 1
+                    blocked = 1
+
         return self.head.add_job(lvl, taskid, args, module=module, jobtype=jobtype,
                                  itemid=itemid, workdir=workdir,
                                  priority=priority,
-                                 node=node)
+                                 node=node, isblocked=blocked)
 
     def _addTask(self, node, args, runtime_info, pebble):
         if node.taskid not in self._levels:
@@ -1050,6 +1067,17 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                                    worker=task["worker"],
                                    node=task["node"])
 
+    def _unblock_step(self, node):
+        unblock = None
+        n = workflow.nodes[node]
+        with n.lock:
+            if n._mp_blocked > 0:
+                n._mp_blocked -= 1
+                unblock = self._levels.index(n.taskid) + 1
+        if unblock:
+            return self._jobdb.unblock_step(unblock)
+        return 0
+
     def onCompleted(self, task):
 
         if "itemid" not in task:
@@ -1063,6 +1091,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         pebble = self._pebbles[task["itemid"]]
         node = pebble.nodename[task["taskid"]]
+
+        # If we have any blocked processes at this level, unblock ASAP
+        self._unblock_step(node)
 
         self.status["%s.processing" % pebble.nodename[task["taskid"]]].dec()
 
@@ -1146,6 +1177,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             #    state=jobdb.STATE_COMPLETED)
 
         if workflow._is_single_run and workflow.entry.is_done(pebble):
+            print("Workflow is DONE - exiting")
             API.shutdown()
 
     def _flag_cleanup_pebble(self, pebble):
@@ -1194,6 +1226,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         node = pebble.nodename[task["taskid"]]
         self.status["%s.failed" % node].inc()
+
+        # If we have any blocked processes at this level, unblock ASAP
+        self._unblock_step(node)
 
         # Add the results
         # node = pebble._sub_pebbles[task["taskid"]]["node"]
@@ -1247,6 +1282,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         pebble = self._pebbles[task["itemid"]]
         node = pebble.nodename[task["taskid"]]
+
+        # If we have any blocked processes at this level, unblock ASAP
+        self._unblock_step(node)
 
         self.status["%s.failed" % node].inc()
 

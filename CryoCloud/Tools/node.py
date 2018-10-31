@@ -296,7 +296,7 @@ class Worker(multiprocessing.Process):
                             subargs["args"][arg] = ret["fileList"][0]
                 a[a.index("-t") + 1] = json.dumps(subargs)
 
-                self.log.debug("Converted to %s" % str(a));
+                self.log.debug("Converted to %s" % str(a))
 
         if fprep:
             task["prepare_time"] = time.time() - start_time

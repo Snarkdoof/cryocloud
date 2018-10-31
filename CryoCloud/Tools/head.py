@@ -136,12 +136,13 @@ class HeadNode(threading.Thread):
                                                stop_event=API.api_stop_event)
 
     def add_job(self, step, taskid, args, jobtype=jobdb.TYPE_NORMAL, priority=jobdb.PRI_NORMAL,
-                node=None, expire_time=None, module=None, modulepath=None, workdir=None, itemid=None):
+                node=None, expire_time=None, module=None, modulepath=None, workdir=None, itemid=None,
+                isblocked=0):
         if expire_time is None:
             expire_time = self.options.max_task_time
         tid = self._jobdb.add_job(step, taskid, args, expire_time=expire_time, module=module, node=node,
-                                  priority=priority,
-                                  modulepath=modulepath, workdir=workdir, jobtype=jobtype, itemid=itemid)
+                                  priority=priority, modulepath=modulepath, workdir=workdir,
+                                  jobtype=jobtype, itemid=itemid, isblocked=isblocked)
         self._pending.append(tid)
         # if self.options.steps > 0 and self.options.tasks > 0:
         #     if step > self.status["progress"].size[0]:

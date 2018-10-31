@@ -86,6 +86,7 @@ class JobDB(mysql):
                     itemid BIGINT DEFAULT 0,
                     max_memory BIGINT UNSIGNED DEFAULT 0,
                     cpu_time FLOAT DEFAULT 0,
+                    is_blocked TINYINT DEFAULT 0,
                     tschange TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6)
             )""",
             """CREATE TABLE IF NOT EXISTS filewatch (
@@ -143,6 +144,8 @@ class JobDB(mysql):
         # Minor upgrade-hack
         try:
             c = self._execute("SELECT min(cpu_time) FROM jobs LIMIT 1")
+            c.fetchall()
+            c = self._execute("SELECT min(is_blocked) FROM jobs LIMIT 1")
             c.fetchall()
         except:
             try:
@@ -205,7 +208,8 @@ class JobDB(mysql):
         self._cleanup_thread.start()
 
     def add_job(self, step, taskid, args, jobtype=TYPE_NORMAL, priority=PRI_NORMAL, node=None,
-                expire_time=3600, module=None, modulepath=None, workdir=None, itemid=None, multiple=True):
+                expire_time=3600, module=None, modulepath=None, workdir=None, itemid=None,
+                multiple=True, isblocked=False):
 
         if not module and not self._module:
             raise Exception("Missing module for job, and no default module!")
@@ -219,16 +223,24 @@ class JobDB(mysql):
 
         if multiple:
             with self._addLock:
-                self._addlist.append([self._runid, step, taskid, jobtype, priority, STATE_PENDING, time.time(), expire_time, node, args, module, modulepath, workdir, itemid])
+                self._addlist.append([self._runid, step, taskid, jobtype, priority, STATE_PENDING, time.time(), expire_time, node, args, module, modulepath, workdir, itemid, isblocked])
                 # Set a timer for commit - if multiple ones have been added, they will be added together
                 if self._addtimer is None:
                     self._addtimer = threading.Timer(0.5, self.commit_jobs)
                     self._addtimer.start()
             return taskid
 
-        self._execute("INSERT INTO jobs (runid, step, taskid, type, priority, state, tsadded, expiretime, node, args, module, modulepath, workdir, itemid) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                      [self._runid, step, taskid, jobtype, priority, STATE_PENDING, time.time(), expire_time, node, args, module, modulepath, workdir, itemid])
+        self._execute("INSERT INTO jobs (runid, step, taskid, type, priority, state, tsadded, expiretime, node, args, module, modulepath, workdir, itemid, is_blocked) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                      [self._runid, step, taskid, jobtype, priority, STATE_PENDING, time.time(), expire_time, node, args, module, modulepath, workdir, itemid, isblocked])
         return taskid
+
+    def unblock_jobid(self, jobid):
+        c = self._execute("UPDATE jobs SET is_blocked=0 WHERE jobid=%s", [jobid])
+        return c.rowcount
+
+    def unblock_step(self, step):
+        c = self._execute("UPDATE jobs SET is_blocked=0 WHERE runid=%s AND step=%s AND is_blocked>0 LIMIT 1", [self._runid, step])
+        return c.rowcount
 
     def flush(self):
         self.commit_jobs()
@@ -243,15 +255,15 @@ class JobDB(mysql):
                 # print("*** WARNING: commit_jobs called but no queued jobs")
                 return
 
-            SQL = "INSERT INTO jobs (runid, step, taskid, type, priority, state, tsadded, expiretime, node, args, module, modulepath, workdir, itemid) VALUES "
+            SQL = "INSERT INTO jobs (runid, step, taskid, type, priority, state, tsadded, expiretime, node, args, module, modulepath, workdir, itemid, is_blocked) VALUES "
             args = []
             for job in self._addlist:
-                SQL += "(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s),"
+                SQL += "(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s),"
                 args.extend(job)
 
                 if len(args) > 1000:
                     self._execute(SQL[:-1], args)
-                    SQL = "INSERT INTO jobs (runid, step, taskid, type, priority, state, tsadded, expiretime, node, args, module, modulepath, workdir, itemid) VALUES "
+                    SQL = "INSERT INTO jobs (runid, step, taskid, type, priority, state, tsadded, expiretime, node, args, module, modulepath, workdir, itemid, is_blocked) VALUES "
                     args = []
             if len(args) > 0:
                 self._execute(SQL[:-1], args)
@@ -316,7 +328,8 @@ class JobDB(mysql):
 
         nonce = random.randint(0, 2147483647)
         args = [STATE_ALLOCATED, time.time(), node, workerid, nonce, type, STATE_PENDING]
-        SQL = "UPDATE jobs SET state=%s, tsallocated=%s, node=%s, worker=%s, nonce=%s WHERE type=%s AND state=%s AND "
+        SQL = "UPDATE jobs SET state=%s, tsallocated=%s, node=%s, worker=%s, nonce=%s WHERE " +\
+              "type=%s AND state=%s AND "
         if node:
             SQL += "(node IS NULL or node=%s) "
             args.append(node)
