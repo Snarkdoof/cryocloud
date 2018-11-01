@@ -27,7 +27,9 @@ from CryoCore import API
 import CryoCloud
 from CryoCloud.Common import jobdb
 
-CC_DIR = os.getcwd()  # Allow ccdir to be an env variable?
+CC_DIR = os.environ["CC_DIR"]
+if not CC_DIR:
+    CC_DIR = os.getcwd()  # Allow ccdir to be an env variable?
 sys.path.append(os.path.join(CC_DIR, "CryoCloud/Modules/"))  # Add CC modules with full path
 sys.path.append("./CryoCloud/Modules/")  # Add CC modules with full path
 
