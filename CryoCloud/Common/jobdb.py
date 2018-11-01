@@ -221,6 +221,8 @@ class JobDB(mysql):
             taskid = self._taskid
             self._taskid += 1
 
+        if isblocked:
+            print("Adding BLOCKED", step, module)
         if multiple:
             with self._addLock:
                 self._addlist.append([self._runid, step, taskid, jobtype, priority, STATE_PENDING, time.time(), expire_time, node, args, module, modulepath, workdir, itemid, isblocked])
@@ -235,10 +237,12 @@ class JobDB(mysql):
         return taskid
 
     def unblock_jobid(self, jobid):
+        print("Unblocking job", jobid)
         c = self._execute("UPDATE jobs SET is_blocked=0 WHERE jobid=%s", [jobid])
         return c.rowcount
 
     def unblock_step(self, step):
+        print("Unblocking step", step)
         c = self._execute("UPDATE jobs SET is_blocked=0 WHERE runid=%s AND step=%s AND is_blocked>0 LIMIT 1", [self._runid, step])
         return c.rowcount
 
