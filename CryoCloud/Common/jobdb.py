@@ -37,11 +37,17 @@ PRI_STRING = {
     PRI_BULK: "bulk"
 }
 
+global GENERATED
+GENERATED = False
+
 
 class JobDB(mysql):
 
     def __init__(self, runname, module, steps=1, auto_cleanup=True):
-
+        global GENERATED
+        if GENERATED:
+            raise Exception("ALREADY GENERATED DB")
+        GENERATED = True
         self._runname = random.randint(0, 2147483647)  # Just ignore the runname for now
         self._actual_runname = runname
         self._module = module
