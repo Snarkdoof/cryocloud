@@ -932,7 +932,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
             if n.dir:
                 d = n._map(n.dir, None, None)
-                print("DIR", n.dir, d)
                 os.chdir(d)
                 info = imp.find_module(n.module)  # , [d])
             else:
@@ -1074,22 +1073,17 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                                    node=task["node"])
 
     def _unblock_step(self, node):
-        print("UNBLOCK?", node)
         unblock = None
         n = workflow.nodes[node]
         with n.lock:
-            print("Blocked:", n._mp_blocked, "unblocked:", n._mp_unblocked)
             if n._mp_blocked > 0:
                 n._mp_blocked -= 1
                 unblock = self._levels.index(n.taskid) + 1
         if unblock:
-            print("Unblocking")
             return self._jobdb.unblock_step(unblock)
-        print("No more jobs to unblock")
         return 0
 
     def onCompleted(self, task):
-        print("Completed", task)
         if "itemid" not in task:
             self.log.error("Got task without itemid: %s" % task)
             return
@@ -1164,7 +1158,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             # retvals.append(master.retval_dict[node])
             # for i in ["runtime", "cpu_time", "max_memory"]:
             #     stats[i] = master.stats[node][i]
-            print("MERGED TO", retvals)
             pebble.retval_dict[node] = retvals
             pebble.stats[node].update(stats)  # This is not really all that good, have stats pr job on merge
         try:

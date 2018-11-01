@@ -37,17 +37,10 @@ PRI_STRING = {
     PRI_BULK: "bulk"
 }
 
-global GENERATED
-GENERATED = False
-
 
 class JobDB(mysql):
 
     def __init__(self, runname, module, steps=1, auto_cleanup=True):
-        global GENERATED
-        if GENERATED:
-            raise Exception("ALREADY GENERATED DB")
-        GENERATED = True
         self._runname = random.randint(0, 2147483647)  # Just ignore the runname for now
         self._actual_runname = runname
         self._module = module
@@ -55,8 +48,6 @@ class JobDB(mysql):
 
         if not runname and not module:
             return  # Is a worker, can only allocate/update jobs
-
-        print("CREATING JOBDB")
 
         # Multi-insert
         self._addlist = []
@@ -230,8 +221,6 @@ class JobDB(mysql):
             taskid = self._taskid
             self._taskid += 1
 
-        if isblocked:
-            print("Adding BLOCKED", step, module)
         if multiple:
             with self._addLock:
                 self._addlist.append([self._runid, step, taskid, jobtype, priority, STATE_PENDING, time.time(), expire_time, node, args, module, modulepath, workdir, itemid, isblocked])
@@ -246,14 +235,11 @@ class JobDB(mysql):
         return taskid
 
     def unblock_jobid(self, jobid):
-        print("Unblocking job", jobid)
         c = self._execute("UPDATE jobs SET is_blocked=0 WHERE jobid=%s", [jobid])
         return c.rowcount
 
     def unblock_step(self, step, amount=1):
-        print("Unblocking step", step)
         c = self._execute("UPDATE jobs SET is_blocked=0 WHERE runid=%s AND step=%s AND is_blocked>0 LIMIT %s", [self._runid, step, amount])
-        print("UPDATE jobs SET is_blocked=0 WHERE runid=%s AND step=%s AND is_blocked>0 LIMIT %s" % (self._runid, step, amount))
         return c.rowcount
 
     def flush(self):
