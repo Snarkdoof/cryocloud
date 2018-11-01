@@ -50,6 +50,8 @@ class JobDB(mysql):
         if not runname and not module:
             return  # Is a worker, can only allocate/update jobs
 
+        print("CREATING JOBDB")
+
         # Multi-insert
         self._addlist = []
         self._addtimer = None
