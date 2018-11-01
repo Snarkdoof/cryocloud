@@ -124,7 +124,17 @@ class DockerProcess():
                             break
                     if not mapped:
                         self.dirs.append((volume, volume, "rw"))
-
+                elif isinstance(c, list):
+                    for i in c:
+                        if isinstance(i, str) and i.startswith("/"):
+                            volume = lookup(i)
+                            mapped = False
+                            for d in self.dirs:
+                                if d[1] == volume:
+                                    mapped = True
+                                    break
+                            if not mapped:
+                                self.dirs.append((volume, volume, "rw"))
 
     def run(self):
         docker = "docker"
