@@ -1071,14 +1071,18 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                                    node=task["node"])
 
     def _unblock_step(self, node):
+        print("UNBLOCK?", node)
         unblock = None
         n = workflow.nodes[node]
         with n.lock:
+            print("Blocked:", n._mp_blocked, "unblocked:", n._mp_unblocked)
             if n._mp_blocked > 0:
                 n._mp_blocked -= 1
                 unblock = self._levels.index(n.taskid) + 1
         if unblock:
+            print("Unblocking")
             return self._jobdb.unblock_step(unblock)
+        print("No more jobs to unblock")
         return 0
 
     def onCompleted(self, task):
