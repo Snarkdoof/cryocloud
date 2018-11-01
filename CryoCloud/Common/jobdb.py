@@ -329,7 +329,7 @@ class JobDB(mysql):
         nonce = random.randint(0, 2147483647)
         args = [STATE_ALLOCATED, time.time(), node, workerid, nonce, type, STATE_PENDING]
         SQL = "UPDATE jobs SET state=%s, tsallocated=%s, node=%s, worker=%s, nonce=%s WHERE " +\
-              "type=%s AND state=%s AND "
+              "type=%s AND state=%s AND is_blocked=0 "
         if node:
             SQL += "(node IS NULL or node=%s) "
             args.append(node)
