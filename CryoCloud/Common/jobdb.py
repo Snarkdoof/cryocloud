@@ -244,7 +244,7 @@ class JobDB(mysql):
     def unblock_step(self, step, amount=1):
         print("Unblocking step", step)
         c = self._execute("UPDATE jobs SET is_blocked=0 WHERE runid=%s AND step=%s AND is_blocked>0 LIMIT %s", [self._runid, step, amount])
-        print(c % (self._runid, step, amount))
+        print("UPDATE jobs SET is_blocked=0 WHERE runid=%s AND step=%s AND is_blocked>0 LIMIT %s" % (self._runid, step, amount))
         return c.rowcount
 
     def flush(self):
