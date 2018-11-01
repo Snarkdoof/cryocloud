@@ -1086,7 +1086,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         return 0
 
     def onCompleted(self, task):
-
+        print("Completed", task)
         if "itemid" not in task:
             self.log.error("Got task without itemid: %s" % task)
             return
