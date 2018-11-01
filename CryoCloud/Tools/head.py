@@ -43,10 +43,10 @@ def load(modulename):
 
 class HeadNode(threading.Thread):
 
-    def __init__(self, handler, options, neverfail=False, jobdb=None):
+    def __init__(self, handler, options, neverfail=False, _jobdb=None):
         threading.Thread.__init__(self)
 
-        self._jobdb = jobdb
+        self._jobdb = _jobdb
         self.name = "%s.HeadNode" % (options.name)
         self.cfg = API.get_config(self.name, version=options.version)
         self.log = API.get_log(self.name)
