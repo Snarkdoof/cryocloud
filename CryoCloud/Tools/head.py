@@ -43,9 +43,10 @@ def load(modulename):
 
 class HeadNode(threading.Thread):
 
-    def __init__(self, handler, options, neverfail=False):
+    def __init__(self, handler, options, neverfail=False, jobdb=None):
         threading.Thread.__init__(self)
 
+        self._jobdb = jobdb
         self.name = "%s.HeadNode" % (options.name)
         self.cfg = API.get_config(self.name, version=options.version)
         self.log = API.get_log(self.name)
@@ -189,7 +190,8 @@ class HeadNode(threading.Thread):
         self.status["eta_step"] = 0
         self.status["eta_total"] = 0
 
-        self._jobdb = jobdb.JobDB(self.options.name, self.options.module, auto_cleanup=True)
+        if not self._jobdb:
+            self._jobdb = jobdb.JobDB(self.options.name, self.options.module, auto_cleanup=True)
         self.update_profile = self._jobdb.update_profile
 
         # TODO: Option for this (and for clear_jobs on cleanup)?

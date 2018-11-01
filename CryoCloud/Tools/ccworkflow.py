@@ -858,6 +858,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         workflow.handler = self
         self._jobdb = jobdb.JobDB("Ignored", self.workflow.name)
 
+    def getJobDB(self):
+        return self._jobdb
+
     def estimate_time(self, pebble=None):
         return self.workflow.entry.estimate_time_left(self._jobdb, pebble)
 
@@ -1465,7 +1468,7 @@ if __name__ == "__main__":
             print("Estimate: ", estimate)
             raise SystemExit(0)
 
-        headnode = HeadNode(handler, options, neverfail=True)
+        headnode = HeadNode(handler, options, neverfail=True, jobdb=handler.getJobDB())
         headnode.start()
 
         # We create an event triggered by the head node when it's done
