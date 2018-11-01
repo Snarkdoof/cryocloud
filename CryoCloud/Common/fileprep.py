@@ -29,6 +29,16 @@ class FilePrepare:
     def get_tree_size(self, path):
         """Return total size of files in given path and subdirs."""
         total = 0
+        for e in os.listdir(path):
+            entry = os.path.join(path, e)
+            if os.path.isdir(entry):
+                total += self.get_tree_size(entry)
+            else:
+                total += os.stat(entry).st_size
+        return total
+
+    def scandir_get_tree_size(self, path):
+        total = 0
         for entry in os.scandir(path):
             if entry.is_dir(follow_symlinks=False):
                 total += self.get_tree_size(entry.path)
