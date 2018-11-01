@@ -142,7 +142,10 @@ class Worker(multiprocessing.Process):
             self.status["last_error"] = ""
             self.status["host"] = socket.gethostname()
             self.status["progress"] = 0
-            self.status["module"].set_value(job["module"], force_update=True)
+            m = job["module"]
+            if m == "docker":
+                m += " " + job["target"]
+            self.status["module"].set_value(m, force_update=True)
 
             for key in ["state", "num_errors", "last_error", "progress"]:
                 self.status[key].set_expire_time(3 * 86400)

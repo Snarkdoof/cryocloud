@@ -71,7 +71,6 @@ class HeadNode(threading.Thread):
             self.handler = handler
         else:
             self.handler = handler.Handler()  # load(options.handler).Handler()
-        print("HANDLER", self.handler.__module__)
 
         self.PRI_HIGH = jobdb.PRI_HIGH
         self.PRI_NORMAL = jobdb.PRI_NORMAL

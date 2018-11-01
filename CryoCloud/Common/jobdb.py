@@ -183,7 +183,6 @@ class JobDB(mysql):
             c = self._execute("INSERT INTO runs (runname, module, steps) VALUES (%s, %s, %s)",
                               [self._runname, module, steps])
             self._runid = c.lastrowid
-            print("Generated RUN", self._runid)
 
         self._cleanup_thread = None
         if auto_cleanup:
@@ -408,9 +407,7 @@ class JobDB(mysql):
         return jobs
 
     def clear_jobs(self):
-        print("Clearing jobs")
         c = self._execute("DELETE FROM jobs WHERE runid=%s", [self._runid], insist_direct=True)
-        print("Closing down")
         c.close()
         print("JOBS CLEARED")
 

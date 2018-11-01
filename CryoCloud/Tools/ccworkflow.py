@@ -1452,7 +1452,6 @@ if __name__ == "__main__":
         setattr(options, l, o.split(","))
 
     # Create handler
-    print("Creating handler")
     handler = WorkflowHandler(workflow)
 
     try:
