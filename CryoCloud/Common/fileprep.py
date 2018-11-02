@@ -5,10 +5,9 @@ import tempfile
 import tarfile
 import zipfile
 import shutil
-import socket
+import stat
 from urllib.parse import urlparse
 import requests
-import shutil
 
 
 class FilePrepare:
@@ -102,6 +101,8 @@ class FilePrepare:
         # We now rename the temporary directory to the destination name
         try:
             os.rename(decomp, dst)
+            mode = stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR | stat.S_IRGRP | stat.S_IWGRP | stat.S_IXGRP
+            os.chmod(decomp, mode)
         except:
             self.log.warning("Tried to rename temprary unzip of %s to %s but failed - "
                              "I guess someone else did it for us" % (s, dst))
