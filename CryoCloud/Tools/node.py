@@ -144,7 +144,7 @@ class Worker(multiprocessing.Process):
             self.status["progress"] = 0
             m = job["module"]
             if m == "docker":
-                m += " " + job["target"]
+                m += " " + job["args"]["target"]
             self.status["module"].set_value(m, force_update=True)
 
             for key in ["state", "num_errors", "last_error", "progress"]:
