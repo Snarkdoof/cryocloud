@@ -52,6 +52,7 @@ class Pebble:
         self.completed = []
         self.current = None
         self.is_sub_pebble = False
+        self.order = None
         self._subpebble = None  # This will be a number if we're a subpebble
         self._stop_on = []
         self._sub_tasks = {}  # If we have a split, we must remember which pebbles are the "siblings"
@@ -151,6 +152,25 @@ class Task:
     def resolve(self, pebble, result, caller):
         raise Exception("NOT IMPLEMENTED", pebble, result)
 
+    def list_progress(self, pebble):
+        """
+        Return a list of modules and if they are done or not
+        """
+        retval = []
+        if self.is_global:
+            return retval
+
+        if not self.is_input and self.name != "Entry":
+            if self.name not in pebble.retval_dict:
+                retval.append((self.name, "Not done"))
+            else:
+                retval.append((self.name, "Done"))
+
+        # I'm done, what about my children?
+        for node in self._downstreams:
+            retval.extend(node.list_progress(pebble))
+        return retval
+
     def is_done(self, pebble):
         """
         Returns true iff the graph has completed for this pebble
@@ -177,7 +197,7 @@ class Task:
         return True
 
     # Some nice functions to do estimates etc
-    def estimate_time_left(self, jobdb, pebble=None):
+    def estimate_time_left(self, jobdb, pebble=None, detailed=False):
         """
         Estimate processing time from this node and down the graph
         """
@@ -188,6 +208,7 @@ class Task:
         # step_time = 10
         step_time = 0
         process_time = 0
+        steps = []
         if self.module and not self.is_input:
             estimate = jobdb.estimate_resources(self.name, priority=self.priority)
             if estimate == {}:
@@ -196,8 +217,6 @@ class Task:
             else:
                 step_time = estimate["totaltime"]
                 process_time = estimate["processtime"]
-
-        print("CALCULATING STEP", self.name, step_time, process_time)
 
         if pebble:
             if self.name in pebble.retval_dict:
@@ -219,13 +238,15 @@ class Task:
             subnodes += times["time_left"]
             subnodes_parallel = max(subnodes_parallel, times["time_left_parallel"])
             subnodes_process_time = max(subnodes_process_time, times["process_time_left"])
-
+            steps.extend(times["steps"])
+        steps.insert(0, {"name": self.name, "step": step_time, "process": process_time})
         time_left = step_time - run_time + subnodes
         time_left_parallel = step_time - run_time + subnodes_parallel
         process_time_left = process_time - run_time + subnodes_process_time
-        return {"runtime": run_time, "steptime": step_time,
+        info = {"runtime": run_time, "steptime": step_time,
                 "time_left": time_left, "time_left_parallel": time_left_parallel,
-                "process_time_left": process_time_left}
+                "process_time_left": process_time_left, "steps": steps}
+        return info
 
     def get_max_priority(self):
         """
@@ -312,7 +333,9 @@ class Workflow:
             if "max_parallel" in child:
                 task.max_parallel = int(child["max_parallel"])
             if "provides" in child:
-                task.provides = child["provides"]
+                task.provides.update(child["provides"])
+            if "outputs" in child:
+                task.outputs.update(child["outputs"])
             if "depends" in child:
                 task.depends = child["depends"]
             if "options" in child:
@@ -857,6 +880,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         self.workflow = workflow
         workflow.handler = self
         self._jobdb = jobdb.JobDB("Ignored", self.workflow.name)
+        self.orders = {}  # Orders from interactive sources - let them resolve info here
 
     def getJobDB(self):
         return self._jobdb
@@ -887,6 +911,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             self._cleanup_pebble(pbl)
 
         self.log.debug("INPUT TASK added: %s" % task)
+
         # We need to find the source if this addition
         if "caller" not in task:
             self.log.error("'caller' is missing on Add, please check the calling module. "
@@ -915,7 +940,38 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         # We can now resolve this caller with the correct info
         caller.on_completed(pebble, "success")
 
+        if "_order" in task:
+            pebble.order = task["_order"]
+            self.orders[task["_order"]] = {"pebbleid": pebble.gid}
+            self.log.debug("Registered order")
+
         return pebble.gid
+
+    def getStats(self, order):
+        print("REQUEST for order", order)
+        print(self.orders)
+        if order not in self.orders:
+            raise Exception("No info for order '%s'" % order)
+
+        # How long is left?
+        if self.orders[order]["pebbleid"] in self._pebbles:
+            pebble = self._pebbles[self.orders[order]["pebbleid"]]
+            print("Info for pebble", pebble)
+            self.orders[order]["timeleft"] = self.estimate_time(pebble)
+
+            # Progress
+            progress = self.workflow.entry.list_progress(pebble)
+            # self.orders[order]["progress"] = progress
+
+            prog = {}
+            for p in progress:
+                print("P", p)
+                p = p[0]
+                processing = self.status["%s.processing" % p].get_value()
+                pending = self.status["%s.pending" % p].get_value()
+                prog[p] = {"processing": processing, "pending": pending}
+            self.orders[order]["progress"] = prog
+        return self.orders[order]
 
     def _addJob(self, n, lvl, taskid, args, module, jobtype,
                 itemid, workdir, priority, node):
@@ -1172,6 +1228,12 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                                    cpu=pebble.stats[node]["cpu_time"])
 
         if workflow.entry.is_done(pebble):
+
+            # If this was an order, we'll register the return values before
+            # cleaning up the pebble
+            if pebble.order in self.orders:
+                self.orders[pebble.order]["retval"] = pebble.retval_dict
+
             print("Workflow is DONE")
             self._jobdb.update_profile(pebble.gid, self.workflow.name, state=jobdb.STATE_COMPLETED)  # The whole job
             self._flag_cleanup_pebble(pebble)

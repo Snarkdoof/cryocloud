@@ -1,5 +1,5 @@
 from CryoCore import API
-
+import time
 import http.server
 import socketserver
 import threading
@@ -8,6 +8,7 @@ import json
 import jsonschema
 import os.path
 import tempfile
+import uuid
 
 if 0:
     ccmodule = {
@@ -30,47 +31,6 @@ if 0:
         }
     }
 
-    def start(handler, args, stop_event):
-
-        print("NetWatcher starting")
-        if "port" not in args:
-            raise Exception("Required argument 'port' not given")
-        if "schema" not in args:
-            raise Exception("Required argument 'schema' not given")
-        if "__name__" not in args:
-            raise Exception("Require name as argument")
-
-        def onAdd(info):
-
-            file_info = {"relpath": os.path.split(info["product"])[1],
-                         "fullpath": info["product"]}
-
-            # If there is a configOverride, we need to write a new config file too
-            if "configOverride" in info:
-                fd, name = tempfile.mkstemp(suffix=".cfg")
-                os.write(fd, json.dumps(info["configOverride"]).encode("utf-8"))
-                os.close(fd)
-                file_info["configOverride"] = name
-
-            # We need to add who we are
-            file_info["caller"] = args["__name__"]
-
-            # Some stats as well
-            s = os.stat(file_info["fullpath"])
-            file_info["datasize"] = s.st_size
-            handler.onAdd(file_info)
-
-        if not os.path.exists(args["schema"]):
-            raise Exception("Can't find schema '%s'" % args["schema"])
-
-        schema = json.loads(open(args["schema"], "r").read())
-
-        nw = NetWatcher(int(args["port"]),
-                        onAdd=onAdd,
-                        schema=schema,
-                        stop_event=stop_event)
-        nw.start()
-
 
 class MyWebServer(socketserver.TCPServer):
     """
@@ -87,14 +47,32 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
         except:
             print("Failed to log", format, args)
 
+    def _replyJSON(self, code, msg):
+        message = json.dumps(msg).encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "text/json")
+        self.send_header("Content-Length", len(message))
+        self.send_header("Content-Encoding", "utf-8")
+        self.end_headers()
+        self.wfile.write(message)
+        self.wfile.close()
+
     def do_GET(self):
         if self.path == "/schema":
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(json.dumps(self.server.schema).encode("utf-8"))
-            return
+            return self._replyJSON(200, self.server.schema)
 
-        self.send_error(404, "Could not find: " + self.request.path)
+        if self.path.startswith("/status/"):
+            order = self.path[8:]
+            print("Status request for order", order)
+            try:
+                info = self.server.handler.getStats(order)
+                info["ts"] = time.time()
+                return self._replyJSON(200, info)
+            except Exception as e:
+                print("BAD REQUEST FOR STATUS (%s): %s" % (order, e))
+                return self.send_error(404, "No info for order %s" % order)
+
+        self.send_error(404, "Could not find: " + self.path)
 
     def do_POST(self):
 
@@ -103,7 +81,7 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
             if len(data) == 0:
                 return self.send_error(500, "Missing body")
             info = json.loads(data.decode("utf-8"))
-
+            print("GOT POST", info)
             # Validate
             if self.server.schema:
                 try:
@@ -115,14 +93,18 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
             self.server.log.exception("Getting JSON post")
             return self.send_error(500, "Bad JSON")
 
+        info["_order"] = uuid.uuid4().hex
+        print("Adding info", info)
         self.server.inQueue.put(("add", info))
         self.send_response(202)
         self.end_headers()
+        self.wfile.write(json.dumps({"id": info["_order"]}).encode("utf-8"))
         self.flush_headers()
 
 
 class NetWatcher(threading.Thread):
-    def __init__(self, port, onAdd=None, onError=None, stop_event=None, schema=None):
+    def __init__(self, port, onAdd=None, onError=None, stop_event=None,
+                 schema=None, handler=None):
         """
         Schema must be a JSON schema for validating possible inputs
         """
@@ -140,15 +122,17 @@ class NetWatcher(threading.Thread):
         if onError:
             self.onError = onError
 
-        self.handler = RequestHandler
-        self.handler.server = self
+        self.handler = handler
+        self.webHandler = RequestHandler
+        self.webHandler.server = self
 
-        self.server = MyWebServer(("", port), self.handler)
+        self.server = MyWebServer(("", port), self.webHandler)
         # self.server = socketserver.TCPServer(("", port), self.handler)
         self.server.timeout = 1.0
         self.server.log = self.log
         self.server.inQueue = queue.Queue()
         self.server.schema = schema
+        self.server.handler = handler
 
         t = threading.Thread(target=self._handle_requests)
         t.start()

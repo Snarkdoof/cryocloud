@@ -36,23 +36,28 @@ def start(handler, args, stop_event):
 
     def onAdd(info):
 
-        file_info = {"relpath": os.path.split(info["product"])[1],
-                     "fullpath": info["product"]}
+        if "product" in info:  # Hack for CryoniteOcean
+            file_info = {"relpath": os.path.split(info["product"])[1],
+                         "fullpath": info["product"]}
 
-        # If there is a configOverride, we need to write a new config file too
-        if "configOverride" in info:
-            fd, name = tempfile.mkstemp(suffix=".cfg")
-            os.write(fd, json.dumps(info["configOverride"]).encode("utf-8"))
-            os.close(fd)
-            file_info["configOverride"] = name
+            # If there is a configOverride, we need to write a new config file too
+            if "configOverride" in info:
+                fd, name = tempfile.mkstemp(suffix=".cfg")
+                os.write(fd, json.dumps(info["configOverride"]).encode("utf-8"))
+                os.close(fd)
+                file_info["configOverride"] = name
+
+            # We need to add who we are
+            file_info["caller"] = args["__name__"]
+
+            # Some stats as well
+            s = os.stat(file_info["fullpath"])
+            file_info["datasize"] = s.st_size
+            return handler.onAdd(file_info)
 
         # We need to add who we are
-        file_info["caller"] = args["__name__"]
-
-        # Some stats as well
-        s = os.stat(file_info["fullpath"])
-        file_info["datasize"] = s.st_size
-        handler.onAdd(file_info)
+        info["caller"] = args["__name__"]
+        return handler.onAdd(info)
 
     if not os.path.exists(args["schema"]):
         raise Exception("Can't find schema '%s'" % args["schema"])
@@ -62,5 +67,6 @@ def start(handler, args, stop_event):
     nw = CryoCloud.Common.NetWatcher(int(args["port"]),
                                      onAdd=onAdd,
                                      schema=schema,
-                                     stop_event=stop_event)
+                                     stop_event=stop_event,
+                                     handler=handler)
     nw.start()
