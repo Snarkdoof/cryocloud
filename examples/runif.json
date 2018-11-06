@@ -1,0 +1,33 @@
+{
+  "workflow": {
+    "options": {
+      "time": {"help": "Time to sleep", "default": 10},
+      "force": {"help": "Force running of Test1"}
+    },
+    "name": "CMDLineTest",
+    "description": "Testing command line options only",
+    "nodes": [
+    {
+      "module": "cmdline",
+      "name": "Start",
+      "downstreamOf": ["entry"]
+    }, {
+      "module": "noop",
+      "name": "Test",
+      "runIf": "option:time<10 or option:force",
+      "downstreamOf": ["Start"],
+      "args": {
+        "time": {"option": "time"}
+      }
+    }, {
+      "module": "noop",
+      "name": "Test2",
+      "downstreamOf": ["Start"],
+      "runIf": "option:time>10 and not option:force",
+      "args": {
+        "time": "15"
+      }
+    }
+  ]
+  }
+}

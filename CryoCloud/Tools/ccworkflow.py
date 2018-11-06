@@ -13,6 +13,7 @@ import imp
 import os
 import sys
 import copy
+import re
 
 from argparse import ArgumentParser
 try:
@@ -80,6 +81,7 @@ class Task:
         self.type = "normal"
         self.args = {}
         self.runOn = "always"
+        self.runIf = None
         self.name = "task%d" % random.randint(0, 1000000)
         self.module = None
         self.config = None
@@ -136,8 +138,26 @@ class Task:
         if pebble:
             pebble.resolved.append(self.name)
 
+        # If runIf evaluates to False, we won't run in this case
+        shouldRun = True
+        if self.runIf:
+            s = self.runIf
+            while True:
+                p = re.search("(\w+):([^!<>=]*)", s)
+                if not p:
+                    break
+                src, name = p.groups()
+
+                # USE MAP FUNC
+                s = s.replace("%s:%s" % (src, name), str(self._map({src: name}, pebble, parent)))
+            try:
+                shouldRun = eval(s)
+            except Exception as e:
+                print("Bad runIf: '%s': %s" % (s, e))
+            # evaluate
+
         # Should we run at all?
-        if (self.runOn == "always" or self.runOn == result):
+        if (shouldRun and (self.runOn == "always" or self.runOn == result)):
             self.resolve(pebble, result, parent)
         else:
             if pebble:
@@ -326,6 +346,8 @@ class Workflow:
                 task.name = child["name"]
             if "runOn" in child:
                 task.runOn = child["runOn"]
+            if "runIf" in child:
+                task.runIf = child["runIf"]
             if "args" in child:
                 task.args = child["args"]
             if "priority" in child:
@@ -671,6 +693,21 @@ class CryoCloudTask(Task):
                 if opt not in options:
                     raise Exception("Missing option %s" % opt)
                 retval = getattr(options, opt)
+            elif "output" in thing:
+                name, param = thing["output"].split(".")
+                if name == "parent":
+                    if param in pebble.retval_dict[parent.name]:
+                        retval = pebble.retval_dict[parent.name][param]
+                    else:
+                        print("%s not provided by calling parent (%s), checking all" % (param, parent.name))
+                        print(pebble.retval_dict)
+                        for p in self._upstreams:
+                            print("Checking", p)
+                            if p.name in pebble.retval_dict and param in pebble.retval_dict[p.name]:
+                                retval = pebble.retval_dict[p.name][param]
+                elif name in pebble.retval_dict:
+                    if param in pebble.retval_dict[name]:
+                        retval = pebble.retval_dict[name][param]
             if "stat" in thing and pebble:
                 name, param = thing["stat"].split(".")
                 if name == "parent":
