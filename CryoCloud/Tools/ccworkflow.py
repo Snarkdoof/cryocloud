@@ -355,7 +355,7 @@ class Workflow:
             if "max_parallel" in child:
                 task.max_parallel = int(child["max_parallel"])
             if "provides" in child:
-                task.provides.update(child["provides"])
+                task.provides.extend(child["provides"])
             if "outputs" in child:
                 task.outputs.update(child["outputs"])
             if "depends" in child:
