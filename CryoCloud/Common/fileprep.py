@@ -68,7 +68,6 @@ class FilePrepare:
         # We unzip into a temporary directory, then rename it (in case of parallel jobs)
         decomp = tempfile.mkdtemp(dir=os.path.split(s)[0], prefix="cctmp_")
         done = 0
-
         try:
             if tarfile.is_tarfile(s):
                 self.log.debug("Untaring %s to %s" % (s, dst))
@@ -102,7 +101,7 @@ class FilePrepare:
         try:
             os.rename(decomp, dst)
             mode = stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR | stat.S_IRGRP | stat.S_IWGRP | stat.S_IXGRP
-            os.chmod(decomp, mode)
+            os.chmod(dst, mode)
         except:
             self.log.warning("Tried to rename temprary unzip of %s to %s but failed - "
                              "I guess someone else did it for us" % (s, dst))
