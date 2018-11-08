@@ -9,6 +9,7 @@ ccmodule = {
         "src": "Full path to file or directory to delete",
         "recursive": "Recurse, default False",
         "ignoreerrors": "Igore any errors, will always succeed",
+        "remove_unzipped": "Remove any unzipped compressed files too"
     },
     "outputs": {},
     "defaults": {
@@ -32,6 +33,11 @@ def process_task(self, task):
     else:
         recursive = False
 
+    if "remove_unzipped" in task["args"]:
+        remove_unzipped = task["args"]["remove_unzipped"]
+    else:
+        remove_unzipped = False
+
     src = task["args"]["src"]
 
     if src.__class__ != list:
@@ -42,6 +48,14 @@ def process_task(self, task):
     errormsg = ""
     for s in src:
         try:
+            if os.path.splitext(s)[1] in [".tgz", ".tar", ".zip"] and remove_unzipped:
+                s2 = os.path.splitext(s)[0]
+                if os.path.exists(s2) and s2 not in src:
+                    if os.path.exists(s):
+                        src.append(s2)
+                    else:
+                        s = s2
+
             if not os.path.exists(s):
                 raise Exception("Can't delete nonexisting path '%s'" % s)
 
