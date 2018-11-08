@@ -65,11 +65,13 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
         # self.wfile.close()
 
     def do_OPTIONS(self):
+        self.path = self.path.replace("//", "/")
         if self.path == "/task":
             self._replyJSON(200, {})
         return self.do_GET(isOptions=True)
 
     def do_GET(self, isOptions=False):
+        self.path = self.path.replace("//", "/")
         if self.path == "/schema":
             return self._replyJSON(200, self.server.schema)
 
@@ -86,6 +88,7 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
         self.send_error(404, "Could not find: " + self.path)
 
     def do_POST(self):
+        self.path = self.path.replace("//", "/")
 
         try:
             data = self.rfile.read(int(self.headers["Content-Length"]))
