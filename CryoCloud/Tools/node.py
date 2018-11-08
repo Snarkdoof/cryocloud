@@ -290,12 +290,13 @@ class Worker(multiprocessing.Process):
                                 ret = fprep.fix([subargs["args"][arg][x]])
                                 subargs["args"][arg][x] = ret["fileList"][0]
                     else:
-                        print("GOT ARGS", arg, subargs["args"][arg])
                         t = subargs["args"][arg].split(" ")
                         if "copy" in t or "unzip" in t:
                             if not fprep:
                                 fprep = fileprep.FilePrepare(self.cfg["datadir"])
                             ret = fprep.fix([subargs["args"][arg]])
+                            if len(ret["fileList"]) == 0:
+                                raise Exception("Missing file %s" % subargs["args"][arg])
                             subargs["args"][arg] = ret["fileList"][0]
                 a[a.index("-t") + 1] = json.dumps(subargs)
 
