@@ -50,6 +50,8 @@ class Pebble:
         self.retval_dict = {}
         self.nodename = {}
         self.stats = {}
+        self.progress = {}
+        self.level = None
         self.completed = []
         self.current = None
         self.is_sub_pebble = False
@@ -61,6 +63,8 @@ class Pebble:
         self._resolve_pebble = self
 
     def __str__(self):
+        if self.is_sub_pebble:
+            return "[SubPebble %s]" % self.gid
         return "[Pebble %s]" % self.gid
         # return "[Pebble %s]: %s, %s" % (self.gid, self.resolved, self.retval_dict)
 
@@ -100,6 +104,7 @@ class Task:
         self._mp_unblocked = 0
         self._mp_blocked = 0
         self.lock = threading.Lock()
+        self.level = None
 
     def __str__(self):
         return "[%s (%s), %s, %s]: priority %d, args: %s\n" %\
@@ -149,7 +154,7 @@ class Task:
                 src, name = p.groups()
 
                 # USE MAP FUNC
-                s = s.replace("%s:%s" % (src, name), str(self._map({src: name}, pebble, parent)))
+                s = s.replace("%s:%s" % (src, name), "'%s'" % str(self._map({src: name}, pebble, parent)))
             try:
                 shouldRun = eval(s)
             except Exception as e:
@@ -180,11 +185,17 @@ class Task:
         if self.is_global:
             return retval
 
+        s = "Not started"
+        progress = {}
+        if self.level is not None and self.level in pebble.progress:
+            progress = pebble.progress[self.level]
+            s = "Not Done"
+
         if not self.is_input and self.name != "Entry":
-            if self.name not in pebble.retval_dict:
-                retval.append((self.name, "Not done"))
-            else:
-                retval.append((self.name, "Done"))
+            if self.name in pebble.retval_dict:
+                s = "Done"
+
+            retval.append(({"name": self.name, "done": s, "progress": progress}))
 
         # I'm done, what about my children?
         for node in self._downstreams:
@@ -212,6 +223,7 @@ class Task:
             if not node.is_done(pebble):
                 # print("Child", node, "is not done")
                 return False  # Not done
+
         # print(self.name, "I'm all done")
         # I'm done, and so are my children
         return True
@@ -962,6 +974,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         # Generate a Pebble to represent this piece of work
         pebble = Pebble()
+        print("CREATED PEBBLE", pebble)
         self._jobdb.update_profile(pebble.gid, self.workflow.name, product=self.workflow.name, type=0)  # The whole job
 
         pebble.resolved.append(task["caller"])
@@ -980,34 +993,27 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         if "_order" in task:
             pebble.order = task["_order"]
             self.orders[task["_order"]] = {"pebbleid": pebble.gid}
-            self.log.debug("Registered order")
+            self.log.debug("Registered order %s" % task["_order"])
+            print("ORDERS", self.orders.keys())
 
         return pebble.gid
 
     def getStats(self, order):
-        print("REQUEST for order", order)
-        print(self.orders)
+
         if order not in self.orders:
             raise Exception("No info for order '%s'" % order)
 
-        # How long is left?
-        if self.orders[order]["pebbleid"] in self._pebbles:
-            pebble = self._pebbles[self.orders[order]["pebbleid"]]
-            print("Info for pebble", pebble)
-            self.orders[order]["timeleft"] = self.estimate_time(pebble)
+        try:
+            # How long is left?
+            if self.orders[order]["pebbleid"] in self._pebbles:
+                pebble = self._pebbles[self.orders[order]["pebbleid"]]
+                self.orders[order]["timeleft"] = self.estimate_time(pebble)
 
-            # Progress
-            progress = self.workflow.entry.list_progress(pebble)
-            # self.orders[order]["progress"] = progress
-
-            prog = {}
-            for p in progress:
-                print("P", p)
-                p = p[0]
-                processing = self.status["%s.processing" % p].get_value()
-                pending = self.status["%s.pending" % p].get_value()
-                prog[p] = {"processing": processing, "pending": pending}
-            self.orders[order]["progress"] = prog
+                self.orders[order]["progress"] = self.workflow.entry.list_progress(pebble)
+                # self.orders[order]["progress"] = progress
+        except:
+            print("ERROR", pebble.progress, "Is sub:", pebble.is_sub_pebble)
+            self.log.exception("INTERNAL")
         return self.orders[order]
 
     def _addJob(self, n, lvl, taskid, args, module, jobtype,
@@ -1059,6 +1065,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             self._levels.append(node.taskid)
 
         lvl = self._levels.index(node.taskid) + 1
+        pebble.level = lvl
+        if node.level is None:
+            node.level = lvl  # We need this for progress
 
         jobt = self.head.TASK_STRING_TO_NUM[node.type]
 
@@ -1101,6 +1110,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             pebble._sub_tasks = {}
             for x in range(len(origargs)):
                 args[node.splitOn] = origargs[x]
+                self._updateProgress(pebble, lvl, {"total": 1, "queued": 1, "pending": 1})
                 if x < len(origargs) - 1:
                     # SHOULD MAKE A COPY OF THE PEBBLE AND GO ON FROM HERE
                     subpebble = copy.deepcopy(pebble)
@@ -1133,6 +1143,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             self.status["%s.pending" % node.name].inc(len(origargs))
             return
 
+        self._updateProgress(pebble, lvl, {"total": 1, "queued": 1, "pending": 1})
         self.status["%s.pending" % node.name].inc()
 
         taskid = random.randint(0, 100000000)  # TODO: Better
@@ -1143,6 +1154,16 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                          node=runtime_info["node"])
         pebble.jobid = i
         # pebble._sub_pebbles[i] = {"x": None, "y": None, "node": node, "done": False}
+
+    def _updateProgress(self, pebble, level, items):
+        p = pebble
+        if (pebble.is_sub_pebble):
+            p = self._pebbles[pebble._master_task]
+
+        if level not in p.progress:
+            p.progress[level] = {"total": 0, "queued": 0, "allocated": 0, "failed": 0, "completed": 0, "pending": 0}
+        for key in items:
+            p.progress[level][key] += items[key]
 
     def onAllocated(self, task):
         if "itemid" not in task:
@@ -1155,6 +1176,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             return
 
         pebble = self._pebbles[task["itemid"]]
+        self._updateProgress(pebble, task["step"], {"queued": -1, "allocated": 1, "pending": -1})
 
         self.status["%s.processing" % pebble.nodename[task["taskid"]]].inc()
         self.status["%s.pending" % pebble.nodename[task["taskid"]]].dec()
@@ -1172,6 +1194,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             if n._mp_blocked > 0:
                 n._mp_blocked -= 1
                 unblock = self._levels.index(n.taskid) + 1
+            if n.max_parallel:
+                n._mp_unblocked -= 1  # One task is done
+
         if unblock:
             return self._jobdb.unblock_step(unblock)
         return 0
@@ -1188,6 +1213,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         pebble = self._pebbles[task["itemid"]]
         node = pebble.nodename[task["taskid"]]
+        self._updateProgress(pebble, task["step"], {"allocated": -1, "completed": 1})
 
         # If we have any blocked processes at this level, unblock ASAP
         self._unblock_step(node)
@@ -1234,7 +1260,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             for t in master._sub_tasks.values():
                 if node not in self._pebbles[t].completed:
                     return
-            # print(node, "All", len(master._sub_tasks), "subtasks have completed, MERGE NOW")
+            print(node, "All", len(master._sub_tasks), "subtasks have completed, MERGE NOW")
 
             # We merge BACK into the master
             retvals = {}
@@ -1247,10 +1273,13 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                         retvals[key].append(self._pebbles[t].retval_dict[node][key])
                 for i in ["runtime", "cpu_time", "max_memory"]:
                     stats[i] = self._pebbles[t].stats[node][i]
+
+            master._sub_tasks = {}
             # Add the master too
             # retvals.append(master.retval_dict[node])
             # for i in ["runtime", "cpu_time", "max_memory"]:
             #     stats[i] = master.stats[node][i]
+            pebble = master  # We go for the master from here
             pebble.retval_dict[node] = retvals
             pebble.stats[node].update(stats)  # This is not really all that good, have stats pr job on merge
         try:
@@ -1264,21 +1293,30 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                                    memory=pebble.stats[node]["max_memory"],
                                    cpu=pebble.stats[node]["cpu_time"])
 
-        if workflow.entry.is_done(pebble):
+        print("DONE", pebble, task["step"], workflow.entry.is_done(pebble))
+        p = pebble
+        if workflow.entry.is_done(pebble) and pebble.is_sub_pebble:
+            print("SubPebble triggered done!", pebble)
+            p = self._pebbles[p._master_task]
+            print("Master pebble is", pebble, workflow.entry.is_done(p))
+
+        if workflow.entry.is_done(p):
 
             # If this was an order, we'll register the return values before
             # cleaning up the pebble
-            if pebble.order in self.orders:
-                self.orders[pebble.order]["retval"] = pebble.retval_dict
+            if p.order in self.orders:
+                self.orders[p.order]["retval_full"] = p.retval_dict
+                self.orders[p.order]["retval"] = p.retval_dict[node]
+                print("ORDER", p.order, "completed with retval", p.retval_dict[node])
+            print("Workflow completed for pebble", p)
 
-            print("Workflow is DONE")
-            self._jobdb.update_profile(pebble.gid, self.workflow.name, state=jobdb.STATE_COMPLETED)  # The whole job
+            self._jobdb.update_profile(p.gid, self.workflow.name, state=jobdb.STATE_COMPLETED)  # The whole job
             self._flag_cleanup_pebble(pebble)
             # self._jobdb.update_profile(pebble.gid,
             #    self.workflow.name,
             #    state=jobdb.STATE_COMPLETED)
 
-        if workflow._is_single_run and workflow.entry.is_done(pebble):
+        if workflow._is_single_run and workflow.entry.is_done(p):
             print("Workflow is DONE - exiting")
             API.shutdown()
 
@@ -1318,6 +1356,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             return
 
         pebble = self._pebbles[task["itemid"]]
+
+        self._updateProgress(pebble, task["step"], {"allocated": -1, "failed": 1})
 
         # We should cancel any siblings - this will not succeed!
         if len(pebble._sub_tasks) > 0:

@@ -42,6 +42,8 @@ class MyWebServer(socketserver.TCPServer):
 class RequestHandler(http.server.BaseHTTPRequestHandler):
 
     def log_message(self, format, *args):
+        if (args[1] in ["200", "202"]):
+            return
         try:
             API.get_log("NetWatcher").info(format % args)
         except:
@@ -53,17 +55,26 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
         self.send_header("Content-Type", "text/json")
         self.send_header("Content-Length", len(message))
         self.send_header("Content-Encoding", "utf-8")
+        if self.server.cors:
+            self.send_header("Access-Control-Allow-Origin", self.server.cors)
+            self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS, GET")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+
         self.end_headers()
         self.wfile.write(message)
-        self.wfile.close()
+        # self.wfile.close()
 
-    def do_GET(self):
+    def do_OPTIONS(self):
+        if self.path == "/task":
+            self._replyJSON(200, {})
+        return self.do_GET(isOptions=True)
+
+    def do_GET(self, isOptions=False):
         if self.path == "/schema":
             return self._replyJSON(200, self.server.schema)
 
         if self.path.startswith("/status/"):
             order = self.path[8:]
-            print("Status request for order", order)
             try:
                 info = self.server.handler.getStats(order)
                 info["ts"] = time.time()
@@ -81,7 +92,7 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
             if len(data) == 0:
                 return self.send_error(500, "Missing body")
             info = json.loads(data.decode("utf-8"))
-            print("GOT POST", info)
+            print("GOT POST", info, self.server.schema)
             # Validate
             if self.server.schema:
                 try:
@@ -95,16 +106,15 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
 
         info["_order"] = uuid.uuid4().hex
         print("Adding info", info)
+
         self.server.inQueue.put(("add", info))
-        self.send_response(202)
-        self.end_headers()
-        self.wfile.write(json.dumps({"id": info["_order"]}).encode("utf-8"))
-        self.flush_headers()
+        ret = {"id": info["_order"]}
+        return self._replyJSON(202, ret)
 
 
 class NetWatcher(threading.Thread):
     def __init__(self, port, onAdd=None, onError=None, stop_event=None,
-                 schema=None, handler=None):
+                 schema=None, handler=None, cors=None):
         """
         Schema must be a JSON schema for validating possible inputs
         """
@@ -133,6 +143,7 @@ class NetWatcher(threading.Thread):
         self.server.inQueue = queue.Queue()
         self.server.schema = schema
         self.server.handler = handler
+        self.server.cors = cors
 
         t = threading.Thread(target=self._handle_requests)
         t.start()

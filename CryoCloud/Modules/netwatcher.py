@@ -10,7 +10,8 @@ ccmodule = {
     "input_type": "permanent",
     "inputs": {
         "port": "Full path to watch",
-        "schema": "Filename to load JSON Schema for the service from"
+        "schema": "Filename to load JSON Schema for the service from",
+        "cors": "CORS limitations (default no CORS)"
     },
     "outputs": {
         "fullpath": "Full path of discovered file",
@@ -33,6 +34,9 @@ def start(handler, args, stop_event):
         raise Exception("Required argument 'schema' not given")
     if "__name__" not in args:
         raise Exception("Require name as argument")
+    cors = None
+    if "cors" in args:
+        cors = args["cors"]
 
     def onAdd(info):
 
@@ -68,5 +72,6 @@ def start(handler, args, stop_event):
                                      onAdd=onAdd,
                                      schema=schema,
                                      stop_event=stop_event,
-                                     handler=handler)
+                                     handler=handler,
+                                     cors=cors)
     nw.start()
