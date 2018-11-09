@@ -8,6 +8,7 @@ ccmodule = {
     "inputs": {
         "src": "Full path to file or directory to delete",
         "recursive": "Recurse, default False",
+        "extension": "Use to remove companion files with given extension, eg '.xml' or '.hdr'",
         "ignoreerrors": "Igore any errors, will always succeed",
         "remove_unzipped": "Remove any unzipped compressed files too"
     },
@@ -39,6 +40,10 @@ def process_task(self, task):
         remove_unzipped = False
 
     src = task["args"]["src"]
+    if "extension" in task["args"]:
+        ext = task["args"]["extension"]
+    else:
+        ext = None
 
     if src.__class__ != list:
         src = [src]
@@ -68,6 +73,11 @@ def process_task(self, task):
             else:
                 self.log.debug("Deleting file '%s' (%d of %d)" % (s, done + 1, len(src)))
                 os.remove(s)
+                if ext is not None:
+                    scur = s+ext
+                    if os.path.exists(scur):
+                        self.log.debug("Deleting header file '%s' " % scur)
+                        os.remove(scur)                
 
             done += 1
             self.status["progress"] = 100 * done / float(len(src))
