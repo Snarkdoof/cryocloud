@@ -626,7 +626,7 @@ class JobDB(mysql):
     def estimate_resources(self, module, datasize=None, priority=None):
 
         c = self._execute("SELECT MAX(time) FROM profile_summary")
-        maxtime = c.fethone()
+        maxtime = c.fetchone()
         if not maxtime:
             self.summarize_profiles()
         elif time.time() - maxtime > 24*3600:
