@@ -582,7 +582,7 @@ class JobDB(mysql):
             print("Exception updating profile:", e)
 
     def summarize_profiles(self):
-
+        print("Summarizing")
         SQL = "SELECT module,NOW(),COUNT(*)"
         avgs = ["datasize", "waittime", "processtime", "totaltime", "cpu_time", "priority"]
         sums = ["errors", "timeouts", "cancelled"]
@@ -631,7 +631,6 @@ class JobDB(mysql):
             self.summarize_profiles()
         elif time.time() - maxtime[0] > 24*3600:
             self.summarize_profiles()
-        print("MAXTIME", maxtime, )
         args = [module]
         SQL = "SELECT AVG(waittime), AVG(processtime), AVG(totaltime), AVG(cpu_time), " + \
               "AVG(waittime) FROM profile_summary WHERE module=%s AND "
