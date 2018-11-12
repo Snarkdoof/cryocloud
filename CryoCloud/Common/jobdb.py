@@ -133,7 +133,7 @@ class JobDB(mysql):
                 errors INT,
                 timeouts INT,
                 cancelled INT,
-                PRIMARY KEY(module, time)
+                PRIMARY KEY(module, priority, time)
             )""",
             "CREATE INDEX job_state ON jobs(state)",
             "CREATE INDEX job_type ON jobs(type)",
