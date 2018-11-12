@@ -631,7 +631,7 @@ class JobDB(mysql):
         maxtime = c.fetchone()
         if not maxtime or maxtime[0] is None:
             self.summarize_profiles()
-        elif time.time() - maxtime[0] > 24*3600:
+        elif time.time() - maxtime[0].timestamp() > 24*3600:
             self.summarize_profiles()
         args = [module]
         SQL = "SELECT AVG(waittime), AVG(processtime), AVG(totaltime), AVG(cpu_time), " + \
