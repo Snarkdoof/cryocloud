@@ -629,7 +629,7 @@ class JobDB(mysql):
         maxtime = c.fetchone()
         if not maxtime:
             self.summarize_profiles()
-        elif time.time() - maxtime > 24*3600:
+        elif time.time() - maxtime[0] > 24*3600:
             self.summarize_profiles()
         print("MAXTIME", maxtime, )
         args = [module]
