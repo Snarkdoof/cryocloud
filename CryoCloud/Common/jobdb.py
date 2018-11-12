@@ -627,7 +627,7 @@ class JobDB(mysql):
 
         c = self._execute("SELECT MAX(time) FROM profile_summary")
         maxtime = c.fetchone()
-        if not maxtime:
+        if not maxtime or maxtime[0] is None:
             self.summarize_profiles()
         elif time.time() - maxtime[0] > 24*3600:
             self.summarize_profiles()
