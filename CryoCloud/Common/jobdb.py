@@ -625,13 +625,13 @@ class JobDB(mysql):
 
     def estimate_resources(self, module, datasize=None, priority=None):
 
-        c = self._execute("SELECT MAX(timestamp) FROM profile_summary")
+        c = self._execute("SELECT MAX(time) FROM profile_summary")
         maxtime = c.fethone()
         if not maxtime:
             self.summarize_profiles()
         elif time.time() - maxtime > 24*3600:
             self.summarize_profiles()
-        print("MAXTIME", maxtime)
+        print("MAXTIME", maxtime, )
         args = [module]
         SQL = "SELECT AVG(waittime), AVG(processtime), AVG(totaltime), AVG(cpu_time), " + \
               "AVG(waittime) FROM profile_summary WHERE module=%s AND "
