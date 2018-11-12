@@ -1298,6 +1298,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         except:
             self.log.exception("Exception notifying success")
             self.log.error("Pebble was %s" % str(pebble))
+            print("ERROR PROCSESING", pebble, dir(pebble))
 
         self._jobdb.update_profile(pebble.gid,
                                    node,
