@@ -196,7 +196,7 @@ class Task:
         if not self.is_input and self.name != "Entry":
             if self.name in pebble.retval_dict:
                 s = "Done"
-            if progress["failed"] > 0:
+            if "failed" in progress and progress["failed"] > 0:
                 s = "Failed"
                 progress["error"] = pebble.retval_dict[self.name]
             retval.append(({"name": self.name, "done": s, "progress": progress}))
