@@ -988,7 +988,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         # Generate a Pebble to represent this piece of work
         pebble = Pebble()
         # print("CREATED PEBBLE", pebble)
-        self._jobdb.update_profile(pebble.gid, self.workflow.name, product=self.workflow.name, type=0)  # The whole job
+        # self._jobdb.update_profile(pebble.gid, self.workflow.name, product=self.workflow.name, type=0)  # The whole job
 
         pebble.resolved.append(task["caller"])
         pebble.stats[task["caller"]] = {"node": self.head.options.ip}
@@ -1312,7 +1312,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
             self._perform_cleanup(p, node)
 
-            self._jobdb.update_profile(p.gid, self.workflow.name, state=jobdb.STATE_COMPLETED)  # The whole job
+            # self._jobdb.update_profile(p.gid, self.workflow.name, state=jobdb.STATE_COMPLETED)  # The whole job
             self._flag_cleanup_pebble(pebble)
             # self._jobdb.update_profile(pebble.gid,
             #    self.workflow.name,
