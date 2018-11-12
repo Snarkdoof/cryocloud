@@ -599,10 +599,12 @@ class JobDB(mysql):
             SQL += ",MAX(%s)" % a
 
         NOERRS = SQL + " FROM profile WHERE state>2 AND errors=0 AND cancelled=0" +\
+                       " AND priority IS NOT NULL" +\
                        " GROUP BY module, priority, datasize / 1073741824"
         self._execute("INSERT INTO profile_summary " + NOERRS)
 
         ERRS = SQL + " FROM profile WHERE state>2 AND errors>0 AND cancelled>0" +\
+                     " AND priority IS NOT NULL" +\
                      " GROUP BY module, priority, datasize / 1073741824"
         self._execute("INSERT INTO profile_summary " + ERRS)
 
