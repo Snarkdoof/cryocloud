@@ -1334,6 +1334,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         # If this was an order, we'll register the return values before
         # cleaning up the pebble
         if p.order in self.orders:
+            self.orders[p.order]["completed"] = True
             self.orders[p.order]["retval_full"] = p.retval_dict
             if node in p.retval_dict:
                 self.orders[p.order]["retval"] = p.retval_dict[node]
