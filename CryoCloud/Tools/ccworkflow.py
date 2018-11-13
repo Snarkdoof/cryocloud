@@ -672,7 +672,7 @@ class CryoCloudTask(Task):
         # pebble.resolved.append(self.name)
 
         if self.deferred and not deferred:
-            pebble._deferred.append((self.name, pebble.gid, result, caller))
+            pebble._deferred.append((self.name, pebble.gid, result, caller.name))
             return
 
         # Create the CC job
@@ -1328,7 +1328,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         # Do deferred jobs
         if len(p._deferred) > 0:
-            for nodename, pid, result, caller in p._deferred:
+            for nodename, pid, result, callerName in p._deferred:
+                caller = self.workflow.nodes[callerName]
                 self.log.debug("Running deferred job")
                 pbl = self._pebbles[pid]
                 self.workflow.nodes[nodename].resolve(pbl, result, caller, deferred=True)
