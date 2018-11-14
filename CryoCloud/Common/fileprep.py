@@ -127,6 +127,7 @@ class FilePrepare:
         for url in urls:
             copy = False
             unzip = False
+            mkdir = False
             if url.find(" ") > -1:
                 sp = url.split(" ")
                 url = sp[0]
@@ -134,6 +135,8 @@ class FilePrepare:
                     copy = True
                 if "unzip" in sp:
                     unzip = True
+                if "mkdir" in sp:
+                    mkdir = True
 
             u = urlparse(url)
             file = u.path
@@ -141,6 +144,13 @@ class FilePrepare:
 
             if file[0] != "/":
                 raise Exception("Need full paths, got relative path %s" % file)
+
+            print("SCheME:", u.scheme, mkdir)
+            if u.scheme == "dir" and mkdir:
+                if not os.path.exists(u.path):
+                    os.makedirs(u.path)
+                fileList.append(u.path)
+                return {"fileList": fileList, "size": 0}
 
             if compressed:
                 # Do we have this one decompressed already?

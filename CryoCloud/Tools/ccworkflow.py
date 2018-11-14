@@ -822,19 +822,24 @@ class CryoCloudTask(Task):
                                         (arg, self.name, self.module, name, str(pebble.stats[name])))
 
                 # Is this a file? If so, we should tag along a prepare statement
-                if "type" in self.args[arg] and self.args[arg]["type"] == "file":
-                    if "proto" in self.args[arg]:
-                        p = self.args[arg]["proto"] + "://"
-                    else:
-                        p = "ssh://"
-                    p += pebble.stats[parent.name]["node"] + args[arg]
-                    if "unzip" in self.args[arg] and self.args[arg]["unzip"].lower() == "true":
-                        p += " unzip"
-                    if "copy" in self.args[arg] and self.args[arg]["copy"].lower() == "false":
-                        pass
-                    else:
-                        p += " copy"
-                    args[arg] = p
+                if "type" in self.args[arg]: 
+                    if self.args[arg]["type"] == "file":
+                        if "proto" in self.args[arg]:
+                            p = self.args[arg]["proto"] + "://"
+                        else:
+                            p = "ssh://"
+                        p += pebble.stats[parent.name]["node"] + args[arg]
+                        if "unzip" in self.args[arg] and self.args[arg]["unzip"].lower() == "true":
+                            p += " unzip"
+                        if "copy" in self.args[arg] and self.args[arg]["copy"].lower() == "false":
+                            pass
+                        else:
+                            p += " copy"
+                        args[arg] = p
+                    elif self.args[arg]["type"] == "dir":
+                        args[arg] = "dir://" + args[arg] + " mkdir"
+                        print("ARGS", args[arg])
+
             else:
                 args[arg] = self.args[arg]
 

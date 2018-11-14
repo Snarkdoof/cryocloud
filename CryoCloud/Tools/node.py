@@ -259,7 +259,7 @@ class Worker(multiprocessing.Process):
             if isinstance(task["args"][arg], str):
                 if 1 or task["args"][arg].find("://") > -1:
                     t = task["args"][arg].split(" ")
-                    if "copy" in t or "unzip" in t:
+                    if "copy" in t or "unzip" in t or "mkdir" in t:
                         try:
                             self.status["state"] = "Preparing files"
                             if not fprep:
