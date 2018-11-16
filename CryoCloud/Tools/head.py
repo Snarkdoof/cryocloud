@@ -55,12 +55,17 @@ class HeadNode(threading.Thread):
         self.neverfail = neverfail
         self.status["state"] = "Initializing"
         if "steps" in self.options:
-            self.status["total_steps"] = self.options.steps
-            # self.status["step"] = 0
-            self.log.debug("Created %s to perform %d steps of %d tasks using" %
-                           (self.name, self.options.steps, self.options.tasks))
+            try:
+                self.status["total_steps"] = self.options.steps
+                # self.status["step"] = 0
+                self.log.debug("Created %s to perform %d steps of %d tasks using" %
+                               (self.name, self.options.steps, self.options.tasks))
+            except:
+                self.log.warning("options has steps defined but not defined. Weird")
+                self.options.steps = 0
         else:
             self.options.steps = 0
+
         if "module" not in self.options:
             self.options.module = ""
         if "max_task_time" not in self.options:
