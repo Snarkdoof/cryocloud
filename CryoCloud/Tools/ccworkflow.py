@@ -822,17 +822,19 @@ class CryoCloudTask(Task):
                                         (arg, self.name, self.module, name, str(pebble.stats[name])))
 
                 # Is this a file? If so, we should tag along a prepare statement
-                if "type" in self.args[arg]: 
+                if "type" in self.args[arg]:
                     if self.args[arg]["type"] == "file":
                         if "proto" in self.args[arg]:
                             p = self.args[arg]["proto"] + "://"
                         else:
                             p = "ssh://"
                         p += pebble.stats[parent.name]["node"] + args[arg]
-                        if "unzip" in self.args[arg] and self.args[arg]["unzip"].lower() == "true":
-                            p += " unzip"
-                        if "copy" in self.args[arg] and self.args[arg]["copy"].lower() == "false":
-                            pass
+                        if "unzip" in self.args[arg]:
+                            if (isinstance(self.args[arg]["unzip"], str) and self.args[arg]["unzip"].lower() == "true") or self.args[arg]["unzip"]:
+                                p += " unzip"
+                        if "copy" in self.args[arg]:
+                            if (isinstance(self.args[arg]["copy"], str) and self.args[arg]["copy"].lower() == "false") or not self.args[arg]["copy"]:
+                                pass
                         else:
                             p += " copy"
                         args[arg] = p
