@@ -39,6 +39,11 @@ def process_task(self, task):
     else:
         remove_unzipped = False
 
+    if "ignoreerrors" in task["args"]:
+        ignoreerrors = task["args"]["ignoreerrors"]
+    else:
+        ignoreerrors = False
+
     src = task["args"]["src"]
     if "extension" in task["args"]:
         ext = task["args"]["extension"]
@@ -62,7 +67,8 @@ def process_task(self, task):
                         s = s2
 
             if not os.path.exists(s):
-                raise Exception("Can't delete nonexisting path '%s'" % s)
+                if not ignoreerrors:
+                    raise Exception("Can't delete nonexisting path '%s'" % s)
 
             if os.path.isdir(s):
                 self.log.debug("Deleting directory '%s' (%d of %d)" % (s, done + 1, len(src)))
@@ -77,7 +83,7 @@ def process_task(self, task):
                     scur = s+ext
                     if os.path.exists(scur):
                         self.log.debug("Deleting header file '%s' " % scur)
-                        os.remove(scur)                
+                        os.remove(scur)
 
             done += 1
             self.status["progress"] = 100 * done / float(len(src))
@@ -85,7 +91,7 @@ def process_task(self, task):
             self.log.error(str(e))
             errors += 1
             errormsg += "Error removing %s: %s\n" % (s, e)
-            if "ignoreerrors" in task["args"] and task["args"]["ignoreerrors"]:
+            if ignoreerrors:
                 done += 1
                 self.status["progress"] = 100 * done / float(len(src))
                 continue
