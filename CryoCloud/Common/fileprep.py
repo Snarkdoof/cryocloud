@@ -9,6 +9,8 @@ import stat
 from urllib.parse import urlparse
 import requests
 
+DEBUG = False
+
 
 class FilePrepare:
 
@@ -54,6 +56,8 @@ class FilePrepare:
         return retval
 
     def _uncompress(self, s, keep=True):
+        if DEBUG:
+            self.log.debug("Uncompressing '%s'" % s)
         if not os.path.exists(s):
             raise Exception("Missing zip file '%s'" % s)
 
@@ -67,6 +71,8 @@ class FilePrepare:
 
         # We unzip into a temporary directory, then rename it (in case of parallel jobs)
         decomp = tempfile.mkdtemp(dir=os.path.split(s)[0], prefix="cctmp_")
+        if DEBUG:
+            self.log.debug("Uncompressing to '%s'" % decomp)
         done = 0
         try:
             if tarfile.is_tarfile(s):
@@ -99,6 +105,8 @@ class FilePrepare:
 
         # We now rename the temporary directory to the destination name
         try:
+            if DEBUG:
+                self.log.debug("Renaming %s -> %s" % (decomp, dst))
             os.rename(decomp, dst)
             mode = stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR | stat.S_IRGRP | stat.S_IWGRP | stat.S_IXGRP
             os.chmod(dst, mode)
@@ -110,6 +118,8 @@ class FilePrepare:
             shutil.rmtree(decomp)
 
         if not keep:
+            if DEBUG:
+                self.log.debug("Not keeping the file, removing %s" % s)
             try:
                 os.remove(s)
             except:
@@ -142,11 +152,15 @@ class FilePrepare:
             file = u.path
             compressed = self._is_compressed(file)
 
+            if DEBUG:
+                self.log.debug("Fixing file '%s', scheme '%s'" % (file, u.scheme))
+
             if file[0] != "/":
                 raise Exception("Need full paths, got relative path %s" % file)
 
-            print("SCheME:", u.scheme, mkdir)
             if u.scheme == "dir" and mkdir:
+                if DEBUG:
+                    self.log.debug("%s a directory, will create if necessary" % u.path)
                 if not os.path.exists(u.path):
                     os.makedirs(u.path)
                 fileList.append(u.path)
@@ -156,6 +170,8 @@ class FilePrepare:
                 # Do we have this one decompressed already?
                 decomp = (self.root + os.path.splitext(file)[0]).replace("//", "/")
                 if os.path.isdir(decomp):
+                    if DEBUG:
+                        self.log.debug("Is compressed but already decompressed")
                     fileList.extend(self._get_filelist(decomp))
                     total_size += self.get_tree_size(decomp)
                     continue
@@ -165,6 +181,8 @@ class FilePrepare:
                 if not compressed:
                     fileList.append(local_file)
             else:
+                if DEBUG:
+                    self.log.debug("%s not available locally, must copy" % local_file)
                 # Not available locally, can we copy?
                 if not copy:
                     raise Exception("Failed to fix %s, not local but no copy allowed" % (url))
