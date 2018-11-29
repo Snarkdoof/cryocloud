@@ -107,11 +107,19 @@ class FilePrepare:
         try:
             if DEBUG:
                 self.log.debug("Renaming %s -> %s" % (decomp, dst))
-            os.rename(decomp, dst)
+            # Some zip files are unzipped and contains the same name (or most of it)
+            # If so, we use the inner dir
+            l = os.listdir(decomp)
+            if len(l) == 1 and dst.find(l[0]) > -1:
+                os.rename(os.path.join(decomp, l[0]), dst)
+                os.remove(decomp)
+            else:
+                os.rename(decomp, dst)
+
             mode = stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR | stat.S_IRGRP | stat.S_IWGRP | stat.S_IXGRP
             os.chmod(dst, mode)
         except:
-            self.log.warning("Tried to rename temprary unzip of %s to %s but failed - "
+            self.log.warning("Tried to rename temporary unzip of %s to %s but failed - "
                              "I guess someone else did it for us" % (s, dst))
 
             # TODO: Ensure that all files are here?
