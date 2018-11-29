@@ -18,7 +18,7 @@
       "downstreamOf": ["Start"],
       "node": {"options": "node"},
       "args": {
-        "directory": {"option": "workdir"},
+        "directory": {"option": "workdir", "type": "dir"},
         "target": {"option": "target"}
       }
     }
