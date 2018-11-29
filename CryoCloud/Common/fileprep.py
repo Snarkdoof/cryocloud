@@ -109,10 +109,13 @@ class FilePrepare:
                 self.log.debug("Renaming %s -> %s" % (decomp, dst))
             # Some zip files are unzipped and contains the same name (or most of it)
             # If so, we use the inner dir
-            l = os.listdir(decomp)
-            if len(l) == 1 and dst.find(l[0]) > -1:
-                os.rename(os.path.join(decomp, l[0]), dst)
-                os.remove(decomp)
+            if 0:
+                l = os.listdir(decomp)
+                if len(l) == 1 and dst.find(l[0]) > -1:
+                    os.rename(os.path.join(decomp, l[0]), dst)
+                    os.remove(decomp)
+                else:
+                    os.rename(decomp, dst)
             else:
                 os.rename(decomp, dst)
 
