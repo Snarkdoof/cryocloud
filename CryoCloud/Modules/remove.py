@@ -9,7 +9,7 @@ ccmodule = {
         "src": "Full path to file or directory to delete",
         "recursive": "Recurse, default False",
         "extension": "Use to remove companion files with given extension, eg '.xml' or '.hdr'",
-        "ignoreerrors": "Igore any errors, will always succeed",
+        "ignoreerrors": "Igore any errors, will always succeed, default True",
         "remove_unzipped": "Remove any unzipped compressed files too"
     },
     "outputs": {},
@@ -42,7 +42,7 @@ def process_task(self, task):
     if "ignoreerrors" in task["args"]:
         ignoreerrors = task["args"]["ignoreerrors"]
     else:
-        ignoreerrors = False
+        ignoreerrors = True
 
     src = task["args"]["src"]
     if "extension" in task["args"]:
