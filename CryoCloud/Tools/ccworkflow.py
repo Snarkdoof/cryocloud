@@ -1334,12 +1334,12 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
     def _perform_cleanup(self, p, node):
 
         # Do deferred jobs
-        if len(p._deferred) > 0:
-            for nodename, pid, result, callerName in p._deferred:
-                caller = self.workflow.nodes[callerName]
-                self.log.debug("Running deferred job")
-                pbl = self._pebbles[pid]
-                self.workflow.nodes[nodename].resolve(pbl, result, caller, deferred=True)
+        while len(p._deferred) > 0:
+            nodename, pid, result, callerName = p._deferred.pop(0)
+            caller = self.workflow.nodes[callerName]
+            self.log.debug("Running deferred job")
+            pbl = self._pebbles[pid]
+            self.workflow.nodes[nodename].resolve(pbl, result, caller, deferred=True)
 
         # If this was an order, we'll register the return values before
         # cleaning up the pebble
