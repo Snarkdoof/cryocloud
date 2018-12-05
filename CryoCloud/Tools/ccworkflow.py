@@ -828,7 +828,7 @@ class CryoCloudTask(Task):
                             p = self.args[arg]["proto"] + "://"
                         else:
                             p = "ssh://"
-                        if "node" not in pebble.stats[parent.name]:
+                        if "node" not in pebble.stats[parent.name] or pebble.stats[parent.name] is None:
                             p += "localhost" + args[arg]
                         else:
                             p += pebble.stats[parent.name]["node"] + args[arg]
