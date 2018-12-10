@@ -828,7 +828,10 @@ class CryoCloudTask(Task):
                             p = self.args[arg]["proto"] + "://"
                         else:
                             p = "ssh://"
-                        p += pebble.stats[parent.name]["node"] + args[arg]
+                        if "node" not in pebble.stats[parent.name] or pebble.stats[parent.name]["node"] is None:
+                            p += "localhost" + args[arg]
+                        else:
+                            p += pebble.stats[parent.name]["node"] + args[arg]
                         if "unzip" in self.args[arg]:
                             if (isinstance(self.args[arg]["unzip"], str) and self.args[arg]["unzip"].lower() == "true") or self.args[arg]["unzip"]:
                                 p += " unzip"
