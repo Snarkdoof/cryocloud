@@ -1631,7 +1631,7 @@ if __name__ == "__main__":
             print("Estimate: ", estimate)
             raise SystemExit(0)
 
-        headnode = HeadNode(handler, options, neverfail=True, _jobdb=handler.getJobDB())
+        headnode = HeadNode(handler, options, neverfail=False, _jobdb=handler.getJobDB())
         headnode.start()
 
         # We create an event triggered by the head node when it's done
