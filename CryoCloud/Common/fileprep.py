@@ -25,7 +25,7 @@ class FilePrepare:
 
     @staticmethod
     def _is_compressed(filename):
-        return os.path.splitext(filename.lower())[1] in [".zip", ".tar", ".tgz", ".tar.gz"]
+        return os.path.splitext(filename.lower())[1] in [".zip", ".tar", ".tgz", ".gz"]
 
     def get_tree_size(self, path):
         """Return total size of files in given path and subdirs."""
@@ -114,6 +114,7 @@ class FilePrepare:
                 if len(l) == 1 and dst.find(l[0]) > -1:
                     os.rename(os.path.join(decomp, l[0]), dst)
                     os.remove(decomp)
+                    # Must also remove this from the retval
                 else:
                     os.rename(decomp, dst)
             else:
@@ -164,7 +165,7 @@ class FilePrepare:
             compressed = self._is_compressed(file)
 
             if DEBUG:
-                self.log.debug("Fixing file '%s', scheme '%s'" % (file, u.scheme))
+                self.log.debug("Fixing file '%s', scheme '%s', compressed: %s" % (file, u.scheme, compressed))
 
             if file[0] != "/":
                 raise Exception("Need full paths, got relative path %s" % file)
@@ -286,7 +287,7 @@ if __name__ == "__main__":
     """
     try:
 
-        if 1:
+        if 0:
             import threading
             def entry():
                 f = FilePrepare(root="/tmp/node2")
@@ -305,8 +306,9 @@ if __name__ == "__main__":
             print("Cleaned up files", files)
             raise SystemExit(0)
 
-        f = FilePrepare(root="/tmp/node2")
-        files = f.fix(['ssh://193.156.106.218/tmp/inputdir/S1A_S4_GRDH_1SDV_20171030T193624_20171030T193653_019046_020362_04FE.SAFE.zip unzip copy'])
+        f = FilePrepare(root="/")
+        files = f.fix(['ssh://::1/tmp/EL20190106_8242_638116.6.2_14171109.tar.gz unzip copy'])
+        # files = f.fix(['ssh://193.156.106.218/tmp/inputdir/S1A_S4_GRDH_1SDV_20171030T193624_20171030T193653_019046_020362_04FE.SAFE.zip unzip copy'])
         #files = f.fix(["ssh://almar3.itek.norut.no/homes/njaal/foo.bar copy unzip",
         #                 "ssh://almar3.itek.norut.no/homes/njaal/RS2_20180125_044759_0008_F23_HH_SGF_613800_3232_17771915.zip copy unzip"])
         print("Prepared files", files)
