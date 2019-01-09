@@ -1205,9 +1205,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         # pebble._sub_pebbles[i] = {"x": None, "y": None, "node": node, "done": False}
 
     def _updateProgress(self, pebble, level, items):
-        if self.isInternal:
-            return  # We don't report progress on internal operations
-            
         p = pebble
         if (pebble.is_sub_pebble):
             p = self._pebbles[pebble._master_task]
