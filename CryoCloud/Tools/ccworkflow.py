@@ -1228,7 +1228,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         pebble = self._pebbles[task["itemid"]]
         self._updateProgress(pebble, task["step"], {"queued": -1, "allocated": 1, "pending": -1})
 
-        if not node.name.startswith("_"):
+        if not pebble.nodename[task["taskid"]].startswith("_"):
             self.status["%s.processing" % pebble.nodename[task["taskid"]]].inc()
             self.status["%s.pending" % pebble.nodename[task["taskid"]]].dec()
 
@@ -1269,7 +1269,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         # If we have any blocked processes at this level, unblock ASAP
         self._unblock_step(node)
 
-        if not node.name.startswith("_"):
+        if not pebble.nodename[task["taskid"]].startswith("_"):
             self.status["%s.processing" % pebble.nodename[task["taskid"]]].dec()
 
         # print("Completed", pebble, node, task)
@@ -1426,7 +1426,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                 self._jobdb.cancel_job_by_taskid(self._pebbles[p].jobid)
 
         node = pebble.nodename[task["taskid"]]
-        if not node.name.startswith("_"):
+        if not node.startswith("_"):
             self.status["%s.failed" % node].inc()
 
         # If we have any blocked processes at this level, unblock ASAP
@@ -1491,7 +1491,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         # If we have any blocked processes at this level, unblock ASAP
         self._unblock_step(node)
 
-        if not node.name.startswith("_"):
+        if not node.startswith("_"):
             self.status["%s.failed" % node].inc()
 
         # Add the results
