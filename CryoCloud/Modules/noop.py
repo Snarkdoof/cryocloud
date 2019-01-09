@@ -6,7 +6,8 @@ ccmodule = {
     "provides": [],
     "inputs": {
         "time": "The time (or max time) to sleep",
-        "randomize": "Randomly sleep within the given time"
+        "randomize": "Randomly sleep within the given time",
+        "ignored": "Anything you want"
     },
     "outputs": {
     },
