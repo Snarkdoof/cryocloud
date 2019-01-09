@@ -58,7 +58,7 @@ def process_task(self, task):
     errormsg = ""
     for s in src:
         try:
-            if os.path.splitext(s)[1] in [".tgz", ".tar", ".zip"] and remove_unzipped:
+            if os.path.splitext(s)[1] in [".tgz", ".tar", ".zip", ".gz"] and remove_unzipped:
                 s2 = os.path.splitext(s)[0]
                 if os.path.exists(s2) and s2 not in src:
                     if os.path.exists(s):
@@ -88,13 +88,15 @@ def process_task(self, task):
             done += 1
             self.status["progress"] = 100 * done / float(len(src))
         except Exception as e:
-            self.log.error(str(e))
             errors += 1
             errormsg += "Error removing %s: %s\n" % (s, e)
             if ignoreerrors:
+                self.log.warning(str(e))
                 done += 1
                 self.status["progress"] = 100 * done / float(len(src))
                 continue
+            else:
+                self.log.error(str(e))
 
             if "dontstop" in task["args"] and task["args"]["dontstop"]:
                 # Don't stop
