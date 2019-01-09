@@ -1121,13 +1121,12 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             node.level = lvl  # We need this for progress
 
         jobt = self.head.TASK_STRING_TO_NUM[node.type]
-        if not self.isInternal:
-            self._jobdb.update_profile(pebble.gid,
-                                       node.name,
-                                       product=self.workflow.name,
-                                       state=jobdb.STATE_PENDING,
-                                       priority=runtime_info["priority"],
-                                       type=jobt)
+        self._jobdb.update_profile(pebble.gid,
+                                   node.name,
+                                   product=self.workflow.name,
+                                   state=jobdb.STATE_PENDING,
+                                   priority=runtime_info["priority"],
+                                   type=jobt)
         # Should this be run in a docker environment?
         mod = node.module
         if 0 and node.docker:
@@ -1208,7 +1207,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
     def _updateProgress(self, pebble, level, items):
         if self.isInternal:
             return  # We don't report progress on internal operations
-
+            
         p = pebble
         if (pebble.is_sub_pebble):
             p = self._pebbles[pebble._master_task]
@@ -1234,12 +1233,11 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         self.status["%s.processing" % pebble.nodename[task["taskid"]]].inc()
         self.status["%s.pending" % pebble.nodename[task["taskid"]]].dec()
 
-        if not self.isInternal:
-            self._jobdb.update_profile(pebble.gid,
-                                       pebble.nodename[task["taskid"]],
-                                       state=jobdb.STATE_ALLOCATED,
-                                       worker=task["worker"],
-                                       node=task["node"])
+        self._jobdb.update_profile(pebble.gid,
+                                   pebble.nodename[task["taskid"]],
+                                   state=jobdb.STATE_ALLOCATED,
+                                   worker=task["worker"],
+                                   node=task["node"])
 
     def _unblock_step(self, node):
         unblock = None
@@ -1342,12 +1340,11 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             self.log.error("Pebble was %s" % str(pebble))
             print("ERROR PROCESSING", pebble, pebble.retval_dict, pebble.progress)
 
-        if not self.isInternal:
-            self._jobdb.update_profile(pebble.gid,
-                                       node,
-                                       state=jobdb.STATE_COMPLETED,
-                                       memory=pebble.stats[node]["max_memory"],
-                                       cpu=pebble.stats[node]["cpu_time"])
+        self._jobdb.update_profile(pebble.gid,
+                                   node,
+                                   state=jobdb.STATE_COMPLETED,
+                                   memory=pebble.stats[node]["max_memory"],
+                                   cpu=pebble.stats[node]["cpu_time"])
 
         p = pebble
         if workflow.entry.is_done(pebble) and pebble.is_sub_pebble:
@@ -1450,12 +1447,11 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             else:
                 pebble.stats[node][i] = 0
 
-        if not self.isInternal:
-            self._jobdb.update_profile(pebble.gid,
-                                       node,
-                                       state=jobdb.STATE_FAILED,
-                                       memory=pebble.stats[node]["max_memory"],
-                                       cpu=pebble.stats[node]["cpu_time"])
+        self._jobdb.update_profile(pebble.gid,
+                                   node,
+                                   state=jobdb.STATE_FAILED,
+                                   memory=pebble.stats[node]["max_memory"],
+                                   cpu=pebble.stats[node]["cpu_time"])
 
         workflow.nodes[node].on_completed(pebble, "error")
 
