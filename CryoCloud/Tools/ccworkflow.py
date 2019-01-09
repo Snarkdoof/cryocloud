@@ -858,23 +858,20 @@ class CryoCloudTask(Task):
                             # Generate a new temp name - we use uuids
                             pebble._tempdirs[_tempid] = os.path.join(args[arg], str(uuid.uuid4()))
 
+                            # We queue this directory for removal on completion
+                            cuptask = CryoCloudTask(self.workflow)
+                            cuptask.module = "remove"
+                            cuptask.deferred = True
+                            cuptask.ccnode = {"stat": "parent.node"}
+                            cuptask.args = {
+                                "src": pebble._tempdirs[_tempid],
+                                "recursive": True
+                            }
+                            self.workflow.nodes[cuptask.name] = cuptask
+                            cuptask.downstreamOf(self)
+
                         args[arg] = "dir://" + pebble._tempdirs[_tempid] + " mkdir"
 
-                        # TODO: ADD tempdirs to pebble cleanup or better
-                        # add a recursive remove job as deferred
-
-                        cuptask = CryoCloudTask(self.workflow)
-                        cuptask.module = "remove"
-                        cuptask.deferred = True
-                        # cuptask.name = "AutoCleanup"
-                        # TODO: Figure out how to make this run on the parent node
-                        cuptask.ccnode = {"stat": "parent.node"}
-                        cuptask.args = {
-                            "src": pebble._tempdirs[_tempid],
-                            "recursive": True
-                        }
-                        self.workflow.nodes[cuptask.name] = cuptask
-                        cuptask.downstreamOf(self)
             else:
                 args[arg] = self.args[arg]
 
