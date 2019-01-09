@@ -109,7 +109,6 @@ class Task:
         self._mp_blocked = 0
         self.lock = threading.Lock()
         self.level = None
-        self.isInternal = False
 
     def __str__(self):
         return "[%s (%s), %s, %s]: priority %d, args: %s\n" %\
@@ -861,9 +860,9 @@ class CryoCloudTask(Task):
 
                             # We queue this directory for removal on completion
                             cuptask = CryoCloudTask(self.workflow)
+                            cuptask.name = "_" + cuptask.name  # Flag as internal
                             cuptask.module = "remove"
                             cuptask.deferred = True
-                            cuptask.isInternal = True
                             cuptask.ccnode = {"stat": "parent.node"}
                             cuptask.args = {
                                 "src": pebble._tempdirs[_tempid],
@@ -1189,11 +1188,13 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                                      priority=runtime_info["priority"],
                                      node=runtime_info["node"])
                     pebble.jobid = i
-            self.status["%s.pending" % node.name].inc(len(origargs))
+            if not node.name.starswith("_"):
+                self.status["%s.pending" % node.name].inc(len(origargs))
             return
 
         self._updateProgress(pebble, lvl, {"total": 1, "queued": 1, "pending": 1})
-        self.status["%s.pending" % node.name].inc()
+        if not node.name.starswith("_"):
+            self.status["%s.pending" % node.name].inc()
 
         taskid = random.randint(0, 100000000)  # TODO: Better
         pebble.nodename[taskid] = node.name
@@ -1227,8 +1228,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         pebble = self._pebbles[task["itemid"]]
         self._updateProgress(pebble, task["step"], {"queued": -1, "allocated": 1, "pending": -1})
 
-        self.status["%s.processing" % pebble.nodename[task["taskid"]]].inc()
-        self.status["%s.pending" % pebble.nodename[task["taskid"]]].dec()
+        if not node.name.starswith("_"):
+            self.status["%s.processing" % pebble.nodename[task["taskid"]]].inc()
+            self.status["%s.pending" % pebble.nodename[task["taskid"]]].dec()
 
         self._jobdb.update_profile(pebble.gid,
                                    pebble.nodename[task["taskid"]],
@@ -1267,7 +1269,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         # If we have any blocked processes at this level, unblock ASAP
         self._unblock_step(node)
 
-        self.status["%s.processing" % pebble.nodename[task["taskid"]]].dec()
+        if not node.name.starswith("_"):
+            self.status["%s.processing" % pebble.nodename[task["taskid"]]].dec()
 
         # print("Completed", pebble, node, task)
         # node = pebble._sub_pebbles[task["taskid"]]["node"]
@@ -1423,7 +1426,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                 self._jobdb.cancel_job_by_taskid(self._pebbles[p].jobid)
 
         node = pebble.nodename[task["taskid"]]
-        self.status["%s.failed" % node].inc()
+        if not node.name.starswith("_"):
+            self.status["%s.failed" % node].inc()
 
         # If we have any blocked processes at this level, unblock ASAP
         self._unblock_step(node)
@@ -1487,7 +1491,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         # If we have any blocked processes at this level, unblock ASAP
         self._unblock_step(node)
 
-        self.status["%s.failed" % node].inc()
+        if not node.name.starswith("_"):
+            self.status["%s.failed" % node].inc()
 
         # Add the results
         # node = pebble._sub_pebbles[task["taskid"]]["node"]
