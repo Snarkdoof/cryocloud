@@ -14,6 +14,7 @@ import os
 import sys
 import copy
 import re
+import uuid
 
 from argparse import ArgumentParser
 try:
@@ -62,6 +63,7 @@ class Pebble:
         self._merge_result = "success"
         self._resolve_pebble = self
         self._deferred = []
+        self._tempdirs = {}
 
     def __str__(self):
         if self.is_sub_pebble:
@@ -681,10 +683,11 @@ class CryoCloudTask(Task):
         # If we only run when all parents have completed and we have ccnode
         # "parent", we need to run this task on ALL parent nodes if they are
         # not all the same one
-        if caller and self.resolveOnAny is False and len(self.ccnode) > 1:
+        print(caller, self.resolveOnAny, len(self.ccnode))
+        if caller and self.resolveOnAny is False and len(self.ccnode) > 0:
             nodes = []
             for n in self.ccnode:
-                ri = self._build_runtime_info(pebble, n)
+                ri = self._build_runtime_info(pebble, caller)
                 if ri["node"] and ri["node"] not in nodes:
                     nodes.append(ri["node"])
 
@@ -736,7 +739,7 @@ class CryoCloudTask(Task):
             if "stat" in thing and pebble:
                 name, param = thing["stat"].split(".")
                 if name == "parent":
-                    name = parent
+                    name = parent.name
                 if name not in pebble.stats:
                     raise Exception("Failed to build runtime config, need %s from unknown module %s. %s (%s)" %
                                     (param, name, self.module, self.name))
@@ -843,8 +846,35 @@ class CryoCloudTask(Task):
                         args[arg] = p
                     elif self.args[arg]["type"] == "dir":
                         args[arg] = "dir://" + args[arg] + " mkdir"
-                        print("ARGS", args[arg])
+                    elif self.args[arg]["type"] == "tempdir":
+                        # TODO: Check in this PEBBLE if the id maps to an existing dir
+                        # If no id, always generate a new one
+                        if "id" in self.args[arg]:
+                            _tempid = self.args[arg]["id"]
+                        else:
+                            print("Generate new single use ID")
+                            _tempid = random.randint(0, 100000000)
+                        if not _tempid in pebble._tempdirs:
+                            # Generate a new temp name - we use uuids
+                            pebble._tempdirs[_tempid] = os.path.join(args[arg], str(uuid.uuid4()))
 
+                        args[arg] = "dir://" + pebble._tempdirs[_tempid] + " mkdir"
+
+                        # TODO: ADD tempdirs to pebble cleanup or better
+                        # add a recursive remove job as deferred
+
+                        cuptask = CryoCloudTask(self.workflow)
+                        cuptask.module = "remove"
+                        cuptask.deferred = True
+                        # cuptask.name = "AutoCleanup"
+                        # TODO: Figure out how to make this run on the parent node
+                        cuptask.ccnode = {"stat": "parent.node"}
+                        cuptask.args = {
+                            "src": pebble._tempdirs[_tempid],
+                            "recursive": True
+                        }
+                        self.workflow.nodes[cuptask.name] = cuptask
+                        cuptask.downstreamOf(self)
             else:
                 args[arg] = self.args[arg]
 
@@ -1092,14 +1122,12 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             node.level = lvl  # We need this for progress
 
         jobt = self.head.TASK_STRING_TO_NUM[node.type]
-
         self._jobdb.update_profile(pebble.gid,
                                    node.name,
                                    product=self.workflow.name,
                                    state=jobdb.STATE_PENDING,
                                    priority=runtime_info["priority"],
                                    type=jobt)
-
         # Should this be run in a docker environment?
         mod = node.module
         if 0 and node.docker:
@@ -1340,7 +1368,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         while len(p._deferred) > 0:
             nodename, pid, result, callerName = p._deferred.pop(0)
             caller = self.workflow.nodes[callerName]
-            self.log.debug("Running deferred job")
+            self.log.debug("Running deferred job, caller %s" % caller)
             pbl = self._pebbles[pid]
             self.workflow.nodes[nodename].resolve(pbl, result, caller, deferred=True)
 
