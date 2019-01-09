@@ -996,7 +996,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         self._cleanup = []  # Pebbles that should be cleaned up (we do it lazily to ensure that we finish all tasks)
 
-        print(self.workflow)
         # Entry has been resolved, just go
         self.workflow.entry.resolve()
 
