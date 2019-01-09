@@ -1188,12 +1188,12 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                                      priority=runtime_info["priority"],
                                      node=runtime_info["node"])
                     pebble.jobid = i
-            if not node.name.starswith("_"):
+            if not node.name.startswith("_"):
                 self.status["%s.pending" % node.name].inc(len(origargs))
             return
 
         self._updateProgress(pebble, lvl, {"total": 1, "queued": 1, "pending": 1})
-        if not node.name.starswith("_"):
+        if not node.name.startswith("_"):
             self.status["%s.pending" % node.name].inc()
 
         taskid = random.randint(0, 100000000)  # TODO: Better
@@ -1228,7 +1228,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         pebble = self._pebbles[task["itemid"]]
         self._updateProgress(pebble, task["step"], {"queued": -1, "allocated": 1, "pending": -1})
 
-        if not node.name.starswith("_"):
+        if not node.name.startswith("_"):
             self.status["%s.processing" % pebble.nodename[task["taskid"]]].inc()
             self.status["%s.pending" % pebble.nodename[task["taskid"]]].dec()
 
@@ -1269,7 +1269,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         # If we have any blocked processes at this level, unblock ASAP
         self._unblock_step(node)
 
-        if not node.name.starswith("_"):
+        if not node.name.startswith("_"):
             self.status["%s.processing" % pebble.nodename[task["taskid"]]].dec()
 
         # print("Completed", pebble, node, task)
@@ -1426,7 +1426,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                 self._jobdb.cancel_job_by_taskid(self._pebbles[p].jobid)
 
         node = pebble.nodename[task["taskid"]]
-        if not node.name.starswith("_"):
+        if not node.name.startswith("_"):
             self.status["%s.failed" % node].inc()
 
         # If we have any blocked processes at this level, unblock ASAP
@@ -1491,7 +1491,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         # If we have any blocked processes at this level, unblock ASAP
         self._unblock_step(node)
 
-        if not node.name.starswith("_"):
+        if not node.name.startswith("_"):
             self.status["%s.failed" % node].inc()
 
         # Add the results
