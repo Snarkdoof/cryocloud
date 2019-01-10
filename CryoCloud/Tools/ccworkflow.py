@@ -854,9 +854,13 @@ class CryoCloudTask(Task):
                         else:
                             print("Generate new single use ID")
                             _tempid = random.randint(0, 100000000)
-                        if not _tempid in pebble._tempdirs:
+
+                        p = pebble
+                        if p.is_sub_pebble:
+                            p = self._pebbles[p._master_task]
+                        if not _tempid in p._tempdirs:
                             # Generate a new temp name - we use uuids
-                            pebble._tempdirs[_tempid] = os.path.join(args[arg], str(uuid.uuid4()))
+                            p._tempdirs[_tempid] = os.path.join(args[arg], str(uuid.uuid4()))
 
                             # We queue this directory for removal on completion
                             cuptask = CryoCloudTask(self.workflow)
@@ -865,13 +869,13 @@ class CryoCloudTask(Task):
                             cuptask.deferred = True
                             cuptask.ccnode = {"stat": "parent.node"}
                             cuptask.args = {
-                                "src": pebble._tempdirs[_tempid],
+                                "src": p._tempdirs[_tempid],
                                 "recursive": True
                             }
                             self.workflow.nodes[cuptask.name] = cuptask
                             cuptask.downstreamOf(self)
 
-                        args[arg] = "dir://" + pebble._tempdirs[_tempid] + " mkdir"
+                        args[arg] = "dir://" + p._tempdirs[_tempid] + " mkdir"
 
             else:
                 args[arg] = self.args[arg]
