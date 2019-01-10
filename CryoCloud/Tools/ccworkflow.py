@@ -1006,7 +1006,11 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
             if p._master_task in self._pebbles:
                 return self._pebbles[p._master_task]
-        return None
+
+            raise Exception("INTERNAL: Master pebble %s not found for sub pebble %s "\
+                            % (p._master_task, pebbleid))
+
+        raise Exception("Requested master pebble from unknown non-subpebble %s" % pebbleid)
 
     def getJobDB(self):
         return self._jobdb
