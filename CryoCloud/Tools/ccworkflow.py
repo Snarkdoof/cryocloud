@@ -466,19 +466,10 @@ class Workflow:
         return wf
 
     def get_pebble(self, pebbleid):
-        if pebbleid in self._pebbles:
-            return self._pebbles[pebbleid]
-        return None
+        return self.handler.get_pebble(pebbleid)
 
     def get_master_pebble(self, pebbleid):
-        if pebbleid in self._pebbles:
-            p = self._pebbles[pebbleid]
-            if not p.is_sub_pebble:
-                return p
-
-            if p._master_task in self._pebbles:
-                return self._pebbles[p._master_task]
-        return None
+        return self.handler.get_master_pebble(pebbleid)
 
     def build_graph(self, validate=True):
         """
@@ -872,7 +863,7 @@ class CryoCloudTask(Task):
 
                         p = pebble
                         if p.is_sub_pebble:
-                            p = self.workflow.handler.get_master_pebble(p)
+                            p = self.workflow.get_master_pebble(p)
 
                         if not _tempid in p._tempdirs:
                             # Generate a new temp name - we use uuids
@@ -1001,6 +992,21 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         workflow.handler = self
         self._jobdb = jobdb.JobDB("Ignored", self.workflow.name)
         self.orders = {}  # Orders from interactive sources - let them resolve info here
+
+    def get_pebble(self, pebbleid):
+        if pebbleid in self._pebbles:
+            return self._pebbles[pebbleid]
+        return None
+
+    def get_master_pebble(self, pebbleid):
+        if pebbleid in self._pebbles:
+            p = self._pebbles[pebbleid]
+            if not p.is_sub_pebble:
+                return p
+
+            if p._master_task in self._pebbles:
+                return self._pebbles[p._master_task]
+        return None
 
     def getJobDB(self):
         return self._jobdb
