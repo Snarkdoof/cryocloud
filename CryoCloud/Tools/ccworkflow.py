@@ -1355,9 +1355,10 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                         retvals[key].append(self._pebbles[t].retval_dict[node][key])
                 for i in ["runtime", "cpu_time", "max_memory"]:
                     stats[i] = self._pebbles[t].stats[node][i]
-                deferred.extend(self._pebbles[t]._deferred)
-                self.log.debug("MERGE extended to %d items with deferred %s"\
-                               % (len(deferred), str(self._pebbles[t]._deferred)))
+                for i in self._pebbles[t]._deferred:
+                    if i not in deferred:
+                        deferred.push(i)
+                # deferred.extend(self._pebbles[t]._deferred)
             master._deferred = deferred
             master._sub_tasks = {}
             pebble = master  # We go for the master from here
