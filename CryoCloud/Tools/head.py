@@ -323,6 +323,7 @@ class HeadNode(threading.Thread):
             traceback.print_exc()
 
         print("Head stopped")
+        self.status["state"] = "Done"
 
 if __name__ == "__main__":
 
