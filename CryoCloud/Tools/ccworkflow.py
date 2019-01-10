@@ -863,7 +863,7 @@ class CryoCloudTask(Task):
 
                         p = pebble
                         if p.is_sub_pebble:
-                            p = self.workflow.get_master_pebble(p)
+                            p = self.workflow.get_pebble(p._master_task)
 
                         if not _tempid in p._tempdirs:
                             # Generate a new temp name - we use uuids
