@@ -1357,7 +1357,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                     stats[i] = self._pebbles[t].stats[node][i]
                 for i in self._pebbles[t]._deferred:
                     if i not in deferred:
-                        deferred.push(i)
+                        deferred.append(i)
                 # deferred.extend(self._pebbles[t]._deferred)
             master._deferred = deferred
             master._sub_tasks = {}
