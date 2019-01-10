@@ -1358,7 +1358,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                 for i in self._pebbles[t]._deferred:
                     if i not in deferred:
                         deferred.append(i)
-                        self.log.debug("Adding deferred merge job %s" % i)
+                        self.log.debug("Adding deferred merge job %s" % str(i))
                 # deferred.extend(self._pebbles[t]._deferred)
             master._deferred = deferred
             master._sub_tasks = {}
