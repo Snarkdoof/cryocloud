@@ -465,6 +465,21 @@ class Workflow:
         wf.build_graph(validate)
         return wf
 
+    def get_pebble(self, pebbleid):
+        if pebbleid in self._pebbles:
+            return self._pebbles[pebbleid]
+        return None
+
+    def get_master_pebble(self, pebbleid):
+        if pebbleid in self._pebbles:
+            p = self._pebbles[pebbleid]
+            if not p.is_sub_pebble:
+                return p
+
+            if p._master_task in self._pebbles:
+                return self._pebbles[p._master_task]
+        return None
+
     def build_graph(self, validate=True):
         """
         Go through all modules and check that they are all connected to the correct place
@@ -857,7 +872,8 @@ class CryoCloudTask(Task):
 
                         p = pebble
                         if p.is_sub_pebble:
-                            p = self._pebbles[p._master_task]
+                            p = self.workflow.handler.get_master_pebble(p)
+
                         if not _tempid in p._tempdirs:
                             # Generate a new temp name - we use uuids
                             p._tempdirs[_tempid] = os.path.join(args[arg], str(uuid.uuid4()))
