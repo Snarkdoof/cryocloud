@@ -275,6 +275,7 @@ class Worker(multiprocessing.Process):
                             print("DEBUG: I got in trouble preparing stuff", e)
                             self.log.exception("Preparing %s" % task["args"][arg])
                             raise Exception("Preparing files failed: %s" % e)
+
         if task["module"] == "docker":
             a = task["args"]["arguments"]
             if a.count("-t") == 1:
