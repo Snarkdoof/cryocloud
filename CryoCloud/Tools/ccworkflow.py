@@ -689,7 +689,6 @@ class CryoCloudTask(Task):
         # If we only run when all parents have completed and we have ccnode
         # "parent", we need to run this task on ALL parent nodes if they are
         # not all the same one
-        print(caller, self.resolveOnAny, len(self.ccnode))
         if caller and self.resolveOnAny is False and len(self.ccnode) > 0:
             nodes = []
             for n in self.ccnode:
@@ -858,17 +857,16 @@ class CryoCloudTask(Task):
                         if "id" in self.args[arg]:
                             _tempid = self.args[arg]["id"]
                         else:
-                            print("Generate new single use ID")
                             _tempid = random.randint(0, 100000000)
 
                         p = pebble
                         if p.is_sub_pebble:
                             p = self.workflow.get_pebble(p._master_task)
 
-                        if not _tempid in p._tempdirs:
+                        if _tempid not in p._tempdirs:
                             # Generate a new temp name - we use uuids
                             p._tempdirs[_tempid] = os.path.join(args[arg], str(uuid.uuid4()))
-
+                            self.workflow.handler.log.debug("New temp directory: %s" % p._tempdirs[_tempid])
                             # We queue this directory for removal on completion
                             cuptask = CryoCloudTask(self.workflow)
                             cuptask.name = "_" + cuptask.name  # Flag as internal
@@ -1007,7 +1005,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             if p._master_task in self._pebbles:
                 return self._pebbles[p._master_task]
 
-            raise Exception("INTERNAL: Master pebble %s not found for sub pebble %s "\
+            raise Exception("INTERNAL: Master pebble %s not found for sub pebble %s "
                             % (p._master_task, pebbleid))
 
         raise Exception("Requested master pebble from unknown non-subpebble %s" % pebbleid)
