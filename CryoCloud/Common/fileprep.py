@@ -174,6 +174,8 @@ class FilePrepare:
                 if DEBUG:
                     self.log.debug("%s a directory, will create if necessary" % u.path)
                 if not os.path.exists(u.path):
+                    if DEBUG:
+                        self.log.debug("Creating directory %s" % u.path)
                     os.makedirs(u.path)
                 fileList.append(u.path)
                 return {"fileList": fileList, "size": 0}
