@@ -137,6 +137,7 @@ def process_task(worker, task, cancel_event=None):
 
             if cancel_event.isSet():
                 try:
+                    worker.log.info("Terminating IDL after cancel event")
                     p.terminate()
                 except:
                     worker.log.exception("Tried to terminate IDL, no luck")
