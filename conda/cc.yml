@@ -1,0 +1,15 @@
+name: cc
+channels:
+  - defaults
+  #- intel
+  #- anaconda
+  #- conda-forge
+dependencies:
+  - psutil
+  - requests
+  - mysql-connector-python
+  - pyinotify
+  - jsonschema
+  
+
+
