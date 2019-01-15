@@ -1343,7 +1343,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
             # We merge BACK into the master
             retvals = {}
-            deferred = []  # master._deferred
+            deferred = master._deferred
             stats = {"runtime": 0, "cpu_time": 0, "max_memory": 0}
             for t in master._sub_tasks.values():
                 if self._pebbles[t].retval_dict[node]:
@@ -1357,6 +1357,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                     if i not in deferred:
                         deferred.append(i)
                         self.log.debug("Adding deferred merge job %s" % str(i))
+
+                self._pebbles[t]._deferred = []  # Should not be necessary, but we keep seeing old jobs
+
                 # deferred.extend(self._pebbles[t]._deferred)
             master._deferred = deferred
             master._sub_tasks = {}
