@@ -54,7 +54,7 @@ def process_task(self, task):
                 os.makedirs(dst)
 
             if os.path.isdir(dst):
-                d = dst + os.path.split(s)[1]
+                d = os.path.join(dst, os.path.split(s)[1])
             else:
                 d = dst
             self.log.debug("Copying file '%s' to %s" % (s, d))
