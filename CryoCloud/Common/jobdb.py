@@ -69,7 +69,7 @@ class JobDB(mysql):
                     step INT DEFAULT 0,
                     taskid INT DEFAULT 0,
                     type TINYINT,
-                    priority TINYINT,
+                    priority INT DEFAULT 50,
                     state TINYINT,
                     tsadded DOUBLE,
                     tsallocated DOUBLE DEFAULT NULL,
