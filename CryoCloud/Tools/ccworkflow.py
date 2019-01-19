@@ -64,6 +64,8 @@ class Pebble:
         self._resolve_pebble = self
         self._deferred = []
         self._tempdirs = {}
+        self._dbg_cleaned = False
+        self._cleanup_tasks = []
 
     def __str__(self):
         if self.is_sub_pebble:
@@ -120,6 +122,16 @@ class Task:
 
     def _register_down(self, task):
         self._downstreams.append(task)
+
+    def _unregister_down(self, task):
+        if task not in self._downstreams:
+            print("WARNING: Trying to remove unknown task", self._downstreams, task)
+            return
+        self._downstreams.remove(task)
+
+    def undownstreamOf(self, node):
+        node._unregister_down(self)
+        self._upstreams.remove(node)
 
     def on_completed(self, pebble, result):
         """
@@ -212,6 +224,7 @@ class Task:
         """
         Returns true iff the graph has completed for this pebble
         """
+        DEBUG = False
         if self.is_global:
             return True  # These never block anything - it's global error handlers
 
@@ -224,16 +237,19 @@ class Task:
 
         # If I'm not done, just return now
         if self.name != "Entry" and self.name not in pebble.retval_dict and not self.is_input:
-            # print(self.name, "I'm not completed yet")
+            if DEBUG:
+                print(self.name, "I'm not completed yet")
             return False  # We've NOT completed
 
         # I'm done, what about my children?
         for node in self._downstreams:
             if not node.is_done(pebble):
-                # print("Child", node, "is not done")
+                if DEBUG:
+                    print("Child", node, "is not done")
                 return False  # Not done
 
-        # print(self.name, "I'm all done")
+        if DEBUG:
+            print(self.name, "I'm all done")
         # I'm done, and so are my children
         return True
 
@@ -465,6 +481,16 @@ class Workflow:
         wf.build_graph(validate)
         return wf
 
+    def remove_node(self, nodename):
+        if nodename not in self.nodes:
+            return
+
+        node = self.nodes[nodename]
+        for n in node._upstreams:
+            n.undownstreamOf(node)
+
+        self.nodes.remove(node)
+
     def get_pebble(self, pebbleid):
         return self.handler.get_pebble(pebbleid)
 
@@ -669,8 +695,9 @@ class TestTask(Task):
         time.sleep(10)
         self.on_completed(pebble, "success")
 
-
 class CryoCloudTask(Task):
+
+    remove_on_done = False
 
     def resolve(self, pebble, result, caller, deferred=False):
         if self.is_input:
@@ -862,14 +889,16 @@ class CryoCloudTask(Task):
                         p = pebble
                         if p.is_sub_pebble:
                             p = self.workflow.get_pebble(p._master_task)
-
+                        # print("Tempdirs for pebble", p, p._tempdirs, "id", _tempid)
                         if _tempid not in p._tempdirs:
                             # Generate a new temp name - we use uuids
                             p._tempdirs[_tempid] = os.path.join(args[arg], str(uuid.uuid4()))
                             self.workflow.handler.log.debug("New temp directory: %s" % p._tempdirs[_tempid])
                             # We queue this directory for removal on completion
                             cuptask = CryoCloudTask(self.workflow)
+                            cuptask.remove_on_done = True
                             cuptask.name = "_" + cuptask.name  # Flag as internal
+
                             cuptask.module = "remove"
                             cuptask.deferred = True
                             cuptask.ccnode = {"stat": "parent.node"}
@@ -878,7 +907,9 @@ class CryoCloudTask(Task):
                                 "recursive": True
                             }
                             self.workflow.nodes[cuptask.name] = cuptask
-                            cuptask.downstreamOf(self)
+                            p._cleanup_tasks.append((cuptask.name, p.gid, "success", self.name))
+                            #cuptask.downstreamOf(self)
+
 
                         args[arg] = "dir://" + p._tempdirs[_tempid] + " mkdir"
 
@@ -1036,7 +1067,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         while len(self._cleanup) > 0:
             pbl = self._cleanup.pop(0)
             self._cleanup_pebble(pbl)
-
         self.log.debug("INPUT TASK added: %s" % task)
 
         # We need to find the source if this addition
@@ -1356,7 +1386,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                 for i in self._pebbles[t]._deferred:
                     if i not in deferred:
                         deferred.append(i)
-                        self.log.debug("Adding deferred merge job %s" % str(i))
 
                 self._pebbles[t]._deferred = []  # Should not be necessary, but we keep seeing old jobs
 
@@ -1400,11 +1429,21 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
     def _perform_cleanup(self, p, node):
 
+        if p._dbg_cleaned:
+            return
+        p._dbg_cleaned = True
         # Do deferred jobs
         while len(p._deferred) > 0:
             nodename, pid, result, callerName = p._deferred.pop(0)
             caller = self.workflow.nodes[callerName]
             self.log.debug("Running deferred job, caller %s" % caller)
+            pbl = self._pebbles[pid]
+            self.workflow.nodes[nodename].resolve(pbl, result, caller, deferred=True)
+
+        while len(p._cleanup_tasks) > 0:
+            nodename, pid, result, callerName = p._cleanup_tasks.pop(0)
+            caller = self.workflow.nodes[callerName]
+            self.log.debug("Running cleanup job, caller %s" % caller)
             pbl = self._pebbles[pid]
             self.workflow.nodes[nodename].resolve(pbl, result, caller, deferred=True)
 
@@ -1422,18 +1461,21 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             return
 
         if not pebble.is_sub_pebble:
-            self._cleanup.append(pebble)
+            if pebble not in self._cleanup:
+                self._cleanup.append(pebble)
 
     def _cleanup_pebble(self, pebble):
-
         if not pebble.is_sub_pebble:
+            for n in pebble._cleanup_tasks:
+                del self.workflow.nodes[n]
 
             for pbl in pebble._sub_tasks.values():
                 if pbl in self._pebbles:
                     del self._pebbles[pbl]
-
             if pebble.gid in self._pebbles:
                 del self._pebbles[pebble.gid]
+
+
 
     def onError(self, task):
 
