@@ -538,6 +538,8 @@ class JobDB(mysql):
     def update_profile(self, itemid, module, product=None, addtime=None, type=1,
                        state=None, worker=None, node=None, priority=None, datasize=None,
                        cpu=None, memory=None):
+        if module[0] == "_":
+            return  # Ignore "internal" jobs
         try:
             args = []
 
