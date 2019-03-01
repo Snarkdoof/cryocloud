@@ -43,7 +43,7 @@ def start(handler, args, stop_event):
 
         if "product" in info:  # Hack for CryoniteOcean
             file_info = {"relpath": os.path.split(info["product"])[1],
-                         "fullpath": info["product"]}
+                         "fullpath": info["product"], "config_override": None}
 
             # If there is a configOverride, we need to write a new config file too
             if "configOverride" in info:
