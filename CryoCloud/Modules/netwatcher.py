@@ -16,7 +16,8 @@ ccmodule = {
     "outputs": {
         "fullpath": "Full path of discovered file",
         "relpath": "Just the filename (no directories)",
-        "datasize": "Data size of the added resource"
+        "datasize": "Data size of the added resource",
+        "config_override": "Full path of overridden config, formatted according to the schema"
     },
     "defaults": {
         "priority": 0,  # Bulk
@@ -49,7 +50,7 @@ def start(handler, args, stop_event):
                 fd, name = tempfile.mkstemp(suffix=".cfg")
                 os.write(fd, json.dumps(info["configOverride"]).encode("utf-8"))
                 os.close(fd)
-                file_info["configOverride"] = name
+                file_info["config_override"] = name
 
             # We need to add who we are
             file_info["caller"] = args["__name__"]
