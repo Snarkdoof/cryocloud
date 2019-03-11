@@ -164,8 +164,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */
-/* ==========  IMAGES  ========== */
+ */* ==========  IMAGES  ========== */
 /* ==========  Color & Themes  ========== */
 /* ==========  Typography  ========== */
 /* ==========  Components  ========== */
@@ -4226,7 +4225,7 @@ input.mdl-button[type="submit"] {
   display: flex;
   justify-content: stretch;
   line-height: normal;
-  padding: 20px 16px;
+  padding: 2px 4px;
   perspective-origin: 165px 56px;
   transform-origin: 165px 56px;
   box-sizing: border-box; }
@@ -11050,9 +11049,9 @@ a {
   flex-wrap: wrap;
   justify-content: space-around;
   align-items: center;
-  min-height: 228px; }
+  min-height: 168px; }
   .pie-chart__container svg {
-    min-height: 200px;
+    min-height: 150px;
     max-width: 180px; }
     .pie-chart__container svg .nvd3.nv-pie path {
       fill-opacity: 1;
@@ -11066,9 +11065,9 @@ a {
     max-width: 140px; }
 
 .line-chart__container {
-  min-height: 280px; }
+  min-height: 150px; }
   .line-chart__container svg {
-    height: 280px;
+    height: 150px;
     width: 100%; }
     .line-chart__container svg .y-axis-label, .line-chart__container svg .x-axis-label {
       font-family: "Roboto", "Helvetica", "Arial", sans-serif;
@@ -11200,10 +11199,10 @@ a {
         content: url(../images/cloudy_and_snow.svg); }
   .weather .mdl-card__title .mdl-card__subtitle-text {
     font-family: "Roboto", "Helvetica", "Arial", sans-serif;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 300; }
     .weather .mdl-card__title .mdl-card__subtitle-text .material-icons {
-      font-size: 16px;
+      font-size: 14px;
       top: 2px;
       position: relative; }
 
