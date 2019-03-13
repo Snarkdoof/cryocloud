@@ -288,7 +288,7 @@ class JobDB(mysql):
             return row[0]
         return None
 
-    def allocate_job(self, workerid, type=TYPE_NORMAL, node=None, max_jobs=1):
+    def allocate_job(self, workerid, type=TYPE_NORMAL, node=None, max_jobs=1, prefermodule=None):
         # TODO: Check for timeouts here too?
 
         if 0:
@@ -301,6 +301,7 @@ class JobDB(mysql):
                     args.append(node)
                 else:
                     SQL += "node IS NULL "
+
                 SQL += " ORDER BY priority DESC, tsadded LIMIT %s"
                 args.append(max_jobs)
                 c = self._execute(SQL, args)
@@ -334,12 +335,25 @@ class JobDB(mysql):
             args.append(node)
         else:
             SQL += "node IS NULL "
+
+        if prefermodule:
+            original = SQL + " ORDER BY priority DESC, tsadded LIMIT %s"
+            originalargs = args[:]
+            originalargs.append(max_jobs)
+
+            SQL += "AND module=%s "
+            args.append(prefermodule)
         SQL += " ORDER BY priority DESC, tsadded LIMIT %s"
         args.append(max_jobs)
         c = None
         for i in range(0, 3):
             try:
                 c = self._execute(SQL, args)
+                if c.rowcount == 0 and prefermodule:
+                    # We didn't find any jobs with the preferred module, go generic
+                    SQL = original
+                    args = originalargs
+                    continue
                 break
             except:
                 self.log.exception("Failed to get job, retrying")
