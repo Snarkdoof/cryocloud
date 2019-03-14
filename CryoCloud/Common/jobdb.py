@@ -288,43 +288,12 @@ class JobDB(mysql):
             return row[0]
         return None
 
-    def allocate_job(self, workerid, type=TYPE_NORMAL, node=None, max_jobs=1, prefermodule=None):
+    def allocate_job(self, workerid, type=TYPE_NORMAL, node=None,
+                     max_jobs=1, prefermodule=None, preferlevel=0):
+        """
+        Preferlevel is currently 0 or over 0, nothing else does anything
+        """
         # TODO: Check for timeouts here too?
-
-        if 0:
-            self._execute("LOCK TABLES jobs WRITE")
-            try:
-                args = [type, STATE_PENDING]
-                SQL = "SELECT jobid, step, taskid, type, priority, args, runid, jobs.module, jobs.modulepath, workdir, itemid FROM jobs WHERE type=%s AND state=%s AND "
-                if node:
-                    SQL += "(node IS NULL or node=%s) "
-                    args.append(node)
-                else:
-                    SQL += "node IS NULL "
-
-                SQL += " ORDER BY priority DESC, tsadded LIMIT %s"
-                args.append(max_jobs)
-                c = self._execute(SQL, args)
-                if c.rowcount == 0:
-                    return []
-
-                jobs = []
-                SQL = "UPDATE jobs SET state=%s, tsallocated=%s, node=%s, worker=%s WHERE "
-                params = [STATE_ALLOCATED, time.time(), node, workerid]
-                for jobid, step, taskid, t, priority, args, runid, module, modulepath, workdir, itemid in c.fetchall():
-                    if args:
-                        args = json.loads(args)
-                    jobs.append({"id": jobid, "step": step, "taskid": taskid, "type": t, "priority": priority,
-                                 "args": args, "runname": runid, "module": module, "modulepath": modulepath,
-                                 "workdir": workdir, "itemid": itemid})
-                    SQL += "jobid=%s OR "
-                    params.append(jobid)
-                if len(params) > 4:
-                    self._execute(SQL[:-4], params)
-            finally:
-                self._execute("UNLOCK TABLES")
-
-            return jobs
 
         nonce = random.randint(0, 2147483647)
         args = [STATE_ALLOCATED, time.time(), node, workerid, nonce, type, STATE_PENDING]
@@ -350,6 +319,9 @@ class JobDB(mysql):
             try:
                 c = self._execute(SQL, args)
                 if c.rowcount == 0 and prefermodule:
+                    if preferlevel > 0:
+                        return []  # We didn't have any suitable jobs
+
                     # We didn't find any jobs with the preferred module, go generic
                     SQL = original
                     args = originalargs
