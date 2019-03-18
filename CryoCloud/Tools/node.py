@@ -112,7 +112,7 @@ def detect_modules(paths=default_paths, modules=None):
 
     Returns a list of loadable modules
     """
-    print("Detecting modules in paths", paths)
+    # print("Detecting modules in paths", paths)
     mods = []
 
     real_paths = []
@@ -141,13 +141,13 @@ def detect_modules(paths=default_paths, modules=None):
             # print("Got ccmodule", p, ccmodule)
 
             if ccmodule:
-                print("Found a CCModule", f)
+                # print("Found a CCModule", f)
 
                 try:
                     m = load(f.replace(".py", ""), path=path)
                     if m and "canrun" in [x[0] for x in inspect.getmembers(m)]:
                         if not m.canrun():
-                            print("Module %s loaded but can't run" % m)
+                            # print("Module %s loaded but can't run" % m)
                             continue
                     mods.append(f.replace(".py", ""))
                 except:
@@ -629,10 +629,19 @@ if __name__ == "__main__":
     parser.add_argument("--cpus", dest="cpu_count", default=None,
                         help="Number of CPUs, use if not detected or if the detected value is wrong")
 
+    parser.add_argument("--list-modules", dest="list_modules", action="store_true",
+                        help="List supported modules on this system")
+
     if "argcomplete" in sys.modules:
         argcomplete.autocomplete(parser)
 
     options = parser.parse_args()
+
+    if options.list_modules:
+        print("Supported modules:")
+        l = detect_modules()
+        print(l)
+        raise SystemExit(0)
 
     if not options.cpu_count:
         try:
