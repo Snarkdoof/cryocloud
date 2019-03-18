@@ -161,7 +161,7 @@ var app = {};
 
           // We want updates on all of these
           app.dataset.addMonitor(stats, function(e, vals) {
-            // console.log("Updated", app.dataset.getParamInfo(e).param)
+            console.log("Updated", app.dataset.getParamInfo(e).param)
             if (map[e]) {
               val = parseInt(vals[vals.length - 1][1])
               var active = val !== 0;
@@ -187,7 +187,7 @@ var app = {};
               }
             }
             update();
-            // console.log("Changed", app.dataset.getParamInfo(e), vals);
+            //console.log("Changed", app.dataset.getParamInfo(e), vals);
           });
         }
       });

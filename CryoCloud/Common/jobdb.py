@@ -291,9 +291,17 @@ class JobDB(mysql):
     def allocate_job(self, workerid, type=TYPE_NORMAL, node=None,
                      max_jobs=1, prefermodule=None, preferlevel=0):
         """
-        Preferlevel is currently 0 or over 0, nothing else does anything
-        """
-        # TODO: Check for timeouts here too?
+
+        Preferlevel is a measure of how lower priority a task can have before
+        a preferred job is selected. In other words, 0 disregards preference,
+        a very high preferlevel ignores unpreferred jobs with a high priority.
+        Use a high preference level if the module is very specialized, e.g.
+        require particular hardware. If the load/unload times are substantial,
+        a high preference is also useful. However, a high preference level
+        will limit the possibility of CryoCloud to allocate resources
+        effectively, so if load/unload is low, set the prefer level to zero.
+
+         """
 
         nonce = random.randint(0, 2147483647)
         args = [STATE_ALLOCATED, time.time(), node, workerid, nonce, type, STATE_PENDING]
@@ -305,12 +313,20 @@ class JobDB(mysql):
         else:
             SQL += "node IS NULL "
 
-        if prefermodule:
+        if prefermodule and preferlevel > 0:
+            min_prio = 0
+            try:
+                c = self._execute("SELECT MAX(priority) FROM jobs")
+                min_prio = c.fetchone()[0] - preferlevel
+            except:
+                pass
+
             original = SQL + " ORDER BY priority DESC, tsadded LIMIT %s"
             originalargs = args[:]
             originalargs.append(max_jobs)
+            originalargs.append(min_prio)
 
-            SQL += "AND module=%s "
+            SQL += "AND module=%s AND priority>%s "
             args.append(prefermodule)
         SQL += " ORDER BY priority DESC, tsadded LIMIT %s"
         args.append(max_jobs)
