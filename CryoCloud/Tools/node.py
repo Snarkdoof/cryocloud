@@ -8,7 +8,10 @@ import time
 import socket
 import os
 from argparse import ArgumentParser
-import tempfile
+import inspect
+import re
+import json
+
 try:
     import argcomplete
 except:
@@ -35,12 +38,36 @@ except:
 modules = {}
 
 CC_DIR = os.getcwd()
-sys.path.append(os.path.join(CC_DIR, "CryoCloud/Modules/"))  # Add CC modules with full path
-sys.path.append(".")  # Add module path for the working dir of the job
-sys.path.append("./Modules/")  # Add module path for the working dir of the job
-sys.path.append("./modules/")  # Add module path for the working dir of the job
+if "CC_DIR" in os.environ:
+    CCDIR = os.environ["CC_DIR"]
+
+default_paths = [
+    os.path.join(os.environ["CC_DIR"], "CryoCloud/Modules/"),
+    "./Modules",
+    "./modules",
+    "."
+]
 
 API.cc_default_expire_time = 24 * 86400  # Default log & status only 7 days
+
+
+def load_ccmodule(path):
+    try:
+        with open(path, "r") as f:
+            data = f.read()
+            start = data.find("ccmodule")
+            if start == -1:
+                raise Exception("Not a CCModule")
+            start = data.find("{", start)
+            # Parse it
+            definition = data[start:data.find("\n\n", start)]
+            # We need to remove any comments
+            definition = re.sub("#.*", "", definition)
+            json.loads(definition)
+            return definition
+    except Exception as e:
+        print(path, "is not a ccmodule", e)
+    return None
 
 
 def load(modulename, path=None):
@@ -78,6 +105,57 @@ def load(modulename, path=None):
     return modules[modulename]
 
 
+def detect_modules(paths=default_paths, modules=None):
+    """
+    Detect loadable and runnable modules in all given paths.
+    If modules is given (as a list), only the listed modules will be tested
+
+    Returns a list of loadable modules
+    """
+    # print("Detecting modules in paths", paths)
+    mods = []
+
+    real_paths = []
+    for path in paths:
+        fullpath = os.path.realpath(path)
+        if fullpath not in real_paths:
+            real_paths.append(fullpath)
+
+    for path in real_paths:
+        if path not in sys.path:
+            sys.path.append(path)
+
+    for path in real_paths:
+        if not os.path.isdir(path):
+            continue
+
+        for f in os.listdir(path):
+            p = os.path.join(path, f)
+            if not os.path.isfile(p):
+                continue
+            if not f.endswith(".py"):
+                continue
+
+            # Is this a cryocloud module?
+            ccmodule = load_ccmodule(p)
+            # print("Got ccmodule", p, ccmodule)
+
+            if ccmodule:
+                # print("Found a CCModule", f)
+
+                try:
+                    m = load(f.replace(".py", ""), path=path)
+                    if m and "canrun" in [x[0] for x in inspect.getmembers(m)]:
+                        if not m.canrun():
+                            # print("Module %s loaded but can't run" % m)
+                            continue
+                    mods.append(f.replace(".py", ""))
+                except:
+                    print("Failed to load", p)
+
+    return mods
+
+
 class Worker(multiprocessing.Process):
 
     def __init__(self, workernum, stopevent, type=jobdb.TYPE_NORMAL):
@@ -97,6 +175,8 @@ class Worker(multiprocessing.Process):
         self.inqueue = None
         self._is_ready = False
         self._type = type
+        self._module = None
+
         self._worker_type = jobdb.TASK_TYPE[type]
         self.wid = "%s-%s_%d" % (self._worker_type, socket.gethostname(), self.workernum)
         self._current_job = (None, None)
@@ -107,6 +187,16 @@ class Worker(multiprocessing.Process):
             # Same job
             # return
             pass
+
+        # UNLOAD?
+        if self._module and "load" in [x[0] for x in inspect.getmembers(self._module)]:
+
+            try:
+                # TODO: Use inspect.getmembers() to check if we actually have an unload first?
+                self._module.unload()
+            except Exception as e:
+                print("Can't unload", self._current_job, e)
+                pass
 
         if "workdir" in job and job["workdir"]:
             if not os.path.exists(job["workdir"]):
@@ -128,6 +218,15 @@ class Worker(multiprocessing.Process):
             # self.log.debug("Loading module %s (%s)" % (self._module, path))
             self._module = load(self._module, path)
             # self.log.debug("Loading of %s successful", job["module"])
+
+            # We initialize if possible
+            try:
+                # TODO: Check if load is defined
+                if "load" in [x[0] for x in inspect.getmembers(self._module)]:
+                    self._module.load()
+            except Exception as e:
+                print("Can't load", job["module"], e)
+
         except Exception as e:
             self._is_ready = False
             # print("Import error:", e)
@@ -461,25 +560,34 @@ class NodeController(threading.Thread):
         while not API.api_stop_event.is_set():
             last_run = time.time()
             # CPU info for the node
-            cpu = psutil.cpu_times_percent()
-            for key in ["user", "nice", "system", "idle", "iowait"]:
-                self.status["cpu.%s" % key] = cpu[cpu._fields.index(key)] * psutil.cpu_count()
+            try:
+                cpu = psutil.cpu_times_percent()
+                for key in ["user", "nice", "system", "idle", "iowait"]:
+                    self.status["cpu.%s" % key] = cpu[cpu._fields.index(key)] * psutil.cpu_count()
+            except:
+                self.log.exception("Failed to gather CPU info")
 
             # Memory info for the node
-            mem = psutil.virtual_memory()
-            for key in ["total", "available", "active"]:
-                self.status["memory.%s" % key] = mem[mem._fields.index(key)]
+            try:
+                mem = psutil.virtual_memory()
+                for key in ["total", "available", "active"]:
+                    self.status["memory.%s" % key] = mem[mem._fields.index(key)]
+            except:
+                self.log.exception("Failed to gather memory info")
 
             # Disk space
-            partitions = psutil.disk_partitions()
-            for partition in partitions:
-                diskname = partition.mountpoint[partition.mountpoint.rfind("/") + 1:]
-                if diskname == "":
-                    diskname = "root"
-                diskusage = psutil.disk_usage(partition.mountpoint)
-                for key in ["total", "used", "free", "percent"]:
-                    self.status["%s.%s" % (diskname, key)] = diskusage[diskusage._fields.index(key)]
-                    self.status["%s.%s" % (diskname, key)].set_expire_time(self.cfg["expire_time"])
+            try:
+                partitions = psutil.disk_partitions()
+                for partition in partitions:
+                    diskname = partition.mountpoint[partition.mountpoint.rfind("/") + 1:]
+                    if diskname == "":
+                        diskname = "root"
+                    diskusage = psutil.disk_usage(partition.mountpoint)
+                    for key in ["total", "used", "free", "percent"]:
+                        self.status["%s.%s" % (diskname, key)] = diskusage[diskusage._fields.index(key)]
+                        self.status["%s.%s" % (diskname, key)].set_expire_time(self.cfg["expire_time"])
+            except:
+                self.log.exception("Failed to gather disk usage statistics")
 
             if 0:
                 try:
@@ -521,10 +629,19 @@ if __name__ == "__main__":
     parser.add_argument("--cpus", dest="cpu_count", default=None,
                         help="Number of CPUs, use if not detected or if the detected value is wrong")
 
+    parser.add_argument("--list-modules", dest="list_modules", action="store_true",
+                        help="List supported modules on this system")
+
     if "argcomplete" in sys.modules:
         argcomplete.autocomplete(parser)
 
     options = parser.parse_args()
+
+    if options.list_modules:
+        print("Supported modules:")
+        l = detect_modules()
+        print(l)
+        raise SystemExit(0)
 
     if not options.cpu_count:
         try:
