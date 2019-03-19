@@ -6,6 +6,32 @@ import re
 
 import CryoCore
 
+ccmodule = {
+    "description": "Encode/Transcode using FFMPEG",
+    "depends": [],
+    "provides": [],
+    "inputs": {
+        "src": "Source",
+        "dst": "Destination",
+        "size": "Size of finished video (WxH)",
+        "bitrate_video": "Bitrate of final video (1200k)",
+        "acopy": "Copy audio track",
+        "vcopy": "Copy video track",
+        "copy": "Copy both audio and video track",
+        "noaudio": "Drop the audio track",
+        "container": "Specify the container, 'auto' will guess one, blank will let ffmpeg handle it"
+    },
+    "outputs": {
+        "size": "Final size in MB",
+        "time": "Time used for operation",
+        "dst": "Output path"
+    },
+    "defaults": {
+        "priority": 0,  # Bulk
+        "run": "success"
+    }
+}
+
 
 def process_task(worker, task):
     args = task["args"]

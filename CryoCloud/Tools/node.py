@@ -11,6 +11,7 @@ from argparse import ArgumentParser
 import inspect
 import re
 import json
+import signal
 
 try:
     import argcomplete
@@ -35,14 +36,18 @@ except:
     import importlib as imp
 
 
+DEBUG = False
+
 modules = {}
 
 CC_DIR = os.getcwd()
 if "CC_DIR" in os.environ:
-    CCDIR = os.environ["CC_DIR"]
+    CC_DIR = os.environ["CC_DIR"]
+else:
+    print("Missing CC_DIR environment variable for CryoCloud install")
 
 default_paths = [
-    os.path.join(os.environ["CC_DIR"], "CryoCloud/Modules/"),
+    os.path.join(CC_DIR, "CryoCloud/Modules/"),
     "./Modules",
     "./modules",
     "."
@@ -66,7 +71,8 @@ def load_ccmodule(path):
             json.loads(definition)
             return definition
     except Exception as e:
-        print(path, "is not a ccmodule", e)
+        if DEBUG:
+            print(path, "is not a ccmodule", e)
     return None
 
 
@@ -105,7 +111,7 @@ def load(modulename, path=None):
     return modules[modulename]
 
 
-def detect_modules(paths=default_paths, modules=None):
+def detect_modules(paths=[], modules=None):
     """
     Detect loadable and runnable modules in all given paths.
     If modules is given (as a list), only the listed modules will be tested
@@ -114,7 +120,7 @@ def detect_modules(paths=default_paths, modules=None):
     """
     # print("Detecting modules in paths", paths)
     mods = []
-
+    paths = default_paths + paths
     real_paths = []
     for path in paths:
         fullpath = os.path.realpath(path)
@@ -138,18 +144,22 @@ def detect_modules(paths=default_paths, modules=None):
 
             # Is this a cryocloud module?
             ccmodule = load_ccmodule(p)
+            # if DEBUG:
             # print("Got ccmodule", p, ccmodule)
 
             if ccmodule:
-                # print("Found a CCModule", f)
+                if DEBUG:
+                    print("Found a CCModule", f)
 
                 try:
                     m = load(f.replace(".py", ""), path=path)
                     if m and "canrun" in [x[0] for x in inspect.getmembers(m)]:
                         if not m.canrun():
-                            # print("Module %s loaded but can't run" % m)
+                            if DEBUG:
+                                print("Module %s loaded but can't run" % m)
                             continue
-                    mods.append(f.replace(".py", ""))
+                    if modules is None or f.replace(".py", "") in modules:
+                        mods.append(f.replace(".py", ""))
                 except:
                     print("Failed to load", p)
 
@@ -158,8 +168,8 @@ def detect_modules(paths=default_paths, modules=None):
 
 class Worker(multiprocessing.Process):
 
-    def __init__(self, workernum, stopevent, type=jobdb.TYPE_NORMAL):
-        super(Worker, self).__init__()
+    def __init__(self, workernum, stopevent, type=jobdb.TYPE_NORMAL, module_paths=[], modules=[]):
+        super(Worker, self).__init__(daemon=True)
         API.api_auto_init = False  # Faster startup
 
         # self._stop_event = stopevent
@@ -176,17 +186,27 @@ class Worker(multiprocessing.Process):
         self._is_ready = False
         self._type = type
         self._module = None
+        self._modules = modules
+        self._module_paths = module_paths
 
         self._worker_type = jobdb.TASK_TYPE[type]
         self.wid = "%s-%s_%d" % (self._worker_type, socket.gethostname(), self.workernum)
         self._current_job = (None, None)
         print("%s %s created" % (self._worker_type, workernum))
 
+    def rescan_modules(self, signum=None, frame=None):
+        self.log.info("Rescanning for supported modules")
+        # Look for modules
+        self._modules = detect_modules(self._module_paths)
+        self.log.debug("Supported modules:" + str(self._modules))
+
     def _switchJob(self, job):
-        if self._current_job == (job["runname"], job["module"]):
-            # Same job
-            # return
-            pass
+        st_mtime = None
+        if self._module:
+            st_mtime = os.stat(os.path.abspath(self._module.__file__)).st_mtime
+
+        if self._current_job == (job["module"], st_mtime):
+            return  # Same module, not changed on disk
 
         # UNLOAD?
         if self._module and "load" in [x[0] for x in inspect.getmembers(self._module)]:
@@ -205,7 +225,6 @@ class Worker(multiprocessing.Process):
         else:
             os.chdir(CC_DIR)
 
-        self._current_job = (job["runname"], job["module"])
         self._module = None
         modulepath = None
         if "modulepath" in job:
@@ -217,6 +236,10 @@ class Worker(multiprocessing.Process):
             self._module = job["module"]
             # self.log.debug("Loading module %s (%s)" % (self._module, path))
             self._module = load(self._module, path)
+
+            st_mtime = os.stat(os.path.abspath(self._module.__file__)).st_mtime
+            self._current_job = (job["module"], st_mtime)
+
             # self.log.debug("Loading of %s successful", job["module"])
 
             # We initialize if possible
@@ -257,11 +280,13 @@ class Worker(multiprocessing.Process):
     def run(self):
 
         def sighandler(signum, frame):
-            print("%s GOT SIGNAL" % self._worker_type)
+            print("%s %s GOT SIGNAL %s" % (self._worker_type, self.wid, signum))
             # API.shutdown()
             self._stop_event.set()
 
+        signal.signal(signal.SIGHUP, self.rescan_modules)
         signal.signal(signal.SIGINT, sighandler)
+
         self.log = API.get_log(self.wid)
         self.status = API.get_status(self.wid)
         self._jobdb = jobdb.JobDB(None, None)
@@ -276,8 +301,12 @@ class Worker(multiprocessing.Process):
                     max_jobs = 5
                 else:
                     max_jobs = 1
+                prefermodule = None
+                if self._current_job:
+                    prefermodule = self._current_job[0]
                 jobs = self._jobdb.allocate_job(self.workernum, node=socket.gethostname(),
-                                                max_jobs=max_jobs, type=self._type)
+                                                supportedmodules=self._modules, max_jobs=max_jobs,
+                                                type=self._type, prefermodule=prefermodule)
                 if len(jobs) == 0:
                     time.sleep(1)
                     if last_reported + 300 > time.time():
@@ -317,11 +346,13 @@ class Worker(multiprocessing.Process):
 
         # print(self._worker_type, self.wid, "stopping")
         # self._stop_event.set()
-        print(self._worker_type, self.wid, "stopped")
+        print(self._worker_type, self.wid, "stopping")
         self.status["state"] = "Stopped"
 
         # If we were not done we should update the DB
         self._jobdb.force_stopped(self.workernum, node=socket.gethostname())
+
+        print(self._worker_type, self.wid, "stopped")
 
     def stop_job(self):
         try:
@@ -516,10 +547,19 @@ class NodeController(threading.Thread):
             workers = int(options.workers)
         else:
             workers = psutil.cpu_count()
+
+        if options.modules:
+            modules = detect_modules(options.paths, options.modules)
+        else:
+            modules = detect_modules(options.paths)
+
+        if len(modules) == 0:
+            print("ZERO SUPPORTED MODULES! Looked in", options.paths, "for", options.modules)
+
         for i in range(0, workers):
             # wid = "%s.%s.Worker-%s_%d" % (self.jobid, self.name, socket.gethostname(), i)
             print("Starting worker %d" % i)
-            w = Worker(i, self._stop_event)
+            w = Worker(i, self._stop_event, modules=modules, module_paths=options.paths)
             # w = multiprocessing.Process(target=worker, args=(i, self._options.address, self._options.port, AUTHKEY, self._stop_event))  # args=(wid, self._task_queue, self._results_queue, self._stop_event))
             w.start()
             self._worker_pool.append(w)
@@ -554,6 +594,15 @@ class NodeController(threading.Thread):
             self.status["cpu.count_physical"] = psutil.cpu_count(logical=False)
         except:
             pass  # No info
+
+        self.log.info("Starting node with supported modules: %s" % str(modules))
+
+    def reload(self, signum, frame):
+
+        print("Should reload, sending SIGHUP to all workers")
+
+        for worker in self._worker_pool:
+            os.kill(worker.pid, signal.SIGHUP)
 
     def run(self):
         self.status["state"] = "Running"
@@ -603,7 +652,7 @@ class NodeController(threading.Thread):
         self._stop_event.set()
         left = len(self._worker_pool)
         for w in self._worker_pool:
-            w.join()
+            w.join(3)  # Timeout of MAX 3 seconds
             left -= 1
             self.log.debug("Worker stopped, %d left" % (left))
 
@@ -612,7 +661,7 @@ class NodeController(threading.Thread):
 
         print("All shut down")
         self.status["state"] = "Stopped"
-
+        raise SystemExit(0)
 
 if __name__ == "__main__":
 
@@ -632,14 +681,23 @@ if __name__ == "__main__":
     parser.add_argument("--list-modules", dest="list_modules", action="store_true",
                         help="List supported modules on this system")
 
+    parser.add_argument("-m", "--modules", dest="modules", default=None,
+                        help="Only use given modules in a comma separated list (otherwise autodetect)")
+
+    parser.add_argument("-p", "--module-paths", dest="paths", default="",
+                        help="Comma separated list of additional paths to look for modules in")
+
     if "argcomplete" in sys.modules:
         argcomplete.autocomplete(parser)
 
     options = parser.parse_args()
+    options.paths = options.paths.split(",")
+    if options.modules:
+        options.modules = options.modules.split(",")
 
     if options.list_modules:
         print("Supported modules:")
-        l = detect_modules()
+        l = detect_modules(options.paths)
         print(l)
         raise SystemExit(0)
 
@@ -653,21 +711,34 @@ if __name__ == "__main__":
             except:
                 raise SystemExit("Can't detect number of CPUs, please specify with --cpus")
 
-    import signal
     try:
         node = NodeController(options)
         node.daemon = True
         node.start()
 
+        global forcestop
+        forcestop = False
+
         def sighandler(signum, frame):
-            if API.api_stop_event.isSet():
-                print("User insisting, trying to die")
-                raise SystemExit("User aborted")
+            print("SIGNUM", signum)
+            if signum == signal.SIGHUP:
+                print("RELOAD STUFF")
+                return
+            try:
+                global forcestop
+                if forcestop:
+                    print("SHOULD FORCE STOP")
+                    raise SystemExit("User aborted")
+                forcestop = True
+            except Exception as e:
+                print("Woops:", e)
+                # raise SystemExit()
 
             print("Stopped by user signal")
             API.shutdown()
 
         signal.signal(signal.SIGINT, sighandler)
+        signal.signal(signal.SIGHUP, node.reload)
 
         while not API.api_stop_event.isSet():
             try:

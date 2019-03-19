@@ -288,8 +288,8 @@ class JobDB(mysql):
             return row[0]
         return None
 
-    def allocate_job(self, workerid, type=TYPE_NORMAL, node=None,
-                     max_jobs=1, prefermodule=None, preferlevel=0):
+    def allocate_job(self, workerid, supportedmodules, type=TYPE_NORMAL, node=None, 
+                     max_jobs=1, prefermodule=None, preferlevel=100):
         """
 
         Preferlevel is a measure of how lower priority a task can have before
@@ -313,29 +313,45 @@ class JobDB(mysql):
         else:
             SQL += "node IS NULL "
 
+        BASESQL = SQL
+        BASEARGS = args[:]
+
+        if len(supportedmodules) > 0:
+            SQL += "AND (" + " module=%s OR" * len(supportedmodules)
+            SQL = SQL[:-2] + ")"
+            args.extend(supportedmodules)
+        # print(SQL)
+        min_prio = 0
         if prefermodule and preferlevel > 0:
-            min_prio = 0
             try:
-                c = self._execute("SELECT MAX(priority) FROM jobs")
+                s = "SELECT MAX(priority) FROM jobs WHERE " + "module=%s OR " * len(supportedmodules)
+                s = s[:-3]
+                c = self._execute(s, supportedmodules)
+
                 min_prio = c.fetchone()[0] - preferlevel
             except:
                 pass
-
             original = SQL + " ORDER BY priority DESC, tsadded LIMIT %s"
             originalargs = args[:]
             originalargs.append(max_jobs)
-            originalargs.append(min_prio)
 
-            SQL += "AND module=%s AND priority>%s "
+            SQL = BASESQL
+            args = BASEARGS
+            SQL += "AND module=%s AND priority>%s"
             args.append(prefermodule)
+            args.append(min_prio)
+            # print(SQL, args)
+
+            # SQL += "AND module=%s AND priority>%s "
         SQL += " ORDER BY priority DESC, tsadded LIMIT %s"
         args.append(max_jobs)
         c = None
         for i in range(0, 3):
             try:
+                # print(SQL, args)
                 c = self._execute(SQL, args)
                 if c.rowcount == 0 and prefermodule:
-                    if preferlevel > 0:
+                    if preferlevel > 1000:
                         return []  # We didn't have any suitable jobs
 
                     # We didn't find any jobs with the preferred module, go generic
@@ -345,6 +361,7 @@ class JobDB(mysql):
                 break
             except:
                 self.log.exception("Failed to get job, retrying")
+                self.log.error("SQL statement was: '%s' with args '%s" % (SQL, args))
         if not c:
             raise Exception("Failed to get job")
 

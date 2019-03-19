@@ -27,7 +27,7 @@ def canrun():
     Check if we are allowed to run on this machine
     """
     try:
-        ret = subprocess.call(["docker", "container", "ls"], stderr=subprocess.DEVNULL)
+        ret = subprocess.check_call(["docker", "container", "ls"], stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
         return ret == 0
     except:
         return False
