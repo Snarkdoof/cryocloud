@@ -589,7 +589,7 @@ class NodeController(threading.Thread):
         self._manager = None
         self._report_status = not os.path.exists("/.dockerenv")
         if not self._report_status:
-            self.log.info("Running in Docker, not reporting system status")
+            print("Running in Docker, not reporting system status")
 
         if options.cpu_count:
             psutil.cpu_count = lambda x=None: int(self._options.cpu_count)
