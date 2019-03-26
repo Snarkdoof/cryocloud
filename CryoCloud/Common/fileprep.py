@@ -17,7 +17,7 @@ os.environ['S3_USE_SIGV4'] = 'True'  # For minio S3
 
 class FilePrepare:
 
-    def __init__(self, root="/", s3root="/tmp", timeout=None):
+    def __init__(self, root="/", s3root=None, timeout=None):
         """
         Get a file (possibly remote on the given node), transfer it locally and unzip
         according to arguments
@@ -25,6 +25,8 @@ class FilePrepare:
         self.root = root
         self.s3root = s3root
         self.timeout = timeout
+        if s3root:
+            self.s3_cfg = API.get_config("S3")
 
         if not os.path.exists(self.s3root):
             os.makedirs(self.s3root)
@@ -299,8 +301,13 @@ class FilePrepare:
         os.rename(dst, os.path.join(target_dir, os.path.split(filename)[1]))
         return target_dir + filename
 
+    def _get_s3_client(self, server):
+        return boto3.client('s3', endpoint_url='http://' + server,
+                            aws_access_key_id=self.s3_cfg["%s.aws_access_key_id" % server],
+                            aws_secret_access_key=self.s3_cfg["%s.aws_secret_access_key" % server])
+
     def copy_s3(self, server, bucket, remote_file, local_file):
-        s3_client = boto3.client('s3', endpoint_url='http://' + server)
+        s3_client = self._get_s3_client(server)
         self.log.debug("S3 download from endpoint %s, bucket: %s, key: %s to %s" % (server, bucket, remote_file, local_file))
         obj = s3_client.get_object(Bucket=bucket, Key=remote_file)
         dest = open(local_file, "wb")
@@ -334,7 +341,7 @@ class FilePrepare:
             raise Exception("Can't upload non-existing file '%s'" % local_file)
         f = open(local_file, "rb")
 
-        s3_client = boto3.client('s3', endpoint_url='http://' + server)
+        s3_client = self._get_s3_client(server)
         buckets = s3_client.list_buckets()
         exists = False
         for b in buckets["Buckets"]:
@@ -347,11 +354,11 @@ class FilePrepare:
         s3_client.put_object(Body=f, Bucket=bucket, Key=remote_file)
 
     def remove_s3_file(self, server, bucket, remote_file):
-        s3_client = boto3.client('s3', endpoint_url='http://' + server)
+        s3_client = self._get_s3_client(server)
         s3_client.delete_object(Bucket=bucket, Key=remote_file)
 
     def remove_s3_bucket(self, server, bucket):
-        s3_client = boto3.client('s3', endpoint_url='http://' + server)
+        s3_client = self._get_s3_client(server)
         s3_client.delete_bucket(Bucket=bucket)
 
 if __name__ == "__main__":
