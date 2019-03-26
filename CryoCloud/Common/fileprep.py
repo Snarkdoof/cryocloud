@@ -28,8 +28,8 @@ class FilePrepare:
         if s3root:
             self.s3_cfg = API.get_config("S3")
 
-        if not os.path.exists(self.s3root):
-            os.makedirs(self.s3root)
+            if not os.path.exists(self.s3root):
+                os.makedirs(self.s3root)
 
         self.log = API.get_log("FilePrepare")
 
