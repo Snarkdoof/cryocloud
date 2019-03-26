@@ -696,7 +696,7 @@ class JobDB(mysql):
         self._execute(SQL, [workerid, modules, last_job, modules, last_job])
 
     def remove_worker(self, workerid):
-        self._execute("REMOVE FROM worker WHERE id=%s", [workerid])
+        self._execute("DELETE FROM worker WHERE id=%s", [workerid])
 
     def get_workers(self, modules):
         """
