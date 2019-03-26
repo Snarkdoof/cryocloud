@@ -299,6 +299,7 @@ class Worker(multiprocessing.Process):
         self.status["state"].set_expire_time(600)
         self.cfg = API.get_config("CryoCloud.Worker")
         self.cfg.set_default("datadir", "/")
+        self.cfg.set_default("tempdir", "/tmp")
 
         last_reported = 0  # We force periodic updates of state as we might be idle for a long time
         last_job_time = None
@@ -409,7 +410,7 @@ class Worker(multiprocessing.Process):
                         try:
                             self.status["state"] = "Preparing files"
                             if not fprep:
-                                fprep = fileprep.FilePrepare(self.cfg["datadir"])
+                                fprep = fileprep.FilePrepare(self.cfg["datadir"], self.cfg["tempdir"])
 
                             # We take one by one to re-map files with local, unzipped ones
                             ret = fprep.fix([task["args"][arg]])
@@ -433,14 +434,14 @@ class Worker(multiprocessing.Process):
                             t = subargs["args"][arg][x].split(" ")
                             if "copy" in t or "unzip" in t:
                                 if not fprep:
-                                    fprep = fileprep.FilePrepare(self.cfg["datadir"])
+                                    fprep = fileprep.FilePrepare(self.cfg["datadir"], self.cfg["tempdir"])
                                 ret = fprep.fix([subargs["args"][arg][x]])
                                 subargs["args"][arg][x] = ret["fileList"][0]
                     else:
                         t = subargs["args"][arg].split(" ")
                         if "copy" in t or "unzip" in t:
                             if not fprep:
-                                fprep = fileprep.FilePrepare(self.cfg["datadir"])
+                                fprep = fileprep.FilePrepare(self.cfg["datadir"], self.cfg["tempdir"])
                             ret = fprep.fix([subargs["args"][arg]])
                             if len(ret["fileList"]) == 0:
                                 raise Exception("Missing file %s" % subargs["args"][arg])
@@ -560,7 +561,7 @@ class Worker(multiprocessing.Process):
         self.log.debug("Postprocessing %s for %s" % (str(key), str(ret)))
 
         if not fprep:
-            fprep = fileprep.FilePrepare(self.cfg["datadir"])
+            fprep = fileprep.FilePrepare(self.cfg["datadir"], self.cfg["tempdir"])
 
         if "target" in key:
             if "basename" in key and key["basename"]:
