@@ -135,6 +135,13 @@ class JobDB(mysql):
                 cancelled INT,
                 PRIMARY KEY(module, priority, time)
             )""",
+            """CREATE TABLE IF NOT EXISTS worker (
+                id VARCHAR(256) PRIMARY KEY,
+                modules VARCHAR(4000) DEFAULT "",
+                last_seen TIMESTAMP DEFAULT NOW() ON UPDATE NOW(),
+                last_job TIMESTAMP NULL
+                )
+            """,
             "CREATE INDEX job_state ON jobs(state)",
             "CREATE INDEX job_type ON jobs(type)",
             "CREATE INDEX profile_module ON profile_summary(module)"
@@ -288,7 +295,17 @@ class JobDB(mysql):
             return row[0]
         return None
 
-    def allocate_job(self, workerid, supportedmodules, type=TYPE_NORMAL, node=None, 
+    def num_pending_jobs(self, module):
+        """
+        Returns the number of non-completed jobs of a given module
+        """
+        SQL = "SELECT COUNT(*) FROM jobs WHERE module=%s AND state<%s"
+        c = self._execute(SQL, [module, STATE_COMPLETED])
+        num = c.fetchone()[0]
+        print("PENDING JOBS", SQL, num)
+        return num
+
+    def allocate_job(self, workerid, supportedmodules, type=TYPE_NORMAL, node=None,
                      max_jobs=1, prefermodule=None, preferlevel=100):
         """
 
@@ -674,12 +691,38 @@ class JobDB(mysql):
             retval["cpu_time"] = row[3]
         return retval
 
+    def update_worker(self, workerid, modules, last_job):
+        SQL = "INSERT INTO worker (id, modules, last_job, last_seen) VALUES(%s, %s, %s, NOW()) ON DUPLICATE KEY UPDATE modules=%s, last_job=%s, last_seen=NOW()"
+        self._execute(SQL, [workerid, modules, last_job, modules, last_job])
+
+    def remove_worker(self, workerid):
+        self._execute("REMOVE FROM worker WHERE id=%s", [workerid])
+
+    def get_workers(self, modules):
+        """
+        Get a map of modules and workers. If no worker is available for a module, it will have a blank list
+        """
+
+        SQL = "SELECT id, modules, last_job, last_seen FROM worker WHERE last_seen> NOW() - INTERVAL 1 MINUTE"
+        c = self._execute(SQL)
+
+        retval = {}
+        for m in modules:
+            retval[m] = []
+        for id, modules, last_job, last_seen in c.fetchall():
+            for m in json.loads(modules):
+                if m in retval:
+                    retval[m].append(id)
+        return retval
+
 if __name__ == "__main__":
     try:
         print("Testing")
         db = JobDB("test1", "hello", 2)
+
+        print("WORKERS:", db.get_workers(["SAR_Processor", "KSAT_Report"]))
+
         import sys
-        print(len(sys.argv))
         if len(sys.argv) == 2:
             if sys.argv[1] == "summarize":
                 db.summarize_profiles()

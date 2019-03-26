@@ -8,19 +8,27 @@ import shutil
 import stat
 from urllib.parse import urlparse
 import requests
+import boto3
 
 DEBUG = False
+
+os.environ['S3_USE_SIGV4'] = 'True'  # For minio S3
 
 
 class FilePrepare:
 
-    def __init__(self, root="/", timeout=None):
+    def __init__(self, root="/", s3root="/tmp", timeout=None):
         """
         Get a file (possibly remote on the given node), transfer it locally and unzip
         according to arguments
         """
         self.root = root
+        self.s3root = s3root
         self.timeout = timeout
+
+        if not os.path.exists(self.s3root):
+            os.makedirs(self.s3root)
+
         self.log = API.get_log("FilePrepare")
 
     @staticmethod
@@ -66,7 +74,7 @@ class FilePrepare:
         # We create a directory with the same name, but without extension
         dst = os.path.splitext(s)[0]
         if os.path.exists(dst):
-            self.log.warning("Destination '%s' exists for uncompress, we assume it's done already")
+            self.log.warning("Destination '%s' exists for uncompress, we assume it's done already" % dst)
             retval = self._get_filelist(dst)
 
         # We unzip into a temporary directory, then rename it (in case of parallel jobs)
@@ -161,14 +169,19 @@ class FilePrepare:
                     mkdir = True
 
             u = urlparse(url)
-            file = u.path
+            if u.scheme == "s3":
+                bucket, file = u.path[1:].split("/", 1)
+                local_file = os.path.join(self.s3root, file)
+            else:
+                file = u.path
+                if file[0] != "/":
+                    raise Exception("Need full paths, got relative path %s" % file)
+                local_file = (self.root + file).replace("//", "/")
+
             compressed = self._is_compressed(file)
 
             if DEBUG:
                 self.log.debug("Fixing file '%s', scheme '%s', compressed: %s" % (file, u.scheme, compressed))
-
-            if file[0] != "/":
-                raise Exception("Need full paths, got relative path %s" % file)
 
             if u.scheme == "dir" and mkdir:
                 if DEBUG:
@@ -190,7 +203,6 @@ class FilePrepare:
                     total_size += self.get_tree_size(decomp)
                     continue
 
-            local_file = (self.root + file).replace("//", "/")
             if os.path.exists(local_file):
                 if not compressed:
                     fileList.append(local_file)
@@ -215,6 +227,9 @@ class FilePrepare:
                     r = requests.get(url)
                     if r.status_code != 200:
                         raise Exception("Failed to get %s: %s %s" % (url, r.status_code, r.reason))
+                elif u.scheme == "s3":
+                    self.copy_s3(u.netloc, bucket, file, local_file)
+                    fileList.append(local_file)
                 else:
                     raise Exception("Unsupported scheme: %s" % u.scheme)
 
@@ -222,7 +237,8 @@ class FilePrepare:
             if compressed and unzip:
                 files = self._uncompress(local_file, keep=False)
                 fileList.extend(files)
-                decomp = self.root + os.path.splitext(file)[0]
+                decomp = os.path.splitext(local_file)[0]
+                # decomp = self.root + os.path.splitext(file)[0]
                 total_size += self.get_tree_size(decomp)
             else:
                 total_size += os.stat(local_file).st_size
@@ -283,6 +299,61 @@ class FilePrepare:
         os.rename(dst, os.path.join(target_dir, os.path.split(filename)[1]))
         return target_dir + filename
 
+    def copy_s3(self, server, bucket, remote_file, local_file):
+        s3_client = boto3.client('s3', endpoint_url='http://' + server)
+        self.log.debug("S3 download from endpoint %s, bucket: %s, key: %s to %s" % (server, bucket, remote_file, local_file))
+        obj = s3_client.get_object(Bucket=bucket, Key=remote_file)
+        dest = open(local_file, "wb")
+        stream = obj["Body"]
+        while True:
+            data = stream.read(102400)
+            if len(data) == 0:
+                break
+            dest.write(data)
+        dest.close()
+        return local_file
+
+    def write_scp(self, local_file, host, target):
+
+        self.log.debug("Copying %s to scp://%s/%s" % (local_file, host, target))
+        p = subprocess.Popen(["scp", "-B", local_file, "%s:%s" % (host, target)],
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        try:
+            outs, errs = p.communicate(timeout=self.timeout)
+        except subprocess.TimeoutExpired:
+            p.kill()
+            outs, errs = p.communicate(timeout=5.0)
+
+        if p.poll() != 0:
+            raise Exception("Failed copying %s to %s/%s: %s" %
+                            (local_file, host, target, errs.decode("utf-8")))
+
+    def write_s3(self, server, bucket, local_file, remote_file):
+        if not os.path.exists(local_file):
+            raise Exception("Can't upload non-existing file '%s'" % local_file)
+        f = open(local_file, "rb")
+
+        s3_client = boto3.client('s3', endpoint_url='http://' + server)
+        buckets = s3_client.list_buckets()
+        exists = False
+        for b in buckets["Buckets"]:
+            if b["Name"] == bucket:
+                exists = True
+
+        if not exists:
+            s3_client.create_bucket(Bucket=bucket)
+
+        s3_client.put_object(Body=f, Bucket=bucket, Key=remote_file)
+
+    def remove_s3_file(self, server, bucket, remote_file):
+        s3_client = boto3.client('s3', endpoint_url='http://' + server)
+        s3_client.delete_object(Bucket=bucket, Key=remote_file)
+
+    def remove_s3_bucket(self, server, bucket):
+        s3_client = boto3.client('s3', endpoint_url='http://' + server)
+        s3_client.delete_bucket(Bucket=bucket)
+
 if __name__ == "__main__":
     """
     TEST
@@ -291,6 +362,7 @@ if __name__ == "__main__":
 
         if 0:
             import threading
+
             def entry():
                 f = FilePrepare(root="/tmp/node2")
                 files = f.fix(['ssh://193.156.106.218/tmp/inputdir/S1A_S4_GRDH_1SDV_20171030T193624_20171030T193653_019046_020362_04FE.SAFE.zip unzip copy'])
@@ -308,8 +380,11 @@ if __name__ == "__main__":
             print("Cleaned up files", files)
             raise SystemExit(0)
 
-        f = FilePrepare(root="/")
-        files = f.fix(['ssh://::1/tmp/EL20190106_8242_638116.6.2_14171109.tar.gz unzip copy'])
+        f = FilePrepare(root="/", s3root="/tmp/s3/")
+        files = []
+        # f.write_s3("localhost:9000", "cryoniteocean", "/home/njaal/data/tmp/EL20190106_8242_638116.6.2_14171109.tar.gz", "EL20190106_8242_638116.6.2_14171109.tar.gz")
+        files = f.fix(['s3://localhost:9000/cryoniteocean/EL20190106_8242_638116.6.2_14171109.tar.gz unzip copy'])
+        # files = f.fix(['ssh://::1/tmp/EL20190106_8242_638116.6.2_14171109.tar.gz unzip copy'])
         # files = f.fix(['ssh://193.156.106.218/tmp/inputdir/S1A_S4_GRDH_1SDV_20171030T193624_20171030T193653_019046_020362_04FE.SAFE.zip unzip copy'])
         #files = f.fix(["ssh://almar3.itek.norut.no/homes/njaal/foo.bar copy unzip",
         #                 "ssh://almar3.itek.norut.no/homes/njaal/RS2_20180125_044759_0008_F23_HH_SGF_613800_3232_17771915.zip copy unzip"])

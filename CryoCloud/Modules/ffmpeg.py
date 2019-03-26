@@ -33,6 +33,16 @@ ccmodule = {
 }
 
 
+def canrun():
+    """
+    Check if we are allowed to run on this machine
+    """
+    try:
+        return subprocess.check_call(["ffmpeg", "-version"], sdtout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0
+    except:
+        return False
+
+
 def process_task(worker, task):
     args = task["args"]
     if "src" not in args:

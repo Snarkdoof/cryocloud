@@ -1,5 +1,6 @@
 import os
 import shutil
+import CryoCloud.Common.fileprep
 
 ccmodule = {
     "description": "Remove files or directories",
@@ -57,7 +58,18 @@ def process_task(self, task):
     errors = 0
     errormsg = ""
     for s in src:
+
+        # If S3
         try:
+            if s.startswith("s3://"):
+                server, bucket, file = s[5:].split("/", 2)
+                if file:
+                    CryoCloud.Common.fileprep.remove_s3_file(server, bucket, file)
+                else:
+                    CryoCloud.Common.fileprep.remove_s3_bucket(server, bucket)
+
+                continue
+
             if os.path.splitext(s)[1] in [".tgz", ".tar", ".zip", ".gz"] and remove_unzipped:
                 s2 = os.path.splitext(s)[0]
                 if os.path.exists(s2) and s2 not in src:

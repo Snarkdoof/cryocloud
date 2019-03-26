@@ -93,6 +93,8 @@ class Task:
         self.runIf = None
         self.name = "task%d" % random.randint(0, 1000000)
         self.module = None
+        self.image = None
+        self.replicas = 1
         self.config = None
         self.resolveOnAny = False
         self.splitOn = None
@@ -101,6 +103,7 @@ class Task:
         self.provides = []
         self.depends = []
         self.parents = []
+        self.post = {}
         self.dir = None  # Directory for execution
         self.docker = None
         self.volumes = []
@@ -419,6 +422,12 @@ class Workflow:
                 task.merge = child["merge"]
             if "docker" in child:
                 task.docker = child["docker"]
+            if "image" in child:
+                task.image = child["image"]
+            if "post" in child:
+                task.post = child["post"]
+            if "replicas" in child:
+                task.replicas = int(child["replicas"])
             if "volumes" in child:
                 task.volumes = child["volumes"]
                 if not isinstance(task.volumes, list):
@@ -695,6 +704,7 @@ class TestTask(Task):
         time.sleep(10)
         self.on_completed(pebble, "success")
 
+
 class CryoCloudTask(Task):
 
     remove_on_done = False
@@ -908,8 +918,7 @@ class CryoCloudTask(Task):
                             }
                             self.workflow.nodes[cuptask.name] = cuptask
                             p._cleanup_tasks.append((cuptask.name, p.gid, "success", self.name))
-                            #cuptask.downstreamOf(self)
-
+                            # cuptask.downstreamOf(self)
 
                         args[arg] = "dir://" + p._tempdirs[_tempid] + " mkdir"
 
@@ -1055,6 +1064,12 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         self._cleanup = []  # Pebbles that should be cleaned up (we do it lazily to ensure that we finish all tasks)
 
+        if self.options.kubernetes:
+            from CryoCloud.Common import kubernetesmanager
+            self.kube = kubernetesmanager.Kube()
+        else:
+            self.kube = None
+
         # Entry has been resolved, just go
         self.workflow.entry.resolve()
 
@@ -1162,6 +1177,24 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                     n._mp_blocked += 1
                     blocked = 1
 
+        print("Adding job for module", module)
+        if self.options.kubernetes:
+            print("Checking if we have workers")
+            candidates = self._jobdb.get_workers([module])[module]
+            if candidates:
+                print("Got workers", candidates)
+                mods = self.kube.get_modules()
+                print("Got modules:", mods)
+            else:
+                print("NO WORKER CANDIDATES")
+                if not n.image:
+                    self.log.error("Need worker for module '%s' but no image to start" % module)
+                else:
+                    self.kube.deploy_module([module], n.image, self.workflow.name, replicas=n.replicas)
+                    self.log.info("Deployed Kubernetes module %s based on image %s" % (module, n.image))
+
+        if n.post:
+            args["__post__"] = n.post
         return self.head.add_job(lvl, taskid, args, module=module, jobtype=jobtype,
                                  itemid=itemid, workdir=workdir,
                                  priority=priority,
@@ -1423,9 +1456,34 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             #    self.workflow.name,
             #    state=jobdb.STATE_COMPLETED)
 
+        # If we control Kubernetes and we don't have any more queued jobs of
+        # this kind, stop any deployments we did Note that this might end up
+        # with us NOT stopping all deployments, as some other workflow might have
+        # jobs running
+        self._check_kubernetes(node, p)
+
         if workflow._is_single_run and workflow.entry.is_done(p):
             print("Workflow is DONE - exiting")
             API.shutdown()
+
+    def _check_kubernetes(self, node, pebble):
+        if self.kube:
+            # Should we kill deployments asap? Not for now
+            if 0:
+                module = self.workflow.nodes[node].module
+                if self._jobdb.num_pending_jobs(module) == 0:
+                    print("Stopping deployment of module", module)
+                    self.kube.stop_module_deployment(module)
+                else:
+                    print("Still have queued jobs")
+
+            if workflow._is_single_run and workflow.entry.is_done(pebble):
+                # We're done, stop all deployments
+                self.kube.stop_all_deployments()
+
+    def onExit(self):
+        if self.kube:
+            self.kube.stop_all_deployments()
 
     def _perform_cleanup(self, p, node):
 
@@ -1474,8 +1532,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                     del self._pebbles[pbl]
             if pebble.gid in self._pebbles:
                 del self._pebbles[pebble.gid]
-
-
 
     def onError(self, task):
 
@@ -1543,6 +1599,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         self._flag_cleanup_pebble(pebble)
 
+        self._check_kubernetes(node, pebble)
+
         if workflow.entry.is_done(pebble):
             self._perform_cleanup(pebble, node)
 
@@ -1587,6 +1645,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                 g.resolve(pebble, "error", workflow.nodes[node])
 
         self._flag_cleanup_pebble(pebble)
+
+        self._check_kubernetes(node, pebble)
 
 
 if 0:  # Make unittests of this graph stuff ASAP
@@ -1695,6 +1755,9 @@ if __name__ == "__main__":
     parser.add_argument("--estimate", dest="estimate",
                         action="store_true", default=False,
                         help="Estimate how long this will take and exit")
+    parser.add_argument("--kubernetes", dest="kubernetes",
+                        action="store_true", default=False,
+                        help="Control Kubernetes")
 
     def d(n, o):
         if n in o:
@@ -1753,5 +1816,11 @@ if __name__ == "__main__":
         pass
 
     finally:
+
+        try:
+            handler.onExit()
+        except Exception as e:
+            print("Error in onExit handler:", e)
+
         print("Shutting down")
         API.shutdown()

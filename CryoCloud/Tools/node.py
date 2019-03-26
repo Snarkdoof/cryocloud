@@ -12,6 +12,8 @@ import inspect
 import re
 import json
 import signal
+import datetime
+from urllib.parse import urlparse
 
 try:
     import argcomplete
@@ -153,6 +155,8 @@ def detect_modules(paths=[], modules=None):
 
                 try:
                     m = load(f.replace(".py", ""), path=path)
+                    if DEBUG:
+                        print("Loaded", f, "from", os.path.abspath(m.__file__))
                     if m and "canrun" in [x[0] for x in inspect.getmembers(m)]:
                         if not m.canrun():
                             if DEBUG:
@@ -168,7 +172,7 @@ def detect_modules(paths=[], modules=None):
 
 class Worker(multiprocessing.Process):
 
-    def __init__(self, workernum, stopevent, type=jobdb.TYPE_NORMAL, module_paths=[], modules=[]):
+    def __init__(self, workernum, stopevent, type=jobdb.TYPE_NORMAL, module_paths=[], modules=[], name=None):
         super(Worker, self).__init__(daemon=True)
         API.api_auto_init = False  # Faster startup
 
@@ -190,7 +194,9 @@ class Worker(multiprocessing.Process):
         self._module_paths = module_paths
 
         self._worker_type = jobdb.TASK_TYPE[type]
-        self.wid = "%s-%s_%d" % (self._worker_type, socket.gethostname(), self.workernum)
+        if name is None:
+            name = socket.gethostname()
+        self.wid = "%s-%s_%d" % (self._worker_type, name, self.workernum)
         self._current_job = (None, None)
         print("%s %s created" % (self._worker_type, workernum))
 
@@ -295,6 +301,7 @@ class Worker(multiprocessing.Process):
         self.cfg.set_default("datadir", "/")
 
         last_reported = 0  # We force periodic updates of state as we might be idle for a long time
+        last_job_time = None
         while not self._stop_event.is_set():
             try:
                 if self._type == jobdb.TYPE_ADMIN:
@@ -308,6 +315,8 @@ class Worker(multiprocessing.Process):
                                                 supportedmodules=self._modules, max_jobs=max_jobs,
                                                 type=self._type, prefermodule=prefermodule)
                 if len(jobs) == 0:
+                    self._jobdb.update_worker(self.wid, json.dumps(self._modules), last_job_time)
+
                     time.sleep(1)
                     if last_reported + 300 > time.time():
                         self.status["state"] = "Idle"
@@ -315,7 +324,9 @@ class Worker(multiprocessing.Process):
                         self.status["state"].set_value("Idle", force_update=True)
                         last_reported = time.time()
                     continue
+                self.log.debug("Got %d jobs" % len(jobs))
                 for job in jobs:
+                    last_job_time = datetime.datetime.utcnow()
                     self.status["current_job"] = job["id"]
                     self._job_in_progress = job
                     self._switchJob(job)
@@ -343,6 +354,11 @@ class Worker(multiprocessing.Process):
                 continue
             finally:
                 self._job_in_progress = None
+
+        try:
+            self._jobdb.remove_worker(self.wid)
+        except Exception as e:
+            print("Failed to remove worker:", e)
 
         # print(self._worker_type, self.wid, "stopping")
         # self._stop_event.set()
@@ -522,11 +538,44 @@ class Worker(multiprocessing.Process):
             my_cpu_time = 0
             self.max_memory = 0
 
+        if "__post__" in task["args"]:
+            task["state"] = "Postprocessing"
+            for key in task["args"]["__post__"]:
+                if "output" in key:
+                    print("Process output parameter", key)
+                    if key["output"] not in ret:
+                        self.log.error("Postprocess requested on output param %s, but not returned by module" % key["output"])
+                        continue
+                    self._post_process(task, key, ret, fprep)
+                else:
+                    self.log.warning("Bad postprocess definition, missing specifier (should be 'output')")
+
         task["state"] = "Stopped"
         task["processing_time"] = time.time() - start_time
 
         # Update to indicate we're done
         self._jobdb.update_job(task["id"], new_state, retval=ret, cpu=my_cpu_time, memory=self.max_memory)
+
+    def _post_process(self, task, key, ret, fprep):
+        self.log.debug("Postprocessing %s for %s" % (str(key), str(ret)))
+
+        if not fprep:
+            fprep = fileprep.FilePrepare(self.cfg["datadir"])
+
+        if "target" in key:
+            if "basename" in key and key["basename"]:
+                target = key["target"] + os.path.basename(ret[key["output"]])
+            else:
+                target = key["target"] + ret[key["output"]]
+
+            self.log.debug("TARGET: '%s'" % target)
+            u = urlparse(target)
+            if u.scheme == "s3":
+                bucket, remote_file = u.path[1:].split("/", 1)
+                local_file = ret[key["output"]]
+                fprep.write_s3(u.netloc, bucket, local_file, remote_file)
+            elif u.scheme == "ssh":
+                fprep.write_scp(local_file, u.netloc, u.path)
 
 
 class NodeController(threading.Thread):
@@ -538,6 +587,9 @@ class NodeController(threading.Thread):
         self._stop_event = API.api_stop_event
         self._options = options
         self._manager = None
+        self._report_status = not os.path.exists("/.dockerenv")
+        if not self._report_status:
+            self.log.info("Running in Docker, not reporting system status")
 
         if options.cpu_count:
             psutil.cpu_count = lambda x=None: int(self._options.cpu_count)
@@ -558,15 +610,15 @@ class NodeController(threading.Thread):
 
         for i in range(0, workers):
             # wid = "%s.%s.Worker-%s_%d" % (self.jobid, self.name, socket.gethostname(), i)
-            print("Starting worker %d" % i)
-            w = Worker(i, self._stop_event, modules=modules, module_paths=options.paths)
+            print("Starting worker %d supporting" % i, modules)
+            w = Worker(i, self._stop_event, modules=modules, module_paths=options.paths, name=options.name)
             # w = multiprocessing.Process(target=worker, args=(i, self._options.address, self._options.port, AUTHKEY, self._stop_event))  # args=(wid, self._task_queue, self._results_queue, self._stop_event))
             w.start()
             self._worker_pool.append(w)
 
         for i in range(0, int(options.adminworkers)):
             print("Starting adminworker %d" % i)
-            aw = Worker(i, self._stop_event, type=jobdb.TYPE_ADMIN)
+            aw = Worker(i, self._stop_event, type=jobdb.TYPE_ADMIN, modules=modules, module_paths=options.paths, name=options.name)
             aw.start()
             self._worker_pool.append(aw)
 
@@ -581,19 +633,20 @@ class NodeController(threading.Thread):
         self.log = API.get_log(self.name)
         self.status = API.get_status(self.name)
 
-        self.status["state"] = "Idle"
-        for key in ["user", "nice", "system", "idle", "iowait"]:
-            self.status["cpu.%s" % key] = 0
-            self.status["cpu.%s" % key].set_expire_time(self.cfg["expire_time"])
-        for key in ["total", "available", "active"]:
-            self.status["memory.%s" % key] = 0
-            self.status["memory.%s" % key].set_expire_time(self.cfg["expire_time"])
+        if self._report_status:
+            self.status["state"] = "Idle"
+            for key in ["user", "nice", "system", "idle", "iowait"]:
+                self.status["cpu.%s" % key] = 0
+                self.status["cpu.%s" % key].set_expire_time(self.cfg["expire_time"])
+            for key in ["total", "available", "active"]:
+                self.status["memory.%s" % key] = 0
+                self.status["memory.%s" % key].set_expire_time(self.cfg["expire_time"])
 
-        try:
-            self.status["cpu.count"] = psutil.cpu_count()
-            self.status["cpu.count_physical"] = psutil.cpu_count(logical=False)
-        except:
-            pass  # No info
+            try:
+                self.status["cpu.count"] = psutil.cpu_count()
+                self.status["cpu.count_physical"] = psutil.cpu_count(logical=False)
+            except:
+                pass  # No info
 
         self.log.info("Starting node with supported modules: %s" % str(modules))
 
@@ -605,8 +658,13 @@ class NodeController(threading.Thread):
             os.kill(worker.pid, signal.SIGHUP)
 
     def run(self):
-        self.status["state"] = "Running"
+        if self._report_status:
+            self.status["state"] = "Running"
         while not API.api_stop_event.is_set():
+            if not self._report_status:
+                time.sleep(1)
+                continue
+
             last_run = time.time()
             # CPU info for the node
             try:
@@ -645,10 +703,12 @@ class NodeController(threading.Thread):
                 except:
                     self._manager = None
                     self.log.exception("Job description failed!")
+
             time_left = max(0, self.cfg["sample_rate"] + time.time() - last_run)
             time.sleep(time_left)
 
-        self.status["state"] = "Stopping workers"
+        if self._report_status:
+            self.status["state"] = "Stopping workers"
         self._stop_event.set()
         left = len(self._worker_pool)
         for w in self._worker_pool:
@@ -660,7 +720,8 @@ class NodeController(threading.Thread):
             self._manager.shutdown()
 
         print("All shut down")
-        self.status["state"] = "Stopped"
+        if self._report_status:
+            self.status["state"] = "Stopped"
         raise SystemExit(0)
 
 if __name__ == "__main__":
@@ -670,6 +731,10 @@ if __name__ == "__main__":
     parser.add_argument("-n", "--num-workers", dest="workers",
                         default=None,
                         help="Number of workers to start - default one pr virtual core")
+
+    parser.add_argument("--name", dest="name",
+                        default=None,
+                        help="Name of this worker node (default hostname)")
 
     parser.add_argument("-a", "--num-admin-workers", dest="adminworkers",
                         default=1,
@@ -687,6 +752,9 @@ if __name__ == "__main__":
     parser.add_argument("-p", "--module-paths", dest="paths", default="",
                         help="Comma separated list of additional paths to look for modules in")
 
+    parser.add_argument("--debug", dest="debug", action="store_true",
+                        help="Print debug info on stdout")
+
     if "argcomplete" in sys.modules:
         argcomplete.autocomplete(parser)
 
@@ -694,6 +762,9 @@ if __name__ == "__main__":
     options.paths = options.paths.split(",")
     if options.modules:
         options.modules = options.modules.split(",")
+
+    if options.debug:
+        DEBUG = True
 
     if options.list_modules:
         print("Supported modules:")
