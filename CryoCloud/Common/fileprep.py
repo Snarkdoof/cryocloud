@@ -303,8 +303,8 @@ class FilePrepare:
 
     def _get_s3_client(self, server):
         return boto3.client('s3', endpoint_url='http://' + server,
-                            aws_access_key_id=self.s3_cfg["%s.aws_access_key_id" % server],
-                            aws_secret_access_key=self.s3_cfg["%s.aws_secret_access_key" % server])
+                            aws_access_key_id=str(self.s3_cfg["%s.aws_access_key_id" % server]),
+                            aws_secret_access_key=str(self.s3_cfg["%s.aws_secret_access_key" % server]))
 
     def copy_s3(self, server, bucket, remote_file, local_file):
         s3_client = self._get_s3_client(server)
