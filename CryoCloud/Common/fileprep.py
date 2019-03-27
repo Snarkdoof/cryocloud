@@ -7,8 +7,8 @@ import zipfile
 import shutil
 import stat
 from urllib.parse import urlparse
-import requests
 import boto3
+import requests
 
 DEBUG = False
 
@@ -302,13 +302,17 @@ class FilePrepare:
         return target_dir + filename
 
     def _get_s3_client(self, server):
+        s = server.replace(".", "_")
+        # self.log.debug("S3.%s.aws_access_key_id, %s, %s" % (s, str(self.s3_cfg["%s.aws_access_key_id" % s]),
+        #               str(self.s3_cfg["%s.aws_secret_access_key" % s])))
         return boto3.client('s3', endpoint_url='http://' + server,
-                            aws_access_key_id=str(self.s3_cfg["%s.aws_access_key_id" % server]),
-                            aws_secret_access_key=str(self.s3_cfg["%s.aws_secret_access_key" % server]))
+                            aws_access_key_id=str(self.s3_cfg["%s.aws_access_key_id" % s]),
+                            aws_secret_access_key=str(self.s3_cfg["%s.aws_secret_access_key" % s]))
 
     def copy_s3(self, server, bucket, remote_file, local_file):
         s3_client = self._get_s3_client(server)
-        self.log.debug("S3 download from endpoint %s, bucket: %s, key: %s to %s" % (server, bucket, remote_file, local_file))
+        self.log.debug("S3 download from endpoint %s, bucket: %s, key: %s to %s" %
+                       (server, bucket, remote_file, local_file))
         obj = s3_client.get_object(Bucket=bucket, Key=remote_file)
         dest = open(local_file, "wb")
         stream = obj["Body"]
@@ -337,6 +341,7 @@ class FilePrepare:
                             (local_file, host, target, errs.decode("utf-8")))
 
     def write_s3(self, server, bucket, local_file, remote_file):
+        self.log.debug("Write to S3 %s, %s, %s, %s " % (server, bucket, local_file, remote_file))
         if not os.path.exists(local_file):
             raise Exception("Can't upload non-existing file '%s'" % local_file)
         f = open(local_file, "rb")
@@ -390,7 +395,9 @@ if __name__ == "__main__":
         f = FilePrepare(root="/", s3root="/tmp/s3/")
         files = []
         # f.write_s3("localhost:9000", "cryoniteocean", "/home/njaal/data/tmp/EL20190106_8242_638116.6.2_14171109.tar.gz", "EL20190106_8242_638116.6.2_14171109.tar.gz")
-        files = f.fix(['s3://localhost:9000/cryoniteocean/EL20190106_8242_638116.6.2_14171109.tar.gz unzip copy'])
+        # files = f.fix(['s3://seer2.itek.norut.no:9000/cryoniteocean/EL20190106_8242_638116.6.2_14171109.tar.gz unzip copy'])
+        f.write_s3("seer2.itek.norut.no:9000", "cryoniteocean", "/tmp/example1.py", "example1.py")
+
         # files = f.fix(['ssh://::1/tmp/EL20190106_8242_638116.6.2_14171109.tar.gz unzip copy'])
         # files = f.fix(['ssh://193.156.106.218/tmp/inputdir/S1A_S4_GRDH_1SDV_20171030T193624_20171030T193653_019046_020362_04FE.SAFE.zip unzip copy'])
         #files = f.fix(["ssh://almar3.itek.norut.no/homes/njaal/foo.bar copy unzip",

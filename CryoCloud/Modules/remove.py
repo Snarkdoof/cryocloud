@@ -57,17 +57,22 @@ def process_task(self, task):
     done = 0
     errors = 0
     errormsg = ""
+    fileprep = None
     for s in src:
 
         # If S3
         try:
             if s.startswith("s3://"):
+                if not fileprep:
+                    fileprep = CryoCloud.Common.fileprep.FilePrepare(s3root=self.cfg["tempdir"])
                 server, bucket, file = s[5:].split("/", 2)
                 if file:
-                    CryoCloud.Common.fileprep.remove_s3_file(server, bucket, file)
+                    fileprep.remove_s3_file(server, bucket, file)
                 else:
-                    CryoCloud.Common.fileprep.remove_s3_bucket(server, bucket)
+                    fileprep.remove_s3_bucket(server, bucket)
 
+                done += 1
+                self.status["progress"] = 100 * done / float(len(src))
                 continue
 
             if os.path.splitext(s)[1] in [".tgz", ".tar", ".zip", ".gz"] and remove_unzipped:

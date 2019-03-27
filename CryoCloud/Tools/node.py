@@ -543,11 +543,10 @@ class Worker(multiprocessing.Process):
             task["state"] = "Postprocessing"
             for key in task["args"]["__post__"]:
                 if "output" in key:
-                    print("Process output parameter", key)
                     if key["output"] not in ret:
                         self.log.error("Postprocess requested on output param %s, but not returned by module" % key["output"])
                         continue
-                    self._post_process(task, key, ret, fprep)
+                    ret[key["output"]] = self._post_process(task, key, ret, fprep)
                 else:
                     self.log.warning("Bad postprocess definition, missing specifier (should be 'output')")
 
@@ -577,6 +576,8 @@ class Worker(multiprocessing.Process):
                 fprep.write_s3(u.netloc, bucket, local_file, remote_file)
             elif u.scheme == "ssh":
                 fprep.write_scp(local_file, u.netloc, u.path)
+            return target
+        return None
 
 
 class NodeController(threading.Thread):
