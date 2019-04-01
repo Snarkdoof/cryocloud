@@ -562,7 +562,7 @@ class Worker(multiprocessing.Process):
         if not fprep:
             fprep = fileprep.FilePrepare(self.cfg["datadir"], self.cfg["tempdir"])
 
-        if "target" in key:
+        def prep(fn):
             if "basename" in key and key["basename"]:
                 target = key["target"] + os.path.basename(ret[key["output"]])
             else:
@@ -577,6 +577,15 @@ class Worker(multiprocessing.Process):
             elif u.scheme == "ssh":
                 fprep.write_scp(local_file, u.netloc, u.path)
             return target
+
+        if "target" in key:
+            if isinstance(ret[key["output"]], list):
+                target = []
+                for l in ret[key["output"]]:
+                    prep(l)
+                return target
+        else:
+            return prep(ret[key["output"]])
         return None
 
 
