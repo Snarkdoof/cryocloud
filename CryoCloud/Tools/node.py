@@ -584,8 +584,8 @@ class Worker(multiprocessing.Process):
                 for l in ret[key["output"]]:
                     prep(l)
                 return target
-        else:
-            return prep(ret[key["output"]])
+            else:
+                return prep(ret[key["output"]])
         return None
 
 
