@@ -580,12 +580,18 @@ class Worker(multiprocessing.Process):
 
         if "target" in key:
             if isinstance(ret[key["output"]], list):
+                self.log.debug("Return value is a list, prepare all")
                 target = []
                 for l in ret[key["output"]]:
+                    self.log.debug("Prepping %s" % str(l))
                     prep(l)
                 return target
             else:
-                return prep(ret[key["output"]])
+                try:
+                    self.log.debug("Prep %s" % str(ret[key["output"]]))
+                    return prep(ret[key["output"]])
+                except:
+                    self.log.exception("Woops")
         return None
 
 
