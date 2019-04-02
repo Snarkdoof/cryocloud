@@ -15,20 +15,39 @@ separated.
 
 * Workflow is a graph describing a workflow. When "executing" a workflow, a "pebbles" is created by input modules (e.g. dirwatchers), and these are then passed through the graph.
 
-* Nodes: Define nodes for the graph. Edges are defined using "downstreamOf"
+* **Nodes**: Define nodes for the graph. Edges are defined using "downstreamOf"
 
-* Edges: downstreamOf specifies which nodes are parents of a given node. This can be done implicitly by defining nodes as "children" instead of as separate nodes.
+* **Edges**: downstreamOf specifies which nodes are parents of a given node. This can be done implicitly by defining nodes as "children" instead of as separate nodes.
 
-* args: Argument mapping to the input arguments of a node. These can be strings, config, output from other nodes in the graph, or options given on the command line. This is where a lot of the funky stuff happens, as one can map for example the output filename of one module to the input of another etc.
+* **args**: Argument mapping to the input arguments of a node. These can be strings, config, output from other nodes in the graph, or options given on the command line. This is where a lot of the funky stuff happens, as one can map for example the output filename of one module to the input of another etc.
 
-* options: A workflow can define options - these will become available as commandline parameters for ccworkflow
+* **options**: A workflow can define options - these will become available as commandline parameters for ccworkflow
 
-* Special argument options: 
-  * "default": set default value if the given one can't be resolved
-  *  "type": "file" - if the file is remote it will be copied, if it's compressed it will be uncompressed
+* Special argument options:
+    * *default*: set default value if the given one can't be resolved
+    * *type*
+        * *file* - if the file is remote it will be copied, if it's compressed it will be uncompressed
+        * *tempdir* - create a temporary directory, specify *id* to refer to the same temporary directory multiple places (will be unique for each pebble). Automatically removed.
 
 
-### Workflow definition file (JSON)
+### File preparation
+CryoCloud can do various file pre and post processing steps to ensure that modules do not need unneccesary complexity and can run on local data. In particular, Amazon S3 urls are supported as *s3://server/container/key*, as well as *ssh://server/fullpath*, although ssh requires keys to be pre-distributed and is as such not particularly flexible. CryoCloud can also upload returned files using *post* definition. Zipping files is currently not supported but might be added.
+
+Files can also be unzipped automatically, converting a single filename to a list of files. Unzip handles both zip, tar and tar.gz/tgz files.
+
+In short, the modules should normally only work on local files, not download things themselves, unzip or upload files, but this should be left to CryoCloud. Big IO jobs might be useful to use explicit download/unzip using the *unzip* module (possibly also using *type:admin*) to avoid hogging CPU's for IO intensive tasks and allow CryoCloud to manage these.
+
+
+### Kubernetes and Docker integration
+CryoCloud has two ways to use dockers. In both cases logs and status messages are handled as normal, and can be accessed using the normal CryoCore tools (cclog, ccstatus etc).
+
+    1. Run fully contained dockers, typically through Kubernetes on a cluster or cloud solution. This is done by specifying *image* in the workflow and starting ccworkflow with --kubernetes. The image must have everything onboard, and S3 is suggested as transfer of data in and out of the container. Use "s3://server/bucket/key" as paths for input data, *post* definition for return data. The docker must have CryoCloud installed.
+
+    2. Run local code in a docker environment. Typically useful for testing, where a docker is *not* fully contained but can provide the runtime environment for the module. The module as well as any input paths are mapped as volumes automatically. For proper deployments of finalized code, running as self contained dockers is likely better. the docker must have CryoCloud/dockercc installed.
+
+As CryoCloud has a running overview of capabilities of workers, it will create Kubernetes deployments for all missing modules. These will currently be started to process **only** the particular module, even if the image supports multiple modules.
+
+## Workflow definition file (JSON)
 
 Workflow definitions must be contained within { "workflow": {<put it here>}}
 
@@ -85,34 +104,66 @@ The following workflow is a simple demonstration of
 ```
 
 ### Module definition:
-  "module": "NAME OF MODULE" - this needs a ccmodule definition in the file (look below on "writing CryoCloud modules")
+   **args**: *{argument definition}* - How to resolve input arguments for this module (see below)
 
-  "name": "Unique name for this workflow" - Use for readability and to get access to return values for later modules
+  **ccnode**: If given, run on the given CryoCloud processing node - or use runtime stats (stat) or config, typically {"stat": "parent.node"}
 
-  "config": "The config root for any configs used in this definition (only needed if 'config' is used in arguments)
+  **children**: *[module definitions]* - Inline definition of children - same as giving this module a name and set "downstreamOf" to this modules name
 
-  "runOn": "success/error/timeout/always/never" - when resolved, the parent either succeeded, failed or timed out. Limit when this module runs (can be set default by module)
+  **config**: The config root for any configs used in this definition (only needed if 'config' is used in arguments)
 
-  "resolveOnAny": "Resolve when ALL parents have completed (default) or when ANY parent has completed",
+  **depends**: *["Thing1", "Thing2"]* - Override the ccmodule's definition of dependencies. This is only used for validation, and must be matched with "provides" from upstream in the graph.
+
+  **downstreamOf**: *[parent1, parent2]* - These are the edges of the graph, this module processes AFTER some other node. Refers to the unique name
+
+  **deferred**: *true/false* - A module that is deferred will be queued immediately for processing, but not actually started until a pebble has completed. Particularly useful for cleanup tasks if not using tempdirs.
   
-  "type": "normal/admin" - type of CryoCloud worker that should take this job
+  **docker**: *docker image* - Docker image providing a core runtime environment for this module. Any referred paths will be mapped in as volumes, mirroring the external environment. Very useful to test run code inside a docker environent without deploying them. The docker images must be generated particularly for this, some examples should be in the *environments* repository on gitlab - basically they need the dockercc from CryoCore in the path. If you are looking for Kubernetes or cloud deployments, you likely want to look at *image*, not *docker*.
 
-  "ccnode": "If given, run on the given CryoCloud processing node - or use runtime stats (stat) or config, typically {"stat": "parent.node"}
+  **global**: *true/false* - Use in combination with *"runOn":"error"* for a global error handler. Any error will trigger this handler. Cleanup is likely better done using *tempdir* or *deferred* modules.
 
-  "downstreamOf": [parent1, parent2] - These are the edges of the graph, this module processes AFTER some other node. Refers to the unique name
+  **image**: *docker image* - Docker image that can be executed to handle jobs for this module. Particularly useful for Kubernetes integration.
 
-  "children" [module definitions] - Inline definition of children - same as giving this module a name and set "downstreamOf" to this modules name
+  **max_parallel**: *number* - Limit the amount of jobs that is allowed to run in parallel. Useful for example to limit jobs for external services (e.g. downloads). 
 
-  "args": {argument definition} - How to resolve input arguments for this module (see below)
+  **merge**: *true* - On completion, this module will merge split jobs. Return values are transformed into lists. The lists are ordered just like the split input parameter. E.g. inputs ["in1", "in2", "in3"] will give return ["ret1", "ret2", "ret3"].
 
+  **module**: *NAME OF MODULE* - this needs a ccmodule definition in the file (look below on "writing CryoCloud modules")
+
+  **name**: *Unique name for this workflow* - Use for readability and to get access to return values for later modules
+
+  **post**: *[{'output': argumentname, 'target': prefix, 'basename':true/false}]* - Post processing specification. Highly useful for postprocessing returned files in contained modules. For example: *{"output": "dst", "target": "s3://server/container/", "basename": true}* will upload the file returned as 'dst' to the given S3 container. *target* is mapped like *args*, so for example *"target": {"options": "targetserver"}* allows a commandline parameter to speficy the final destionation of the workflow. If the return value is a list, it will be iterated over and all items in the list will be processed.
+
+  **priority**: *number* - Override the default priority of the ccmodule. CryoCloud will choose higher priority jobs over lower. Useful to balance throughput vs latency of a workflow, limit disk usage, spread IO etc.
+
+  **provides**: *["Thing1", "Thing3"]* - Override the ccmodule's definition of provides. Useful for example for generic input modules (such as cmdline)
+
+  **resolveOnAny**: Resolve when ALL parents have completed (default) or when ANY parent has completed",
+
+  **runIf**: *if statement* - Python statement, e.g. *"output:SomeModule.someReturnValue!='SomeString'"*. The module will only run if the statement returns True. Useful to split the flow in one of multiple branches.
+
+  **runOn**: *success/error/timeout/always/never* - when resolved, the parent either succeeded, failed or timed out. Limit when this module runs (can be set default by module)
+
+  **splitOn**: *argument name* - The named args must be a list. This list will be split into separate entries and executed as parallel jobs.
+
+  **replicas**: *number* - How many replicas to start if managing containers. Default 1, only used for Kubernetes integration for now.
+
+  **type**: *normal/admin* - type of CryoCloud worker that should take this job
+
+  **volumes**: *[[source1, dest1, ro], [source2, dest2, rw]]* - Force mappings of directories as volumes. CryoCloud will automatically map directories that are given as paths, so you only need this if your module require external volumes that are not referred to by the workflow. Try without specifying this first.
+
+  **workdir**: *path* - Working directory for this module. Must be an absolute path on the processing nodes (not the one running ccworkflow). Useful for example as *"workdir": {"option": "codedir"}*, allowing command line specification of the code to run.
 
 ### Argument definition:
 
-"args": {argumentname: value} where argument is the name of the input argument, value can be one of:
+**args**: *{argumentname: value}* where argument is the name of the input argument, value can be one of:
 
   * a string - is delivered as is, example {"ignoreerrors": "true"}
-  * Output: another module's return value: {"output": "modulename.returnvaluename"}, e.g.: {"src": {"output": "MyInput.product"}} to use the "product" return value from the "MyInput" module as "src" input argument
+
   * Config a config parameter, "blocksize": {"config": "blocksize"}. This requires "config" to be set in the module definition (e.g. "config": "Cryonite.Readers.Sentinel")
+  
+  * Output: another module's return value: {"output": "modulename.returnvaluename"}, e.g.: {"src": {"output": "MyInput.product"}} to use the "product" return value from the "MyInput" module as "src" input argument
+  
   * Stat: Runtime stats, possible stats for now are: "node", "worker", "priority", "runtime", "cpu_time", "max_memory". Difficult to see why you would use this for now.
 
   * you can also specify that it's a file, allowing the worker to automatically copy/unzip etc. Example:
@@ -208,3 +259,7 @@ def process_task(worker, task, cancel_event=None):
 
 
 ```
+
+
+## Existing CryoCloud modules
+CryoCloud has some modules already built in to provide generic functionality. 
