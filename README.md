@@ -263,3 +263,35 @@ def process_task(worker, task, cancel_event=None):
 
 ## Existing CryoCloud modules
 CryoCloud has some modules already built in to provide generic functionality. 
+
+### Input modules
+  **cmdline** - Commandline input, mostly useful for testing where you want to start processing from the command line. When the queued pebble has completed, it will exit.
+
+  **dirwatcher** - Watch a directory for changes, trigger each new, stable file as a pebble. Supports recursive monitoring as well. Useful if processing should be done automatically for any newly added file. Does lag a bit to ensure that files are not still being updated.
+
+  **netwatcher** - Listen to a port and handle HTTP requests. Provide a JSON Schema to validate posts automatically. Allows posting of resources to process.
+
+
+### Administrative modules
+  **communicate** - Allow communication between processing lines/pebbles. This is only useful in very complicated graphs, and should likely not be used. Take a look at *runIf* instead and see if that can help. Created to allow processing of one pebble to wait for processing of another pebble if for example two products being processed have dependencies for each other.
+
+  **move** - Move files to or from local disks. Normally handled automatically by CryoCloud, but could be useful to make a backup copy or handle large or slow IO tasks.
+
+  **noop** - Does nothing, but will sleep for a given number of seconds. Only useful for basic testing of graphs.
+
+  **unzip** - Unzip files. Normally handled automatically by CryoCloud but particularly large jobs or more advanced jobs can be created using this module explicitly.
+
+  **remove** - Remove files or folders. Useful if tempdirs are not used and you need to clean up files, for example deleting the input file when completed. This module also can clean up unzipped versions of files (in fact, the orinal file is likely already deleted if unzipped).
+
+  **waitforfile** - Wait for local files to become "stable", could be used to wait for an external process to finish and provide it's results somewhere.
+
+
+### Integration modules
+  **docker** - Run other modules in docker environments. Normally you this module should never be used.
+
+  **idl** - Run processes in IDL, monitor and report. Do not use this directly, but write custom modules that use this module. Look for examples in CryoniteOcean.
+
+### Processing modules
+  **ffmpeg** - Transcode files using FFMPEG
+
+  **build_docker** - Build dockers. Don't use if you are not 100% sure
