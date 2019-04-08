@@ -41,7 +41,7 @@ def start(handler, args, stop_event):
 
     def onAdd(info):
 
-        if "product" in info:  # Hack for CryoniteOcean
+        if "product" in info and args["schema"] in ["wind.schema", "wave.schema"]:  # Hack for CryoniteOcean
             file_info = {"relpath": os.path.split(info["product"])[1],
                          "fullpath": info["product"], "config_override": None}
 

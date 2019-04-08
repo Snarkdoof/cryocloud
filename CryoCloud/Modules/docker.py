@@ -2,6 +2,26 @@ from CryoCore import API
 from CryoCloud.Common.DockerProcess import DockerProcess
 
 
+ccmodule = {
+    "description": "Run stuff in docker environments",
+    "depends": [""],
+    "provides": [""],
+    "inputs": {
+        "gpu": "Run on GPU, default False",
+        "target": "Target docker",
+        "env": "Environment variables",
+        "dirs": "Directories to map as volumes",
+        "arguments": "Arguments for docker process",
+        "log_all": "Log all output as debug, default False"
+    },
+    "outputs": {
+    },
+    "defaults": {
+        "runOn": "success"
+    }
+}
+
+
 def process_task(worker, task, cancel_event=None):
     """
     worker.status and worker.log are ready here.

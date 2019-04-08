@@ -431,15 +431,16 @@ class Worker(multiprocessing.Process):
                 for arg in subargs["args"]:
                     if isinstance(subargs["args"][arg], list):
                         for x in range(len(subargs["args"][arg])):
-                            t = subargs["args"][arg][x].split(" ")
-                            if "copy" in t or "unzip" in t:
-                                if not fprep:
-                                    fprep = fileprep.FilePrepare(self.cfg["datadir"], self.cfg["tempdir"])
-                                ret = fprep.fix([subargs["args"][arg][x]])
-                                subargs["args"][arg][x] = ret["fileList"][0]
+                            if isinstance(x, str):
+                                t = subargs["args"][arg][x].split(" ")
+                                if "copy" in t or "unzip" in t or "mkdir" in t:
+                                    if not fprep:
+                                        fprep = fileprep.FilePrepare(self.cfg["datadir"], self.cfg["tempdir"])
+                                    ret = fprep.fix([subargs["args"][arg][x]])
+                                    subargs["args"][arg][x] = ret["fileList"][0]
                     else:
                         t = subargs["args"][arg].split(" ")
-                        if "copy" in t or "unzip" in t:
+                        if "copy" in t or "unzip" in t or "mkdir" in t:
                             if not fprep:
                                 fprep = fileprep.FilePrepare(self.cfg["datadir"], self.cfg["tempdir"])
                             ret = fprep.fix([subargs["args"][arg]])
@@ -564,7 +565,7 @@ class Worker(multiprocessing.Process):
 
         def prep(fn):
             if "basename" in key and key["basename"]:
-                target = key["target"] + os.path.basename(ret[key["output"]])
+                target = key["target"] + os.path.basename(fn)
             else:
                 target = key["target"] + ret[key["output"]]
 
@@ -572,7 +573,7 @@ class Worker(multiprocessing.Process):
             u = urlparse(target)
             if u.scheme == "s3":
                 bucket, remote_file = u.path[1:].split("/", 1)
-                local_file = ret[key["output"]]
+                local_file = fn
                 fprep.write_s3(u.netloc, bucket, local_file, remote_file)
             elif u.scheme == "ssh":
                 fprep.write_scp(local_file, u.netloc, u.path)
@@ -582,9 +583,13 @@ class Worker(multiprocessing.Process):
             if isinstance(ret[key["output"]], list):
                 self.log.debug("Return value is a list, prepare all")
                 target = []
+                i = 0
                 for l in ret[key["output"]]:
-                    self.log.debug("Prepping %s" % str(l))
-                    prep(l)
+                    i += 1
+                    self.log.debug("Prepping %s (%d of %d)" % (str(l), i, len(ret[key["output"]])))
+                    target.append(prep(l))
+                self.log.debug("post_process completed (list)")
+                print("RETURNING", target)
                 return target
             else:
                 try:
@@ -592,6 +597,8 @@ class Worker(multiprocessing.Process):
                     return prep(ret[key["output"]])
                 except:
                     self.log.exception("Woops")
+                finally:
+                    self.log.debug("post_process completed")
         return None
 
 
