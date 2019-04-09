@@ -401,27 +401,37 @@ class Worker(multiprocessing.Process):
 
         # Report that I'm on it
         start_time = time.time()
-        fprep = None
-        for arg in task["args"]:
-            if isinstance(task["args"][arg], str):
-                if 1 or task["args"][arg].find("://") > -1:
-                    t = task["args"][arg].split(" ")
-                    if "copy" in t or "unzip" in t or "mkdir" in t:
-                        try:
-                            self.status["state"] = "Preparing files"
-                            if not fprep:
-                                fprep = fileprep.FilePrepare(self.cfg["datadir"], self.cfg["tempdir"])
+        fprep = fileprep.FilePrepare(self.cfg["datadir"], self.cfg["tempdir"])
 
-                            # We take one by one to re-map files with local, unzipped ones
-                            ret = fprep.fix([task["args"][arg]])
-                            if len(ret["fileList"]) == 1:
-                                task["args"][arg] = ret["fileList"][0]
-                            else:
-                                task["args"][arg] = ret["fileList"]
-                        except Exception as e:
-                            print("DEBUG: I got in trouble preparing stuff", e)
-                            self.log.exception("Preparing %s" % task["args"][arg])
-                            raise Exception("Preparing files failed: %s" % e)
+        def prep(fprep, s):
+            if not isinstance(s, str):
+                return s
+            if s.find("://") > -1:
+                t = s.split(" ")
+                if "copy" in t or "unzip" in t or "mkdir" in t:
+                    try:
+                        self.status["state"] = "Preparing files"
+
+                        # We take one by one to re-map files with local, unzipped ones
+                        ret = fprep.fix([s])
+                        if len(ret["fileList"]) == 1:
+                            s = ret["fileList"][0]
+                        else:
+                            s = ret["fileList"]
+                    except Exception as e:
+                        print("DEBUG: I got in trouble preparing stuff", e)
+                        self.log.exception("Preparing %s" % s)
+                        raise Exception("Preparing files failed: %s" % e)
+            return s
+
+        for arg in task["args"]:
+            if isinstance(task["args"][arg], list):
+                l = []
+                for item in task["args"][arg]:
+                    l.append(prep(fprep, item))
+                task["args"][arg] = l
+            else:
+                task["args"][arg] = prep(fprep, task["args"][arg])
 
         if task["module"] == "docker":
             a = task["args"]["arguments"]
