@@ -136,6 +136,7 @@ class Task:
         self._mp_blocked = 0
         self.lock = threading.Lock()
         self.level = None
+        self.runOnHead = False
 
     def __str__(self):
         return "[%s (%s), %s, %s]: priority %d, args: %s\n" %\
@@ -440,9 +441,9 @@ class Workflow:
             if "splitOn" in child:
                 task.splitOn = child["splitOn"]
             if "deferred" in child:
-                task.deferred = child["deferred"]
+                task.deferred = bool(child["deferred"])
             if "merge" in child:
-                task.merge = child["merge"]
+                task.merge = bool(child["merge"])
             if "docker" in child:
                 task.docker = child["docker"]
             if "image" in child:
@@ -451,6 +452,8 @@ class Workflow:
                 task.post = child["post"]
             if "replicas" in child:
                 task.replicas = int(child["replicas"])
+            if "runOnHead" in child:
+                task.runOnHead = bool(child["runOnHead"])
             if "volumes" in child:
                 task.volumes = child["volumes"]
                 if not isinstance(task.volumes, list):
@@ -965,7 +968,7 @@ class CryoCloudTask(Task):
                 args[arg] = self.args[arg]
 
             if arg not in args:
-                raise Exception("Failed to resolve argument %s for %s (%s)" % (arg, self.name, self.module))
+                raise Exception("Failed to resolve argument '%s' for %s (%s)" % (arg, self.name, self.module))
 
         # print("ARGS", self.args, "->", args)
 
@@ -1819,6 +1822,7 @@ if __name__ == "__main__":
 
     # Add stuff arguments from workflow if any
     lists = []
+    jsons = []
     if workflow:
         for o in workflow.options:
             default = d("default", workflow.options[o])
@@ -1830,6 +1834,8 @@ if __name__ == "__main__":
                 parser.add_argument("--" + o, default=default, help=_help)
             if _type == "list":
                 lists.append(o)
+            if _type == "json":
+                jsons.append(o)
 
     if "argcomplete" in sys.modules:
         argcomplete.autocomplete(parser)
@@ -1844,6 +1850,11 @@ if __name__ == "__main__":
     for l in lists:
         o = getattr(options, l)
         setattr(options, l, o.split(","))
+
+    # Parse json arguments too
+    for l in jsons:
+        o = getattr(options, l)
+        setattr(options, l, json.loads(o))
 
     # Create handler
     handler = WorkflowHandler(workflow)
