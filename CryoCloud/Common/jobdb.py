@@ -333,7 +333,7 @@ class JobDB(mysql):
         BASESQL = SQL
         BASEARGS = args[:]
 
-        if len(supportedmodules) > 0:
+        if len(supportedmodules) > 0 and "any" not in supportedmodules:
             SQL += "AND (" + " module=%s OR" * len(supportedmodules)
             SQL = SQL[:-2] + ")"
             args.extend(supportedmodules)

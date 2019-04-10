@@ -1854,7 +1854,9 @@ if __name__ == "__main__":
     # Parse json arguments too
     for l in jsons:
         o = getattr(options, l)
-        setattr(options, l, json.loads(o))
+        print("O", o)
+        if o:
+            setattr(options, l, json.loads(o))
 
     # Create handler
     handler = WorkflowHandler(workflow)
