@@ -634,10 +634,13 @@ class NodeController(threading.Thread):
         else:
             workers = psutil.cpu_count()
 
-        if options.modules:
-            modules = detect_modules(options.paths, options.modules)
+        if "any" not in options.modules:
+            if options.modules:
+                modules = detect_modules(options.paths, options.modules)
+            else:
+                modules = detect_modules(options.paths)
         else:
-            modules = detect_modules(options.paths)
+            modules = ["any"]
 
         if len(modules) == 0:
             print("ZERO SUPPORTED MODULES! Looked in", options.paths, "for", options.modules)
@@ -781,7 +784,7 @@ if __name__ == "__main__":
                         help="List supported modules on this system")
 
     parser.add_argument("-m", "--modules", dest="modules", default=None,
-                        help="Only use given modules in a comma separated list (otherwise autodetect)")
+                        help="Only use given modules in a comma separated list (otherwise autodetect) - use 'any' for any")
 
     parser.add_argument("-p", "--module-paths", dest="paths", default="",
                         help="Comma separated list of additional paths to look for modules in")
