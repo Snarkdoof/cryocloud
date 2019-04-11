@@ -433,7 +433,7 @@ class Worker(multiprocessing.Process):
             else:
                 task["args"][arg] = prep(fprep, task["args"][arg])
 
-        if task["module"] == "docker":
+        if task["module"] == "docker":  # TODO: Use 'prep' above to avoid multiple copies of code?
             a = task["args"]["arguments"]
             if a.count("-t") == 1:
                 import json
@@ -448,7 +448,7 @@ class Worker(multiprocessing.Process):
                                         fprep = fileprep.FilePrepare(self.cfg["datadir"], self.cfg["tempdir"])
                                     ret = fprep.fix([subargs["args"][arg][x]])
                                     subargs["args"][arg][x] = ret["fileList"][0]
-                    else:
+                    elif isinstance(subargs["args"][arg], str):
                         t = subargs["args"][arg].split(" ")
                         if "copy" in t or "unzip" in t or "mkdir" in t:
                             if not fprep:
