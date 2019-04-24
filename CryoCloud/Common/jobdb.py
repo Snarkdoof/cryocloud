@@ -3,7 +3,6 @@ import time
 import random
 import json
 import threading
-import psutil
 
 from CryoCore import API
 from CryoCore.Core.InternalDB import mysql
