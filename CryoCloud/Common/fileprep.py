@@ -365,6 +365,7 @@ class FilePrepare:
 
     def remove_s3_file(self, server, bucket, remote_file):
         s3_client = self._get_s3_client(server)
+        self.log.debug("Removing S3 file %s, %s, %s" % (server, bucket, remote_file))
         s3_client.delete_object(Bucket=bucket, Key=remote_file)
 
     def remove_s3_bucket(self, server, bucket):
