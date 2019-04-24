@@ -79,7 +79,7 @@ def load_ccmodule(path):
 
 
 def load(modulename, path=None):
-    # print("LOADING MODULE", modulename)
+    # print("LOADING MODULE", modulename, "workdir", os.getcwd())
     # TODO: Also allow getmodulename here to allow modulename to be a .py file
     if modulename.endswith(".py"):
         import inspect
@@ -89,6 +89,8 @@ def load(modulename, path=None):
         try:
             if path and path.__class__ != list:
                 path = [path]
+            if not path:
+                path = default_paths
             info = imp.find_module(modulename, path)
             modules[modulename] = imp.load_module(modulename, info[0], info[1], info[2])
             try:
@@ -97,7 +99,7 @@ def load(modulename, path=None):
                 pass
         except ImportError as e:
             try:
-                print("Trying importlib")
+                # print("Trying importlib", e)
                 import importlib
                 modules[modulename] = importlib.import_module(modulename)
                 return
@@ -398,6 +400,13 @@ class Worker(multiprocessing.Process):
     def _process_task(self, task):
         # taskid = "%s.%s-%s_%d" % (task["runname"], self._worker_type, socket.gethostname(), self.workernum)
         # print(taskid, "Processing", task)
+        # If the task specifies the log level, update that first, otherwise go for DEBUG for backwards compatibility
+        if "__ll__" not in task["args"]:
+            task["args"]["__ll__"] = API.log_level_str["DEBUG"]
+        try:
+            API.set_log_level(task["args"]["__ll__"])
+        except Exception as e:
+            self.log.warning("CryoCore is old, please update it: %s" % e)
 
         # Report that I'm on it
         start_time = time.time()
@@ -587,6 +596,8 @@ class Worker(multiprocessing.Process):
                 fprep.write_s3(u.netloc, bucket, local_file, remote_file)
             elif u.scheme == "ssh":
                 fprep.write_scp(local_file, u.netloc, u.path)
+            if "remove" in key and key["remove"] == True:
+                os.remove(local_file)
             return target
 
         if "target" in key:
@@ -634,13 +645,13 @@ class NodeController(threading.Thread):
         else:
             workers = psutil.cpu_count()
 
-        if "any" not in options.modules:
+        if options.modules and "any" in options.modules:
+            modules = ["any"]
+        else:
             if options.modules:
                 modules = detect_modules(options.paths, options.modules)
             else:
                 modules = detect_modules(options.paths)
-        else:
-            modules = ["any"]
 
         if len(modules) == 0:
             print("ZERO SUPPORTED MODULES! Looked in", options.paths, "for", options.modules)
