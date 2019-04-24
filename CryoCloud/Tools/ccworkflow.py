@@ -165,6 +165,7 @@ class Task:
         This task has completed, notify downstreams
         """
         # Pebble.retval[self.name] = retval
+        # print("**", self.name, "completed, children:", self._downstreams)
         if pebble:
             pebble.completed.append(self.name)
         for child in self._downstreams:
@@ -390,16 +391,17 @@ class Workflow:
             else:
                 mod = loaded_modules[task.module]
 
-            if "priority" in mod.ccmodule["defaults"]:
-                task.priority = mod.ccmodule["defaults"]["priority"]
-            if "runOn" in mod.ccmodule["defaults"]:
-                task.runOn = mod.ccmodule["defaults"]["runOn"]
-            if "resolveOnAny" in mod.ccmodule["defaults"]:
-                task.resolveOnAny = mod.ccmodule["defaults"]["resolveOnAny"]
-            if "type" in mod.ccmodule["defaults"]:
-                task.type = mod.ccmodule["defaults"]["type"]
-            if "input_type" in mod.ccmodule and mod.ccmodule["input_type"] == "permanent":
-                wf._is_single_run = False
+            if "defaults" in mod.ccmodule:
+                if "priority" in mod.ccmodule["defaults"]:
+                    task.priority = mod.ccmodule["defaults"]["priority"]
+                if "runOn" in mod.ccmodule["defaults"]:
+                    task.runOn = mod.ccmodule["defaults"]["runOn"]
+                if "resolveOnAny" in mod.ccmodule["defaults"]:
+                    task.resolveOnAny = mod.ccmodule["defaults"]["resolveOnAny"]
+                if "type" in mod.ccmodule["defaults"]:
+                    task.type = mod.ccmodule["defaults"]["type"]
+                if "input_type" in mod.ccmodule and mod.ccmodule["input_type"] == "permanent":
+                    wf._is_single_run = False
 
             task.depends = mod.ccmodule["depends"]
             task.provides = mod.ccmodule["provides"]
@@ -1219,7 +1221,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                     n._mp_blocked += 1
                     blocked = 1
 
-        print("Adding job for module", module)
         if self.options.kubernetes:
             print("Checking if we have workers")
             candidates = self._jobdb.get_workers([module])[module]
@@ -1243,6 +1244,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                     item["target"] = n._map(item["target"], self._pebbles[itemid], parent)
 
             args["__post__"] = p
+        args["__ll__"] = API.log_level_str[self.options.loglevel.upper()]
         return self.head.add_job(lvl, taskid, args, module=module, jobtype=jobtype,
                                  itemid=itemid, workdir=workdir,
                                  priority=priority,
@@ -1814,6 +1816,10 @@ if __name__ == "__main__":
                         action="store_true", default=False,
                         help="Control Kubernetes")
 
+    parser.add_argument("--loglevel", dest="loglevel",
+                        default="INFO",
+                        help="Minimum log level, default INFO, should be DEBUG, INFO or ERROR")
+
     def d(n, o):
         if n in o:
             return o[n]
@@ -1846,6 +1852,11 @@ if __name__ == "__main__":
         parser.print_help()
         raise SystemExit(1)
 
+    try:
+        API.set_log_level(options.loglevel.upper())
+    except Exception as e:
+        print("Failed to set log level, too old CryoCore? Using debug for now. Error was: ", e)
+
     # If types are lists, split them
     for l in lists:
         o = getattr(options, l)
@@ -1873,7 +1884,7 @@ if __name__ == "__main__":
         # We create an event triggered by the head node when it's done
         stopevent = threading.Event()
         headnode.status["state"].add_event_on_value("Done", stopevent)
-
+        print(workflow)
         print("Running, press CTRL-C to end")
         while not API.api_stop_event.is_set() and not stopevent.isSet():
             time.sleep(1)
