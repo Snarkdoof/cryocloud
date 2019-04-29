@@ -717,8 +717,10 @@ class NodeController(threading.Thread):
             # CPU info for the node
             try:
                 cpu = psutil.cpu_times_percent()
+                members = {x[0]: x[1] for x in inspect.getmembers(cpu)}
                 for key in ["user", "nice", "system", "idle", "iowait"]:
-                    self.status["cpu.%s" % key] = cpu[cpu._fields.index(key)] * psutil.cpu_count()
+                    if key in members:
+                        self.status["cpu.%s" % key] = members[key] * psutil.cpu_count()
             except:
                 self.log.exception("Failed to gather CPU info")
 
