@@ -57,6 +57,10 @@ def get_default_paths():
         os.getcwd()
     ]
 
+for path in get_default_paths():
+    if path not in sys.path:
+        sys.path.append(path)
+orig_sys_path = sys.path[:]
 
 API.cc_default_expire_time = 24 * 86400  # Default log & status only 7 days
 
@@ -89,11 +93,17 @@ def load(modulename, path=None):
         modulename = inspect.getmodulename(modulename)
 
     if 1 or modulename not in modules:  # Seems for python3, reload is deprecated. Check for python 2
+
+        global orig_sys_path
         try:
             if path and path.__class__ != list:
                 path = [path, os.path.join(path, "modules"), os.path.join("path", "Modules")]
             if not path:
                 path = get_default_paths()
+            sys.path = orig_sys_path[:]
+            for p in path:
+                if p not in sys.path:
+                    sys.path.append(p)
             print("Loading", modulename, "from", path, "cwd", os.getcwd())
             info = imp.find_module(modulename, path)
             modules[modulename] = imp.load_module(modulename, info[0], info[1], info[2])
