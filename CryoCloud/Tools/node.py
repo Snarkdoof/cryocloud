@@ -48,12 +48,15 @@ if "CC_DIR" in os.environ:
 else:
     print("Missing CC_DIR environment variable for CryoCloud install")
 
-default_paths = [
-    os.path.join(CC_DIR, "CryoCloud/Modules/"),
-    "./Modules",
-    "./modules",
-    "."
-]
+
+def get_default_paths():
+    return [
+        ols.path.join(CC_DIR, "CryoCloud/Modules/"),
+        os.path.join(os.getcwd(), "Modules"),
+        os.path.join(os.getcwd(), "modules"),
+        os.getcwd()
+    ]
+
 
 API.cc_default_expire_time = 24 * 86400  # Default log & status only 7 days
 
@@ -90,7 +93,7 @@ def load(modulename, path=None):
             if path and path.__class__ != list:
                 path = [path, os.path.join(path, "modules"), os.path.join("path", "Modules")]
             if not path:
-                path = default_paths
+                path = get_default_paths()
             print("Loading", modulename, "from", path, "cwd", os.getcwd())
             info = imp.find_module(modulename, path)
             modules[modulename] = imp.load_module(modulename, info[0], info[1], info[2])
@@ -125,7 +128,7 @@ def detect_modules(paths=[], modules=None):
     """
     # print("Detecting modules in paths", paths)
     mods = []
-    paths = default_paths + paths
+    paths = get_default_paths() + paths
     real_paths = []
     for path in paths:
         fullpath = os.path.realpath(path)
