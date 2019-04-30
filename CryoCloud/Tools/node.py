@@ -235,7 +235,7 @@ class Worker(multiprocessing.Process):
 
         self._module = None
         modulepath = None
-        if "modulepath" in job:
+        if "modulepath" in job and job["modulepath"]:
             modulepath = job["modulepath"]
         try:
             path = None
