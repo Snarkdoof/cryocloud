@@ -88,7 +88,7 @@ def load(modulename, path=None):
     if 1 or modulename not in modules:  # Seems for python3, reload is deprecated. Check for python 2
         try:
             if path and path.__class__ != list:
-                path = [path]
+                path = [path, "./modules", "./Modules"]
             if not path:
                 path = default_paths
             info = imp.find_module(modulename, path)
