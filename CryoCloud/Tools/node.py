@@ -104,7 +104,7 @@ def load(modulename, path=None):
             for p in path:
                 if p not in sys.path:
                     sys.path.append(p)
-            print("Loading", modulename, "from", path, "cwd", os.getcwd())
+            # print("Loading", modulename, "from", path, "cwd", os.getcwd())
             info = imp.find_module(modulename, path)
             modules[modulename] = imp.load_module(modulename, info[0], info[1], info[2])
             try:
