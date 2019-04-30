@@ -88,7 +88,7 @@ def load(modulename, path=None):
     if 1 or modulename not in modules:  # Seems for python3, reload is deprecated. Check for python 2
         try:
             if path and path.__class__ != list:
-                path = [path, "./modules", "./Modules"]
+                path = [path, os.path.join(path, "modules"), os.path.join("path", "Modules")]
             if not path:
                 path = default_paths
             print("Loading", modulename, "from", path, "cwd", os.getcwd())
