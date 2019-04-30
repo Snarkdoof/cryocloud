@@ -91,6 +91,7 @@ def load(modulename, path=None):
                 path = [path, "./modules", "./Modules"]
             if not path:
                 path = default_paths
+            print("Loading from", path, "cwd", os.getcwd())
             info = imp.find_module(modulename, path)
             modules[modulename] = imp.load_module(modulename, info[0], info[1], info[2])
             try:
