@@ -51,7 +51,7 @@ else:
 
 def get_default_paths():
     return [
-        ols.path.join(CC_DIR, "CryoCloud/Modules/"),
+        os.path.join(CC_DIR, "CryoCloud/Modules/"),
         os.path.join(os.getcwd(), "Modules"),
         os.path.join(os.getcwd(), "modules"),
         os.getcwd()
