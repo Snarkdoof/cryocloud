@@ -20,7 +20,8 @@ ccmodule = {
     },
     "defaults": {
         "priority": 10,  # Bulk
-        "runOn": "success"
+        "runOn": "success",
+        "type": "admin"
     },
     "status": {
         "progress": "Progress 0-100%"
