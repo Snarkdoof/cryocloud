@@ -41,12 +41,12 @@ def process_task(self, task):
     def get_archive(path, timeonly=False):
         archive = {}  # We make a list of items on the root with the last update time and size
 
-        for p in os.listdir(path):
-            if p[0] == ".":
+        for _p in os.listdir(path):
+            if _p[0] == ".":
                 continue
-
+            p = os.path.join(path, _p)
             if timeonly:
-                archive[p] = (os.stat(os.path.join(path, p)).st_mtime, 0)
+                archive[p] = (os.stat(os.path.join(path, p)).st_mtime, 0, os.path.isdir(os.path.join(path, p)))
 
             else:
                 archive[p] = (0, 0)
@@ -55,7 +55,7 @@ def process_task(self, task):
                         for name in files:
                             try:
                                 stat = os.stat(os.path.join(root, name))
-                                archive[p] = (max(archive[p][0], stat.st_mtime), archive[p][1] + stat.st_size)
+                                archive[p] = (max(archive[p][0], stat.st_mtime), archive[p][1] + stat.st_size, True)
                             except:
                                 pass
                 else:
@@ -63,7 +63,7 @@ def process_task(self, task):
                         stat = os.stat(os.path.join(path, p))
                     except:
                         pass
-                    archive[p] = (stat.st_mtime, stat.st_size)
+                    archive[p] = (stat.st_mtime, stat.st_size, False)
 
         return archive
 
@@ -75,23 +75,28 @@ def process_task(self, task):
             to_remove = []
             for f in archive:
                 if maxage and now - archive[f][0] > maxage:
-                    to_remove.append(f)
+                    to_remove.append((f, 0, 0, os.path.isdir(f)))
         else:
-            print("CHECK")
             # Max size - we sort by age, newest first, then add until we go beyond limit
             all = sorted([(f, int(archive[f][1] / 1000000), archive[f][0]) for f in archive], key=itemgetter(1), reverse=True)
             total = 0
             cutoff = len(all)
             for i in range(len(all)):
                 total += all[i][1]
+                print(total, maxsize)
                 if total > maxsize:
                     cutoff = i
                     break
             to_remove = all[cutoff:]
-            print(cutoff, "of", len(all))
+            # print("Keeping", cutoff, "of", len(all))
 
         if len(to_remove) > 0:
             self.log.debug("Deleting %d files or directories" % len(to_remove))
+            for x in to_remove:
+                if archive[x[0]][2]:
+                    shutil.rmtree(x[0])  # Delete recursively
+                else:
+                    os.remove(x[0])
 
     def get(what, default="__throw_exception__"):
         if what not in task["args"]:
