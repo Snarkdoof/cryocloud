@@ -9,6 +9,7 @@ ccmodule = {
     "inputs": {
         "src": "Source path(s) - string or list",
         "dst": "Destination path",
+        "extension": "Use to copy companion files with given extension, eg '.xml' or '.hdr'",
         "dontstop": "Ignore errors and continue"
     },
     "outputs": {
@@ -42,6 +43,12 @@ def process_task(self, task):
     if src.__class__ != list:
         src = [src]
 
+    if "extension" in task["args"]:
+        ext = task["args"]["extension"]
+    else:
+        ext = None
+
+        
     done = 0
     errors = ""
     self.status["progress"] = 0
@@ -59,6 +66,11 @@ def process_task(self, task):
                 d = dst
             self.log.debug("Copying file '%s' to %s" % (s, d))
             shutil.copyfile(s, d)
+            if ext is not None:
+                scur = s+ext
+                if os.path.exists(scur):
+                    shutil.copyfile(scur, d+ext)
+
             done += 1
             self.status["progress"] = 100 * done / float(len(src))
         except Exception as e:
