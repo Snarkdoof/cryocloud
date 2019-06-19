@@ -788,6 +788,14 @@ class NodeController(threading.Thread):
             self.status["state"] = "Stopped"
         raise SystemExit(0)
 
+    def get_arg(self, task, argname, default="__throw_exception__"):
+        if what not in task["args"]:
+            if default == "__throw_exception__":
+                raise Exception("Missing parameter %s" % what)
+            return default
+        return task["args"][what]
+
+
 if __name__ == "__main__":
 
     parser = ArgumentParser(description="Worker node")
