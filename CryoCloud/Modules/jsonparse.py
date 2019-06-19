@@ -38,4 +38,4 @@ def process_task(worker, task):
     except Exception as e:
         raise Exception("Failed to parse json from file '%s': %s" % (filename, str(e)))
 
-    return {"progress": 100, "content": content}
+    return 100, {"content": content}
