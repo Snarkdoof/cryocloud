@@ -18,7 +18,9 @@ ccmodule = {
 }
 
 
-def start(handler, args):
+def process_task(worker, task):
+
+    args = task["args"]
 
     if "path" not in args:
         raise Exception("Required argument 'path' not given")
