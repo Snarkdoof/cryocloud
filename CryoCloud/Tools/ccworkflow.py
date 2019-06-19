@@ -436,6 +436,8 @@ class Workflow:
                 task.resolveOnAny = child["resolveOnAny"]
             if "workdir" in child:
                 task.dir = child["workdir"]
+                if task.dir == ".":
+                    task.dir = os.getcwd()
             if "dir" in child:
                 task.dir = child["dir"]
             if "ccnode" in child:
