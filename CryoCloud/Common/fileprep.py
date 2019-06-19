@@ -66,6 +66,17 @@ class FilePrepare:
             retval.append(os.path.join(dir, fn))
         return retval
 
+    def has_file(self, path):
+        """
+        Returns True iff the file already exists (as a zip or unzipped)
+        """
+        if os.path.exists(path):
+            return True
+
+        # If unzipped it will be in a directory with the basename
+        dst = os.path.splitext(path)[0]
+        return os.path.exists(dst)
+
     def _uncompress(self, s, keep=True):
         if DEBUG:
             self.log.debug("Uncompressing '%s'" % s)
