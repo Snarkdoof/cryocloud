@@ -216,6 +216,13 @@ class Worker(multiprocessing.Process):
         self._current_job = (None, None)
         print("%s %s created" % (self._worker_type, workernum))
 
+    def get_arg(self, task, argname, default="__throw_exception__"):
+        if argname not in task["args"]:
+            if default == "__throw_exception__":
+                raise Exception("Missing parameter %s" % argname)
+            return default
+        return task["args"][argname]
+
     def rescan_modules(self, signum=None, frame=None):
         self.log.info("Rescanning for supported modules")
         # Look for modules
@@ -787,14 +794,6 @@ class NodeController(threading.Thread):
         if self._report_status:
             self.status["state"] = "Stopped"
         raise SystemExit(0)
-
-    def get_arg(self, task, argname, default="__throw_exception__"):
-        if what not in task["args"]:
-            if default == "__throw_exception__":
-                raise Exception("Missing parameter %s" % what)
-            return default
-        return task["args"][what]
-
 
 if __name__ == "__main__":
 
