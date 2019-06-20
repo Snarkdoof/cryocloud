@@ -128,6 +128,7 @@ class Task:
         self.post = {}
         self.dir = None  # Directory for execution
         self.docker = None
+        self.gpu = False
         self.volumes = []
         self.is_input = False
         self.ccnode = []
@@ -450,6 +451,8 @@ class Workflow:
                 task.merge = bool(child["merge"])
             if "docker" in child:
                 task.docker = child["docker"]
+            if "gpu" in child:
+                task.gpu = child["gpu"]
             if "image" in child:
                 task.image = child["image"]
             if "post" in child:
@@ -1191,10 +1194,11 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         if n.docker:
             module = "docker"
             t = copy.deepcopy(args)
-            args = copy.deepcopy(args)
+            args = {}  # copy.deepcopy(args)
             args["target"] = n.docker
             if "arguments" not in args:
                 args["arguments"] = []
+            args["gpu"] = n.gpu
             args["arguments"].extend(["cctestrun", "--indocker"])
 
             if n.dir:

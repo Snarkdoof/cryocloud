@@ -454,14 +454,15 @@ class Worker(multiprocessing.Process):
                         raise Exception("Preparing files failed: %s" % e)
             return s
 
-        for arg in task["args"]:
-            if isinstance(task["args"][arg], list):
-                l = []
-                for item in task["args"][arg]:
-                    l.append(prep(fprep, item))
-                task["args"][arg] = l
-            else:
-                task["args"][arg] = prep(fprep, task["args"][arg])
+        if task["module"] != "docker":  # If we're using dockers, this is the wrong place for fidling with files
+            for arg in task["args"]:
+                if isinstance(task["args"][arg], list):
+                    l = []
+                    for item in task["args"][arg]:
+                        l.append(prep(fprep, item))
+                    task["args"][arg] = l
+                else:
+                    task["args"][arg] = prep(fprep, task["args"][arg])
 
         if task["module"] == "docker":  # TODO: Use 'prep' above to avoid multiple copies of code?
             a = task["args"]["arguments"]
