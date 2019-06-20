@@ -169,6 +169,9 @@ class FilePrepare:
         fileList = []
         # First we check if the files exists
         for url in urls:
+            if url[0] == "{":
+                continue
+
             copy = False
             unzip = False
             mkdir = False
