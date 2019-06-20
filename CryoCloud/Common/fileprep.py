@@ -186,10 +186,10 @@ class FilePrepare:
             if u.scheme == "s3":
                 bucket, file = u.path[1:].split("/", 1)
                 local_file = os.path.join(self.s3root, file)
-            else:
+            elif u.scheme in ["ssh", "dir"]:
                 file = u.path
                 if file[0] != "/":
-                    raise Exception("Need full paths, got relative path %s" % file)
+                    raise Exception("Need full paths, got relative path %s" % u.path)
                 local_file = (self.root + file).replace("//", "/")
 
             compressed = self._is_compressed(file)
