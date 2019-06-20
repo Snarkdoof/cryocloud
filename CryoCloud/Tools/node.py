@@ -42,7 +42,7 @@ if "CC_DIR" in os.environ:
     CCDIR = os.environ["CC_DIR"]
 
 default_paths = [
-    os.path.join(os.environ["CC_DIR"], "CryoCloud/Modules/"),
+    os.path.join(CC_DIR, "CryoCloud/Modules/"),
     "./Modules",
     "./modules",
     "."
