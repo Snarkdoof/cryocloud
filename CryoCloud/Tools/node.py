@@ -431,7 +431,7 @@ class Worker(multiprocessing.Process):
 
         # Report that I'm on it
         start_time = time.time()
-        fprep = fileprep.FilePrepare(self.cfg["datadir"], self.cfg["tempdir"])
+        fprep = None
 
         def prep(fprep, s):
             if not isinstance(s, str):
@@ -458,6 +458,8 @@ class Worker(multiprocessing.Process):
             for arg in task["args"]:
                 if isinstance(task["args"][arg], list):
                     l = []
+                    if not fprep:
+                        fprep = self.get_fprep()
                     for item in task["args"][arg]:
                         l.append(prep(fprep, item))
                     task["args"][arg] = l
@@ -476,14 +478,13 @@ class Worker(multiprocessing.Process):
                                 t = subargs["args"][arg][x].split(" ")
                                 if "copy" in t or "unzip" in t or "mkdir" in t:
                                     if not fprep:
-                                        fprep = fileprep.FilePrepare(self.cfg["datadir"], self.cfg["tempdir"])
+                                        fprep = self.get_fprep()
                                     ret = fprep.fix([subargs["args"][arg][x]])
                                     subargs["args"][arg][x] = ret["fileList"][0]
                     elif isinstance(subargs["args"][arg], str):
                         t = subargs["args"][arg].split(" ")
                         if "copy" in t or "unzip" in t or "mkdir" in t:
-                            if not fprep:
-                                fprep = fileprep.FilePrepare(self.cfg["datadir"], self.cfg["tempdir"])
+                            prep = self.get_fprep()
                             ret = fprep.fix([subargs["args"][arg]])
                             if len(ret["fileList"]) == 0:
                                 raise Exception("Missing file %s" % subargs["args"][arg])
@@ -598,11 +599,14 @@ class Worker(multiprocessing.Process):
         # Update to indicate we're done
         self._jobdb.update_job(task["id"], new_state, retval=ret, cpu=my_cpu_time, memory=self.max_memory)
 
+    def get_fprep(self):
+        return fileprep.FilePrepare(self.cfg["datadir"], self.cfg["tempdir"])
+
     def _post_process(self, task, key, ret, fprep):
         self.log.debug("Postprocessing %s for %s" % (str(key), str(ret)))
 
         if not fprep:
-            fprep = fileprep.FilePrepare(self.cfg["datadir"], self.cfg["tempdir"])
+            fprep = self.get_fprep()
 
         def prep(fn):
             if "basename" in key and key["basename"]:
