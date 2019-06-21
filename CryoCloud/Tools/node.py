@@ -300,6 +300,7 @@ class Worker(multiprocessing.Process):
         self.cfg = API.get_config("CryoCloud.Worker")
         self.cfg.set_default("datadir", "/")
         self.cfg.set_default("tempdir", "/tmp")
+        self.fprep = None
 
         last_reported = 0  # We force periodic updates of state as we might be idle for a long time
         last_job_time = None
@@ -378,6 +379,11 @@ class Worker(multiprocessing.Process):
             print("WARNING: Failed to stop job: %s" % e)
             pass
 
+    def get_fprep(self):
+        if not self.fprep:
+            self.prep = fileprep.FilePrepare(self.cfg["datadir"], self.cfg["tempdir"])
+        return self.fprep
+
     def process_task(self, task):
         """
         Actual implementation of task processing. Update progress to self.status["progress"]
@@ -401,7 +407,6 @@ class Worker(multiprocessing.Process):
 
         # Report that I'm on it
         start_time = time.time()
-        fprep = None
         for arg in task["args"]:
             if isinstance(task["args"][arg], str):
                 if 1 or task["args"][arg].find("://") > -1:
@@ -409,8 +414,7 @@ class Worker(multiprocessing.Process):
                     if "copy" in t or "unzip" in t or "mkdir" in t:
                         try:
                             self.status["state"] = "Preparing files"
-                            if not fprep:
-                                fprep = fileprep.FilePrepare(self.cfg["datadir"], self.cfg["tempdir"])
+                            fprep = self.get_fprep()
 
                             # We take one by one to re-map files with local, unzipped ones
                             ret = fprep.fix([task["args"][arg]])
@@ -433,8 +437,7 @@ class Worker(multiprocessing.Process):
                         for x in range(len(subargs["args"][arg])):
                             t = subargs["args"][arg][x].split(" ")
                             if "copy" in t or "unzip" in t:
-                                if not fprep:
-                                    fprep = fileprep.FilePrepare(self.cfg["datadir"], self.cfg["tempdir"])
+                                fprep = self.get_fprep()
                                 ret = fprep.fix([subargs["args"][arg][x]])
                                 subargs["args"][arg][x] = ret["fileList"][0]
                     else:
