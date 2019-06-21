@@ -323,7 +323,6 @@ class Worker(multiprocessing.Process):
         self.cfg = API.get_config("CryoCloud.Worker")
         self.cfg.set_default("datadir", "/")
         self.cfg.set_default("tempdir", "/tmp")
-        self.fprep = None
 
         last_reported = 0  # We force periodic updates of state as we might be idle for a long time
         last_job_time = None
@@ -402,11 +401,6 @@ class Worker(multiprocessing.Process):
             print("WARNING: Failed to stop job: %s" % e)
             pass
 
-    def get_fprep(self):
-        if not self.fprep:
-            self.prep = fileprep.FilePrepare(self.cfg["datadir"], self.cfg["tempdir"])
-        return self.fprep
-
     def process_task(self, task):
         """
         Actual implementation of task processing. Update progress to self.status["progress"]
@@ -437,16 +431,6 @@ class Worker(multiprocessing.Process):
 
         # Report that I'm on it
         start_time = time.time()
-<<<<<<< HEAD
-        for arg in task["args"]:
-            if isinstance(task["args"][arg], str):
-                if 1 or task["args"][arg].find("://") > -1:
-                    t = task["args"][arg].split(" ")
-                    if "copy" in t or "unzip" in t or "mkdir" in t:
-                        try:
-                            self.status["state"] = "Preparing files"
-                            fprep = self.get_fprep()
-=======
         fprep = fileprep.FilePrepare(self.cfg["datadir"], self.cfg["tempdir"])
 
         def prep(fprep, s):
@@ -479,7 +463,6 @@ class Worker(multiprocessing.Process):
                     task["args"][arg] = l
                 else:
                     task["args"][arg] = prep(fprep, task["args"][arg])
->>>>>>> ae5f57f4ffa295498b6a15fd32a89878d9e04868
 
         if task["module"] == "docker":  # TODO: Use 'prep' above to avoid multiple copies of code?
             a = task["args"]["arguments"]
@@ -489,14 +472,6 @@ class Worker(multiprocessing.Process):
                 for arg in subargs["args"]:
                     if isinstance(subargs["args"][arg], list):
                         for x in range(len(subargs["args"][arg])):
-<<<<<<< HEAD
-                            t = subargs["args"][arg][x].split(" ")
-                            if "copy" in t or "unzip" in t:
-                                fprep = self.get_fprep()
-                                ret = fprep.fix([subargs["args"][arg][x]])
-                                subargs["args"][arg][x] = ret["fileList"][0]
-                    else:
-=======
                             if isinstance(x, str):
                                 t = subargs["args"][arg][x].split(" ")
                                 if "copy" in t or "unzip" in t or "mkdir" in t:
@@ -505,7 +480,6 @@ class Worker(multiprocessing.Process):
                                     ret = fprep.fix([subargs["args"][arg][x]])
                                     subargs["args"][arg][x] = ret["fileList"][0]
                     elif isinstance(subargs["args"][arg], str):
->>>>>>> ae5f57f4ffa295498b6a15fd32a89878d9e04868
                         t = subargs["args"][arg].split(" ")
                         if "copy" in t or "unzip" in t or "mkdir" in t:
                             if not fprep:
