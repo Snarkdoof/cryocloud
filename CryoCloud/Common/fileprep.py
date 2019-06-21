@@ -194,6 +194,7 @@ class FilePrepare:
                 if file[0] != "/":
                     raise Exception("Need full paths, got relative path %s" % u.path)
                 local_file = (self.root + file).replace("//", "/")
+                print("local_file:", local_file)
 
             compressed = self._is_compressed(file)
 
