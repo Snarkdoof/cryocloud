@@ -3,7 +3,6 @@ import time
 import random
 import json
 import threading
-import psutil
 
 from CryoCore import API
 from CryoCore.Core.InternalDB import mysql
@@ -333,7 +332,7 @@ class JobDB(mysql):
         BASESQL = SQL
         BASEARGS = args[:]
 
-        if len(supportedmodules) > 0:
+        if len(supportedmodules) > 0 and "any" not in supportedmodules:
             SQL += "AND (" + " module=%s OR" * len(supportedmodules)
             SQL = SQL[:-2] + ")"
             args.extend(supportedmodules)

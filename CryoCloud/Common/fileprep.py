@@ -30,6 +30,7 @@ class FilePrepare:
 
             if not os.path.exists(self.s3root):
                 os.makedirs(self.s3root)
+        self._s3_servers = {}
 
         self.log = API.get_log("FilePrepare")
 
@@ -64,6 +65,17 @@ class FilePrepare:
                 continue
             retval.append(os.path.join(dir, fn))
         return retval
+
+    def has_file(self, path):
+        """
+        Returns True iff the file already exists (as a zip or unzipped)
+        """
+        if os.path.exists(path):
+            return True
+
+        # If unzipped it will be in a directory with the basename
+        dst = os.path.splitext(path)[0]
+        return os.path.exists(dst)
 
     def _uncompress(self, s, keep=True):
         if DEBUG:
@@ -157,6 +169,9 @@ class FilePrepare:
         fileList = []
         # First we check if the files exists
         for url in urls:
+            if url[0] == "{":
+                continue
+
             copy = False
             unzip = False
             mkdir = False
@@ -177,7 +192,7 @@ class FilePrepare:
             else:
                 file = u.path
                 if file[0] != "/":
-                    raise Exception("Need full paths, got relative path %s" % file)
+                    raise Exception("Need full paths, got relative path %s" % u.path)
                 local_file = (self.root + file).replace("//", "/")
 
             compressed = self._is_compressed(file)
@@ -303,11 +318,15 @@ class FilePrepare:
 
     def _get_s3_client(self, server):
         s = server.replace(".", "_")
+
+        if s not in self._s3_servers:
+            self._s3_servers[s] = boto3.client('s3', endpoint_url='http://' + server,
+                                               aws_access_key_id=str(self.s3_cfg["%s.aws_access_key_id" % s]),
+                                               aws_secret_access_key=str(self.s3_cfg["%s.aws_secret_access_key" % s]))
+
         # self.log.debug("S3.%s.aws_access_key_id, %s, %s" % (s, str(self.s3_cfg["%s.aws_access_key_id" % s]),
         #               str(self.s3_cfg["%s.aws_secret_access_key" % s])))
-        return boto3.client('s3', endpoint_url='http://' + server,
-                            aws_access_key_id=str(self.s3_cfg["%s.aws_access_key_id" % s]),
-                            aws_secret_access_key=str(self.s3_cfg["%s.aws_secret_access_key" % s]))
+        return self._s3_servers[s]
 
     def copy_s3(self, server, bucket, remote_file, local_file):
         s3_client = self._get_s3_client(server)
@@ -360,6 +379,7 @@ class FilePrepare:
 
     def remove_s3_file(self, server, bucket, remote_file):
         s3_client = self._get_s3_client(server)
+        self.log.debug("Removing S3 file %s, %s, %s" % (server, bucket, remote_file))
         s3_client.delete_object(Bucket=bucket, Key=remote_file)
 
     def remove_s3_bucket(self, server, bucket):

@@ -48,12 +48,19 @@ if "CC_DIR" in os.environ:
 else:
     print("Missing CC_DIR environment variable for CryoCloud install")
 
-default_paths = [
-    os.path.join(CC_DIR, "CryoCloud/Modules/"),
-    "./Modules",
-    "./modules",
-    "."
-]
+
+def get_default_paths():
+    return [
+        os.path.join(CC_DIR, "CryoCloud/Modules/"),
+        os.path.join(os.getcwd(), "Modules"),
+        os.path.join(os.getcwd(), "modules"),
+        os.getcwd()
+    ]
+
+for path in get_default_paths():
+    if path not in sys.path:
+        sys.path.append(path)
+orig_sys_path = sys.path[:]
 
 API.cc_default_expire_time = 24 * 86400  # Default log & status only 7 days
 
@@ -79,16 +86,25 @@ def load_ccmodule(path):
 
 
 def load(modulename, path=None):
-    # print("LOADING MODULE", modulename)
+    # print("LOADING MODULE", modulename, "workdir", os.getcwd())
     # TODO: Also allow getmodulename here to allow modulename to be a .py file
     if modulename.endswith(".py"):
         import inspect
         modulename = inspect.getmodulename(modulename)
 
     if 1 or modulename not in modules:  # Seems for python3, reload is deprecated. Check for python 2
+
+        global orig_sys_path
         try:
             if path and path.__class__ != list:
-                path = [path]
+                path = [path, os.path.join(path, "modules"), os.path.join("path", "Modules")]
+            if not path:
+                path = get_default_paths()
+            sys.path = orig_sys_path[:]
+            for p in path:
+                if p not in sys.path:
+                    sys.path.append(p)
+            # print("Loading", modulename, "from", path, "cwd", os.getcwd())
             info = imp.find_module(modulename, path)
             modules[modulename] = imp.load_module(modulename, info[0], info[1], info[2])
             try:
@@ -97,7 +113,7 @@ def load(modulename, path=None):
                 pass
         except ImportError as e:
             try:
-                print("Trying importlib")
+                # print("Trying importlib", e)
                 import importlib
                 modules[modulename] = importlib.import_module(modulename)
                 return
@@ -122,7 +138,7 @@ def detect_modules(paths=[], modules=None):
     """
     # print("Detecting modules in paths", paths)
     mods = []
-    paths = default_paths + paths
+    paths = get_default_paths() + paths
     real_paths = []
     for path in paths:
         fullpath = os.path.realpath(path)
@@ -200,6 +216,13 @@ class Worker(multiprocessing.Process):
         self._current_job = (None, None)
         print("%s %s created" % (self._worker_type, workernum))
 
+    def get_arg(self, task, argname, default="__throw_exception__"):
+        if argname not in task["args"]:
+            if default == "__throw_exception__":
+                raise Exception("Missing parameter %s" % argname)
+            return default
+        return task["args"][argname]
+
     def rescan_modules(self, signum=None, frame=None):
         self.log.info("Rescanning for supported modules")
         # Look for modules
@@ -233,7 +256,7 @@ class Worker(multiprocessing.Process):
 
         self._module = None
         modulepath = None
-        if "modulepath" in job:
+        if "modulepath" in job and job["modulepath"]:
             modulepath = job["modulepath"]
         try:
             path = None
@@ -404,9 +427,17 @@ class Worker(multiprocessing.Process):
     def _process_task(self, task):
         # taskid = "%s.%s-%s_%d" % (task["runname"], self._worker_type, socket.gethostname(), self.workernum)
         # print(taskid, "Processing", task)
+        # If the task specifies the log level, update that first, otherwise go for DEBUG for backwards compatibility
+        if "__ll__" not in task["args"]:
+            task["args"]["__ll__"] = API.log_level_str["DEBUG"]
+        try:
+            API.set_log_level(task["args"]["__ll__"])
+        except Exception as e:
+            self.log.warning("CryoCore is old, please update it: %s" % e)
 
         # Report that I'm on it
         start_time = time.time()
+<<<<<<< HEAD
         for arg in task["args"]:
             if isinstance(task["args"][arg], str):
                 if 1 or task["args"][arg].find("://") > -1:
@@ -415,19 +446,42 @@ class Worker(multiprocessing.Process):
                         try:
                             self.status["state"] = "Preparing files"
                             fprep = self.get_fprep()
+=======
+        fprep = fileprep.FilePrepare(self.cfg["datadir"], self.cfg["tempdir"])
 
-                            # We take one by one to re-map files with local, unzipped ones
-                            ret = fprep.fix([task["args"][arg]])
-                            if len(ret["fileList"]) == 1:
-                                task["args"][arg] = ret["fileList"][0]
-                            else:
-                                task["args"][arg] = ret["fileList"]
-                        except Exception as e:
-                            print("DEBUG: I got in trouble preparing stuff", e)
-                            self.log.exception("Preparing %s" % task["args"][arg])
-                            raise Exception("Preparing files failed: %s" % e)
+        def prep(fprep, s):
+            if not isinstance(s, str):
+                return s
+            if s.find("://") > -1:
+                t = s.split(" ")
+                if "copy" in t or "unzip" in t or "mkdir" in t:
+                    try:
+                        self.status["state"] = "Preparing files"
 
-        if task["module"] == "docker":
+                        # We take one by one to re-map files with local, unzipped ones
+                        ret = fprep.fix([s])
+                        if len(ret["fileList"]) == 1:
+                            s = ret["fileList"][0]
+                        else:
+                            s = ret["fileList"]
+                    except Exception as e:
+                        print("DEBUG: I got in trouble preparing stuff", e)
+                        self.log.exception("Preparing %s" % s)
+                        raise Exception("Preparing files failed: %s" % e)
+            return s
+
+        if task["module"] != "docker":  # If we're using dockers, this is the wrong place for fidling with files
+            for arg in task["args"]:
+                if isinstance(task["args"][arg], list):
+                    l = []
+                    for item in task["args"][arg]:
+                        l.append(prep(fprep, item))
+                    task["args"][arg] = l
+                else:
+                    task["args"][arg] = prep(fprep, task["args"][arg])
+>>>>>>> ae5f57f4ffa295498b6a15fd32a89878d9e04868
+
+        if task["module"] == "docker":  # TODO: Use 'prep' above to avoid multiple copies of code?
             a = task["args"]["arguments"]
             if a.count("-t") == 1:
                 import json
@@ -435,14 +489,25 @@ class Worker(multiprocessing.Process):
                 for arg in subargs["args"]:
                     if isinstance(subargs["args"][arg], list):
                         for x in range(len(subargs["args"][arg])):
+<<<<<<< HEAD
                             t = subargs["args"][arg][x].split(" ")
                             if "copy" in t or "unzip" in t:
                                 fprep = self.get_fprep()
                                 ret = fprep.fix([subargs["args"][arg][x]])
                                 subargs["args"][arg][x] = ret["fileList"][0]
                     else:
+=======
+                            if isinstance(x, str):
+                                t = subargs["args"][arg][x].split(" ")
+                                if "copy" in t or "unzip" in t or "mkdir" in t:
+                                    if not fprep:
+                                        fprep = fileprep.FilePrepare(self.cfg["datadir"], self.cfg["tempdir"])
+                                    ret = fprep.fix([subargs["args"][arg][x]])
+                                    subargs["args"][arg][x] = ret["fileList"][0]
+                    elif isinstance(subargs["args"][arg], str):
+>>>>>>> ae5f57f4ffa295498b6a15fd32a89878d9e04868
                         t = subargs["args"][arg].split(" ")
-                        if "copy" in t or "unzip" in t:
+                        if "copy" in t or "unzip" in t or "mkdir" in t:
                             if not fprep:
                                 fprep = fileprep.FilePrepare(self.cfg["datadir"], self.cfg["tempdir"])
                             ret = fprep.fix([subargs["args"][arg]])
@@ -567,7 +632,7 @@ class Worker(multiprocessing.Process):
 
         def prep(fn):
             if "basename" in key and key["basename"]:
-                target = key["target"] + os.path.basename(ret[key["output"]])
+                target = key["target"] + os.path.basename(fn)
             else:
                 target = key["target"] + ret[key["output"]]
 
@@ -575,19 +640,25 @@ class Worker(multiprocessing.Process):
             u = urlparse(target)
             if u.scheme == "s3":
                 bucket, remote_file = u.path[1:].split("/", 1)
-                local_file = ret[key["output"]]
+                local_file = fn
                 fprep.write_s3(u.netloc, bucket, local_file, remote_file)
             elif u.scheme == "ssh":
                 fprep.write_scp(local_file, u.netloc, u.path)
+            if "remove" in key and key["remove"] == True:
+                os.remove(local_file)
             return target
 
         if "target" in key:
             if isinstance(ret[key["output"]], list):
                 self.log.debug("Return value is a list, prepare all")
                 target = []
+                i = 0
                 for l in ret[key["output"]]:
-                    self.log.debug("Prepping %s" % str(l))
-                    prep(l)
+                    i += 1
+                    self.log.debug("Prepping %s (%d of %d)" % (str(l), i, len(ret[key["output"]])))
+                    target.append(prep(l))
+                self.log.debug("post_process completed (list)")
+                print("RETURNING", target)
                 return target
             else:
                 try:
@@ -595,6 +666,8 @@ class Worker(multiprocessing.Process):
                     return prep(ret[key["output"]])
                 except:
                     self.log.exception("Woops")
+                finally:
+                    self.log.debug("post_process completed")
         return None
 
 
@@ -620,10 +693,13 @@ class NodeController(threading.Thread):
         else:
             workers = psutil.cpu_count()
 
-        if options.modules:
-            modules = detect_modules(options.paths, options.modules)
+        if options.modules and "any" in options.modules:
+            modules = ["any"]
         else:
-            modules = detect_modules(options.paths)
+            if options.modules:
+                modules = detect_modules(options.paths, options.modules)
+            else:
+                modules = detect_modules(options.paths)
 
         if len(modules) == 0:
             print("ZERO SUPPORTED MODULES! Looked in", options.paths, "for", options.modules)
@@ -689,8 +765,10 @@ class NodeController(threading.Thread):
             # CPU info for the node
             try:
                 cpu = psutil.cpu_times_percent()
+                members = {x[0]: x[1] for x in inspect.getmembers(cpu)}
                 for key in ["user", "nice", "system", "idle", "iowait"]:
-                    self.status["cpu.%s" % key] = cpu[cpu._fields.index(key)] * psutil.cpu_count()
+                    if key in members:
+                        self.status["cpu.%s" % key] = members[key] * psutil.cpu_count()
             except:
                 self.log.exception("Failed to gather CPU info")
 
@@ -766,8 +844,8 @@ if __name__ == "__main__":
     parser.add_argument("--list-modules", dest="list_modules", action="store_true",
                         help="List supported modules on this system")
 
-    parser.add_argument("-m", "--modules", dest="modules", default=None,
-                        help="Only use given modules in a comma separated list (otherwise autodetect)")
+    parser.add_argument("-m", "--modules", dest="modules", default="any",
+                        help="Only use given modules in a comma separated list (otherwise autodetect) - use 'any' for any")
 
     parser.add_argument("-p", "--module-paths", dest="paths", default="",
                         help="Comma separated list of additional paths to look for modules in")

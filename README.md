@@ -22,6 +22,11 @@ separated.
 * **args**: Argument mapping to the input arguments of a node. These can be strings, config, output from other nodes in the graph, or options given on the command line. This is where a lot of the funky stuff happens, as one can map for example the output filename of one module to the input of another etc.
 
 * **options**: A workflow can define options - these will become available as commandline parameters for ccworkflow
+    * Options are on the form {"doboogie": {"help": "Should we boogie?", "default": false, "type": "bool"}} where *help* is the help string for -h/--help, *default* is the default value and *type* is optional. If *type* is not "bool", it will not be a flag but require a value on the commandline, e.g. not "--doboogie", but "--someparam somevalue"
+    **Types**
+        * *bool* - Boolean (true if option is given)
+        * *list* - Comma separated list
+        * *json* - JSON data
 
 * Special argument options:
     * *default*: set default value if the given one can't be resolved
@@ -140,9 +145,11 @@ The following workflow is a simple demonstration of
 
   **resolveOnAny**: Resolve when ALL parents have completed (default) or when ANY parent has completed",
 
-  **runIf**: *if statement* - Python statement, e.g. *"output:SomeModule.someReturnValue!='SomeString'"*. The module will only run if the statement returns True. Useful to split the flow in one of multiple branches.
+  **runIf**: *if statement* - Python statement, e.g. *"output:SomeModule.someReturnValue!='SomeString'"*. The module will only run if the statement returns True. Useful to split the flow in one of multiple branches. Notice that if you want to check a boolean option, you must use *=='True'*, not *== True*, as the output will be a string regardless of type.
 
   **runOn**: *success/error/timeout/always/never* - when resolved, the parent either succeeded, failed or timed out. Limit when this module runs (can be set default by module)
+
+  **runOnHead**: *true/false* - Should this module be executed on the head node. Notice that this is ONLY useful for tiny jobs, as the head is always a single machine, and not likely a processing machine at that. Useful for example for merging, rewriting arguments etc.
 
   **splitOn**: *argument name* - The named args must be a list. This list will be split into separate entries and executed as parallel jobs.
 

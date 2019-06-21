@@ -39,6 +39,28 @@ sys.path.append("./CryoCloud/Modules/")  # Add CC modules with full path
 sys.path.append("./Modules/")  # Add module path for the working dir of the job
 sys.path.append("./modules/")  # Add module path for the working dir of the job
 
+DEBUG = False
+
+
+def load_ccmodule(path):
+    try:
+        with open(path, "r") as f:
+            data = f.read()
+            start = data.find("ccmodule")
+            if start == -1:
+                raise Exception("Not a CCModule")
+            start = data.find("{", start)
+            # Parse it
+            definition = data[start:data.find("\n\n", start)]
+            # We need to remove any comments
+            definition = re.sub("#.*", "", definition)
+            json.loads(definition)
+            return definition
+    except Exception as e:
+        if DEBUG:
+            print(path, "is not a ccmodule", e)
+    return None
+
 
 class Pebble:
 
@@ -106,6 +128,7 @@ class Task:
         self.post = {}
         self.dir = None  # Directory for execution
         self.docker = None
+        self.gpu = False
         self.volumes = []
         self.is_input = False
         self.ccnode = []
@@ -114,6 +137,7 @@ class Task:
         self._mp_blocked = 0
         self.lock = threading.Lock()
         self.level = None
+        self.runOnHead = False
 
     def __str__(self):
         return "[%s (%s), %s, %s]: priority %d, args: %s\n" %\
@@ -122,6 +146,7 @@ class Task:
     def downstreamOf(self, node):
         node._register_down(self)
         self._upstreams.append(node)
+        self.provides.extend(node.provides)
 
     def _register_down(self, task):
         self._downstreams.append(task)
@@ -141,6 +166,7 @@ class Task:
         This task has completed, notify downstreams
         """
         # Pebble.retval[self.name] = retval
+        # print("**", self.name, "completed, children:", self._downstreams)
         if pebble:
             pebble.completed.append(self.name)
         for child in self._downstreams:
@@ -366,16 +392,17 @@ class Workflow:
             else:
                 mod = loaded_modules[task.module]
 
-            if "priority" in mod.ccmodule["defaults"]:
-                task.priority = mod.ccmodule["defaults"]["priority"]
-            if "runOn" in mod.ccmodule["defaults"]:
-                task.runOn = mod.ccmodule["defaults"]["runOn"]
-            if "resolveOnAny" in mod.ccmodule["defaults"]:
-                task.resolveOnAny = mod.ccmodule["defaults"]["resolveOnAny"]
-            if "type" in mod.ccmodule["defaults"]:
-                task.type = mod.ccmodule["defaults"]["type"]
-            if "input_type" in mod.ccmodule and mod.ccmodule["input_type"] == "permanent":
-                wf._is_single_run = False
+            if "defaults" in mod.ccmodule:
+                if "priority" in mod.ccmodule["defaults"]:
+                    task.priority = mod.ccmodule["defaults"]["priority"]
+                if "runOn" in mod.ccmodule["defaults"]:
+                    task.runOn = mod.ccmodule["defaults"]["runOn"]
+                if "resolveOnAny" in mod.ccmodule["defaults"]:
+                    task.resolveOnAny = mod.ccmodule["defaults"]["resolveOnAny"]
+                if "type" in mod.ccmodule["defaults"]:
+                    task.type = mod.ccmodule["defaults"]["type"]
+                if "input_type" in mod.ccmodule and mod.ccmodule["input_type"] == "permanent":
+                    wf._is_single_run = False
 
             task.depends = mod.ccmodule["depends"]
             task.provides = mod.ccmodule["provides"]
@@ -410,6 +437,8 @@ class Workflow:
                 task.resolveOnAny = child["resolveOnAny"]
             if "workdir" in child:
                 task.dir = child["workdir"]
+                if task.dir == ".":
+                    task.dir = os.getcwd()
             if "dir" in child:
                 task.dir = child["dir"]
             if "ccnode" in child:
@@ -417,17 +446,21 @@ class Workflow:
             if "splitOn" in child:
                 task.splitOn = child["splitOn"]
             if "deferred" in child:
-                task.deferred = child["deferred"]
+                task.deferred = bool(child["deferred"])
             if "merge" in child:
-                task.merge = child["merge"]
+                task.merge = bool(child["merge"])
             if "docker" in child:
                 task.docker = child["docker"]
+            if "gpu" in child:
+                task.gpu = child["gpu"]
             if "image" in child:
                 task.image = child["image"]
             if "post" in child:
                 task.post = child["post"]
             if "replicas" in child:
                 task.replicas = int(child["replicas"])
+            if "runOnHead" in child:
+                task.runOnHead = bool(child["runOnHead"])
             if "volumes" in child:
                 task.volumes = child["volumes"]
                 if not isinstance(task.volumes, list):
@@ -742,13 +775,13 @@ class CryoCloudTask(Task):
                     # Parent is "caller"
                     runtime_info = self._build_runtime_info(pebble, parent)
                     args = self._build_args(pebble, parent)
-                    self.workflow.handler._addTask(self, args, runtime_info, pebble)
+                    self.workflow.handler._addTask(self, args, runtime_info, pebble, parent)
                 return
 
         # Parent is "caller"
         runtime_info = self._build_runtime_info(pebble, caller)
         args = self._build_args(pebble, caller)
-        self.workflow.handler._addTask(self, args, runtime_info, pebble)
+        self.workflow.handler._addTask(self, args, runtime_info, pebble, caller)
 
     def _map(self, thing, pebble, parent):
         retval = None
@@ -758,10 +791,10 @@ class CryoCloudTask(Task):
 
             if "option" in thing:
                 # This is an option given on the command line
-                opt = thing["option"]
+                opt = thing["option"].strip()
                 options = self.workflow.handler.options
                 if opt not in options:
-                    raise Exception("Missing option %s" % opt)
+                    raise Exception("Missing option %s, have %s" % (opt, str(options)))
                 retval = getattr(options, opt)
             elif "output" in thing:
                 name, param = thing["output"].split(".")
@@ -825,7 +858,7 @@ class CryoCloudTask(Task):
                     args[arg] = self.args[arg]["default"]
                 if "option" in self.args[arg]:
                     # This is an option given on the command line
-                    opt = self.args[arg]["option"]
+                    opt = self.args[arg]["option"].strip()
                     options = self.workflow.handler.options
                     if opt not in options:
                         raise Exception("Missing option %s" % opt)
@@ -868,65 +901,81 @@ class CryoCloudTask(Task):
 
                 # Is this a file? If so, we should tag along a prepare statement
                 if "type" in self.args[arg]:
-                    if self.args[arg]["type"] == "file":
-                        if "proto" in self.args[arg]:
-                            p = self.args[arg]["proto"] + "://"
-                        else:
-                            p = "ssh://"
-                        if "node" not in pebble.stats[parent.name] or pebble.stats[parent.name]["node"] is None:
-                            p += "localhost" + args[arg]
-                        else:
-                            p += pebble.stats[parent.name]["node"] + args[arg]
-                        if "unzip" in self.args[arg]:
-                            if (isinstance(self.args[arg]["unzip"], str) and self.args[arg]["unzip"].lower() == "true") or self.args[arg]["unzip"]:
-                                p += " unzip"
-                        if "copy" in self.args[arg]:
-                            if (isinstance(self.args[arg]["copy"], str) and self.args[arg]["copy"].lower() == "false") or not self.args[arg]["copy"]:
-                                pass
-                        else:
-                            p += " copy"
-                        args[arg] = p
-                    elif self.args[arg]["type"] == "dir":
-                        args[arg] = "dir://" + args[arg] + " mkdir"
-                    elif self.args[arg]["type"] == "tempdir":
-                        # TODO: Check in this PEBBLE if the id maps to an existing dir
-                        # If no id, always generate a new one
-                        if "id" in self.args[arg]:
-                            _tempid = self.args[arg]["id"]
-                        else:
-                            _tempid = random.randint(0, 100000000)
+                    ret = []
+                    if isinstance(args[arg], list):
+                        lst = args[arg]
+                    else:
+                        lst = [args[arg]]
+                    for a in lst:
+                        if self.args[arg]["type"] == "file":
+                            if a.startswith("s3://") or a.startswith("ssh://") or a.startswith("http"):
+                                p = a
+                            else:
+                                if "proto" in self.args[arg]:
+                                    p = self.args[arg]["proto"] + "://"
+                                else:
+                                    p = "ssh://"
+                                if "node" not in pebble.stats[parent.name] or pebble.stats[parent.name]["node"] is None:
+                                    p += "localhost" + a
+                                else:
+                                    p += pebble.stats[parent.name]["node"] + a
+                            if "unzip" in self.args[arg]:
+                                if (isinstance(self.args[arg]["unzip"], str) and self.args[arg]["unzip"].lower() == "true") or self.args[arg]["unzip"]:
+                                    p += " unzip"
+                            if "copy" in self.args[arg]:
+                                if (isinstance(self.args[arg]["copy"], str) and self.args[arg]["copy"].lower() == "false") or not self.args[arg]["copy"]:
+                                    pass
+                                else:
+                                    p += " copy"
+                            else:
+                                p += " copy"
+                            a = p
+                        elif self.args[arg]["type"] == "dir":
+                            a = "dir://" + a + " mkdir"
+                        elif self.args[arg]["type"] == "tempdir":
+                            # TODO: Check in this PEBBLE if the id maps to an existing dir
+                            # If no id, always generate a new one
+                            if "id" in self.args[arg]:
+                                _tempid = self.args[arg]["id"]
+                            else:
+                                _tempid = random.randint(0, 100000000)
 
-                        p = pebble
-                        if p.is_sub_pebble:
-                            p = self.workflow.get_pebble(p._master_task)
-                        # print("Tempdirs for pebble", p, p._tempdirs, "id", _tempid)
-                        if _tempid not in p._tempdirs:
-                            # Generate a new temp name - we use uuids
-                            p._tempdirs[_tempid] = os.path.join(args[arg], str(uuid.uuid4()))
-                            self.workflow.handler.log.debug("New temp directory: %s" % p._tempdirs[_tempid])
-                            # We queue this directory for removal on completion
-                            cuptask = CryoCloudTask(self.workflow)
-                            cuptask.remove_on_done = True
-                            cuptask.name = "_" + cuptask.name  # Flag as internal
+                            p = pebble
+                            if p.is_sub_pebble:
+                                p = self.workflow.get_pebble(p._master_task)
+                            # print("Tempdirs for pebble", p, p._tempdirs, "id", _tempid)
+                            if _tempid not in p._tempdirs:
+                                # Generate a new temp name - we use uuids
+                                p._tempdirs[_tempid] = os.path.join(args[arg], str(uuid.uuid4()))
+                                self.workflow.handler.log.debug("New temp directory: %s" % p._tempdirs[_tempid])
+                                # We queue this directory for removal on completion
+                                cuptask = CryoCloudTask(self.workflow)
+                                cuptask.remove_on_done = True
+                                cuptask.name = "_" + cuptask.name  # Flag as internal
 
-                            cuptask.module = "remove"
-                            cuptask.deferred = True
-                            cuptask.ccnode = {"stat": "parent.node"}
-                            cuptask.args = {
-                                "src": p._tempdirs[_tempid],
-                                "recursive": True
-                            }
-                            self.workflow.nodes[cuptask.name] = cuptask
-                            p._cleanup_tasks.append((cuptask.name, p.gid, "success", self.name))
-                            # cuptask.downstreamOf(self)
+                                cuptask.module = "remove"
+                                cuptask.deferred = True
+                                cuptask.ccnode = {"stat": "parent.node"}
+                                cuptask.args = {
+                                    "src": p._tempdirs[_tempid],
+                                    "recursive": True
+                                }
+                                self.workflow.nodes[cuptask.name] = cuptask
+                                p._cleanup_tasks.append((cuptask.name, p.gid, "success", self.name))
+                                # cuptask.downstreamOf(self)
 
-                        args[arg] = "dir://" + p._tempdirs[_tempid] + " mkdir"
+                            a = "dir://" + p._tempdirs[_tempid] + " mkdir"
+                        ret.append(a)
 
+                    if isinstance(args[arg], list):
+                        args[arg] = ret
+                    else:
+                        args[arg] = ret[0]
             else:
                 args[arg] = self.args[arg]
 
             if arg not in args:
-                raise Exception("Failed to resolve argument %s for %s (%s)" % (arg, self.name, self.module))
+                raise Exception("Failed to resolve argument '%s' for %s (%s)" % (arg, self.name, self.module))
 
         # print("ARGS", self.args, "->", args)
 
@@ -1139,16 +1188,17 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         return self.orders[order]
 
     def _addJob(self, n, lvl, taskid, args, module, jobtype,
-                itemid, workdir, priority, node):
+                itemid, workdir, priority, node, parent):
 
         self.log.debug("_addJob %s" % json.dumps(args))
         if n.docker:
             module = "docker"
             t = copy.deepcopy(args)
-            args = copy.deepcopy(args)
+            args = {}  # copy.deepcopy(args)
             args["target"] = n.docker
             if "arguments" not in args:
                 args["arguments"] = []
+            args["gpu"] = n.gpu
             args["arguments"].extend(["cctestrun", "--indocker"])
 
             if n.dir:
@@ -1177,7 +1227,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                     n._mp_blocked += 1
                     blocked = 1
 
-        print("Adding job for module", module)
         if self.options.kubernetes:
             print("Checking if we have workers")
             candidates = self._jobdb.get_workers([module])[module]
@@ -1194,13 +1243,20 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                     self.log.info("Deployed Kubernetes module %s based on image %s" % (module, n.image))
 
         if n.post:
-            args["__post__"] = n.post
+            # We should go through and map these to allow use of options etc.
+            p = copy.deepcopy(n.post)
+            for item in p:
+                if "target" in item:
+                    item["target"] = n._map(item["target"], self._pebbles[itemid], parent)
+
+            args["__post__"] = p
+        args["__ll__"] = API.log_level_str[self.options.loglevel.upper()]
         return self.head.add_job(lvl, taskid, args, module=module, jobtype=jobtype,
                                  itemid=itemid, workdir=workdir,
                                  priority=priority,
                                  node=node, isblocked=blocked)
 
-    def _addTask(self, node, args, runtime_info, pebble):
+    def _addTask(self, node, args, runtime_info, pebble, parent):
         if node.taskid not in self._levels:
             self._levels.append(node.taskid)
 
@@ -1266,7 +1322,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                     i = self._addJob(node, lvl, taskid, args, module=mod, jobtype=jobt,
                                      itemid=subpebble.gid, workdir=runtime_info["workdir"],
                                      priority=runtime_info["priority"],
-                                     node=runtime_info["node"])
+                                     node=runtime_info["node"], parent=parent)
                     subpebble.jobid = i
 
                 else:
@@ -1276,7 +1332,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                     i = self._addJob(node, lvl, taskid, args, module=mod, jobtype=jobt,
                                      itemid=pebble.gid, workdir=runtime_info["workdir"],
                                      priority=runtime_info["priority"],
-                                     node=runtime_info["node"])
+                                     node=runtime_info["node"], parent=parent)
                     pebble.jobid = i
             if not node.name.startswith("_"):
                 self.status["%s.pending" % node.name].inc(len(origargs))
@@ -1291,7 +1347,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         i = self._addJob(node, lvl, taskid, args, module=mod, jobtype=jobt,
                          itemid=pebble.gid, workdir=runtime_info["workdir"],
                          priority=runtime_info["priority"],
-                         node=runtime_info["node"])
+                         node=runtime_info["node"], parent=parent)
         pebble.jobid = i
         # pebble._sub_pebbles[i] = {"x": None, "y": None, "node": node, "done": False}
 
@@ -1493,6 +1549,13 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         # Do deferred jobs
         while len(p._deferred) > 0:
             nodename, pid, result, callerName = p._deferred.pop(0)
+
+            # TODO: If we come to the end of the line without merging, we're going to
+            # do the same deferred job many times. Check if this is a sub-process and if so,
+            # ignore it?
+            if p.is_sub_pebble:
+                print("CLEANUP deferred job of subpebble, is this correct? Ignoring it for now")
+                continue
             caller = self.workflow.nodes[callerName]
             self.log.debug("Running deferred job, caller %s" % caller)
             pbl = self._pebbles[pid]
@@ -1759,6 +1822,10 @@ if __name__ == "__main__":
                         action="store_true", default=False,
                         help="Control Kubernetes")
 
+    parser.add_argument("--loglevel", dest="loglevel",
+                        default="INFO",
+                        help="Minimum log level, default INFO, should be DEBUG, INFO or ERROR")
+
     def d(n, o):
         if n in o:
             return o[n]
@@ -1767,6 +1834,7 @@ if __name__ == "__main__":
 
     # Add stuff arguments from workflow if any
     lists = []
+    jsons = []
     if workflow:
         for o in workflow.options:
             default = d("default", workflow.options[o])
@@ -1778,6 +1846,8 @@ if __name__ == "__main__":
                 parser.add_argument("--" + o, default=default, help=_help)
             if _type == "list":
                 lists.append(o)
+            if _type == "json":
+                jsons.append(o)
 
     if "argcomplete" in sys.modules:
         argcomplete.autocomplete(parser)
@@ -1788,10 +1858,22 @@ if __name__ == "__main__":
         parser.print_help()
         raise SystemExit(1)
 
+    try:
+        API.set_log_level(options.loglevel.upper())
+    except Exception as e:
+        print("Failed to set log level, too old CryoCore? Using debug for now. Error was: ", e)
+
     # If types are lists, split them
     for l in lists:
         o = getattr(options, l)
         setattr(options, l, o.split(","))
+
+    # Parse json arguments too
+    for l in jsons:
+        o = getattr(options, l)
+        print("O", o)
+        if o:
+            setattr(options, l, json.loads(o))
 
     # Create handler
     handler = WorkflowHandler(workflow)
@@ -1808,7 +1890,7 @@ if __name__ == "__main__":
         # We create an event triggered by the head node when it's done
         stopevent = threading.Event()
         headnode.status["state"].add_event_on_value("Done", stopevent)
-
+        print(workflow)
         print("Running, press CTRL-C to end")
         while not API.api_stop_event.is_set() and not stopevent.isSet():
             time.sleep(1)
