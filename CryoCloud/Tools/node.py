@@ -211,6 +211,11 @@ class Worker(multiprocessing.Process):
                 print("No job", e)
                 self.log.exception("Failed to get job")
                 self.status["state"] = "Error (DB?)"
+                ret = "Unexpected exception: %s" % str(e)
+                try:
+                    self._jobdb.update_job(job["id"], jobdb.STATE_FAILED, retval=ret)
+                except:
+                    self.log.exception("Failed to update job after unknown error")
                 time.sleep(5)
                 continue
             finally:
