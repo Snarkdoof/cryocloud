@@ -1395,7 +1395,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                 n._mp_unblocked -= 1  # One task is done
 
         if unblock:
-            print("max_parallel is", n.max_parallel, "unblocked is now", n._mp_unblocked, "blocked is", n.mp_blocked)
+            print("max_parallel is", n.max_parallel, "unblocked is now", n._mp_unblocked, "blocked is", n._mp_blocked)
             return self._jobdb.unblock_step(unblock, max_parallel=n.max_parallel)
         return 0
 
