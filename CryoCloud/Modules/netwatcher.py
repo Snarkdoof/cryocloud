@@ -16,7 +16,8 @@ ccmodule = {
     "outputs": {
         "fullpath": "Full path of discovered file",
         "relpath": "Just the filename (no directories)",
-        "datasize": "Data size of the added resource"
+        "datasize": "Data size of the added resource",
+        "config_override": "Full path of overridden config, formatted according to the schema"
     },
     "defaults": {
         "priority": 0,  # Bulk
@@ -42,14 +43,14 @@ def start(handler, args, stop_event):
 
         if "product" in info:  # Hack for CryoniteOcean
             file_info = {"relpath": os.path.split(info["product"])[1],
-                         "fullpath": info["product"]}
+                         "fullpath": info["product"], "config_override": None}
 
             # If there is a configOverride, we need to write a new config file too
             if "configOverride" in info:
                 fd, name = tempfile.mkstemp(suffix=".cfg")
                 os.write(fd, json.dumps(info["configOverride"]).encode("utf-8"))
                 os.close(fd)
-                file_info["configOverride"] = name
+                file_info["config_override"] = name
 
             # We need to add who we are
             file_info["caller"] = args["__name__"]
