@@ -484,7 +484,7 @@ class Worker(multiprocessing.Process):
                     elif isinstance(subargs["args"][arg], str):
                         t = subargs["args"][arg].split(" ")
                         if "copy" in t or "unzip" in t or "mkdir" in t:
-                            prep = self.get_fprep()
+                            fprep = self.get_fprep()
                             ret = fprep.fix([subargs["args"][arg]])
                             if len(ret["fileList"]) == 0:
                                 raise Exception("Missing file %s" % subargs["args"][arg])
