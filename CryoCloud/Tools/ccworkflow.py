@@ -737,11 +737,8 @@ class CryoCloudTask(Task):
 
         # Parent is "caller"
         runtime_info = self._build_runtime_info(pebble, caller)
-        try:
-            args = self._build_args(pebble, caller)
-            self.workflow.handler._addTask(self, args, runtime_info, pebble)
-        except:
-            print("Failed to build arguments - did the module return the correct values?")
+        args = self._build_args(pebble, caller)
+        self.workflow.handler._addTask(self, args, runtime_info, pebble)
 
     def _map(self, thing, pebble, parent):
         retval = None
@@ -920,7 +917,9 @@ class CryoCloudTask(Task):
                 args[arg] = self.args[arg]
 
             if arg not in args:
-                raise Exception("Failed to resolve argument %s for %s (%s)" % (arg, self.name, self.module))
+                args[arg] = None
+                print("Failed to resolve argument %s for %s (%s)" % (arg, self.name, self.module))
+                # raise Exception("Failed to resolve argument %s for %s (%s)" % (arg, self.name, self.module))
 
         # print("ARGS", self.args, "->", args)
 
