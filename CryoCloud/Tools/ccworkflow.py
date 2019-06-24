@@ -1530,7 +1530,10 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                                    memory=pebble.stats[node]["max_memory"],
                                    cpu=pebble.stats[node]["cpu_time"])
 
-        workflow.nodes[node].on_completed(pebble, "error")
+        try:
+            workflow.nodes[node].on_completed(pebble, "error")
+        except:
+            self.log.exception("Exception resolving bad pebble, possibly something failed too miserably to return the proper return values. Ignoring.")
 
         # Do we have any global error handlers (and is THIS one of them?)
         try:
