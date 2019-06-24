@@ -1389,14 +1389,16 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         n = workflow.nodes[node]
         with n.lock:
             if n._mp_blocked > 0:
-                n._mp_blocked -= 1
+                # n._mp_blocked -= 1
                 unblock = self._levels.index(n.taskid) + 1
-            if n.max_parallel:
-                n._mp_unblocked -= 1  # One task is done
+            # if n.max_parallel:
+            #    n._mp_unblocked += 1  # One task is done
 
         if unblock:
             print("max_parallel is", n.max_parallel, "unblocked is now", n._mp_unblocked, "blocked is", n._mp_blocked)
-            return self._jobdb.unblock_step(unblock, max_parallel=n.max_parallel)
+            b = self._jobdb.unblock_step(unblock, max_parallel=n.max_parallel)
+            n._mp_unblocked += b
+            n._mp_blocked -= b
         return 0
 
     def onCompleted(self, task):
