@@ -121,9 +121,11 @@ class FilePrepare:
             f.extractall(decomp)
             done += 1
         except Exception as e:
-            retval["errors"] += "%s: %s\n" % (s, e)
-            self.log.exception("Unzip of %s failed" % s)
-            shutil.rmtree(decomp)
+            # retval["errors"] += "%s: %s\n" % (s, e)
+            self.log.exception("Unzip of %s failed: %s" % (s, str(e)))
+            if os.path.exists(decomp):
+                shutil.rmtree(decomp)
+            raise e
 
         # We now rename the temporary directory to the destination name
         try:
