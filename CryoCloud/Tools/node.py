@@ -39,14 +39,23 @@ modules = {}
 
 CC_DIR = os.getcwd()
 if "CC_DIR" in os.environ:
-    CCDIR = os.environ["CC_DIR"]
+    CC_DIR = os.environ["CC_DIR"]
+else:
+    print("Missing CC_DIR, assuming", CC_DIR)
 
-default_paths = [
-    os.path.join(CC_DIR, "CryoCloud/Modules/"),
-    "./Modules",
-    "./modules",
-    "."
-]
+
+def get_default_paths():
+    return [
+        os.path.join(CC_DIR, "CryoCloud/Modules/"),
+        os.path.join(os.getcwd(), "Modules"),
+        os.path.join(os.getcwd(), "modules"),
+        os.getcwd()
+    ]
+
+for path in get_default_paths():
+    if path not in sys.path:
+        sys.path.append(path)
+orig_sys_path = sys.path[:]
 
 API.cc_default_expire_time = 24 * 86400  # Default log & status only 7 days
 
@@ -71,16 +80,24 @@ def load_ccmodule(path):
 
 
 def load(modulename, path=None):
-    # print("LOADING MODULE", modulename)
+    # print("LOADING MODULE", modulename, "workdir", os.getcwd())
     # TODO: Also allow getmodulename here to allow modulename to be a .py file
     if modulename.endswith(".py"):
         import inspect
         modulename = inspect.getmodulename(modulename)
 
     if 1 or modulename not in modules:  # Seems for python3, reload is deprecated. Check for python 2
+
+        global orig_sys_path
         try:
             if path and path.__class__ != list:
-                path = [path]
+                path = [path, os.path.join(path, "modules"), os.path.join("path", "Modules")]
+            if not path:
+                path = get_default_paths()
+            sys.path = orig_sys_path[:]
+            for p in path:
+                if p not in sys.path:
+                    sys.path.append(p)
             info = imp.find_module(modulename, path)
             modules[modulename] = imp.load_module(modulename, info[0], info[1], info[2])
             try:
@@ -89,7 +106,7 @@ def load(modulename, path=None):
                 pass
         except ImportError as e:
             try:
-                print("Trying importlib")
+                # print("Trying importlib", e)
                 import importlib
                 modules[modulename] = importlib.import_module(modulename)
                 return
@@ -105,7 +122,7 @@ def load(modulename, path=None):
     return modules[modulename]
 
 
-def detect_modules(paths=default_paths, modules=None):
+def detect_modules(paths=[], modules=None):
     """
     Detect loadable and runnable modules in all given paths.
     If modules is given (as a list), only the listed modules will be tested
