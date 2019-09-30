@@ -362,17 +362,17 @@ class Workflow:
                 loaded_modules[task.module] = mod
             else:
                 mod = loaded_modules[task.module]
-
-            if "priority" in mod.ccmodule["defaults"]:
-                task.priority = mod.ccmodule["defaults"]["priority"]
-            if "runOn" in mod.ccmodule["defaults"]:
-                task.runOn = mod.ccmodule["defaults"]["runOn"]
-            if "resolveOnAny" in mod.ccmodule["defaults"]:
-                task.resolveOnAny = mod.ccmodule["defaults"]["resolveOnAny"]
-            if "type" in mod.ccmodule["defaults"]:
-                task.type = mod.ccmodule["defaults"]["type"]
-            if "input_type" in mod.ccmodule and mod.ccmodule["input_type"] == "permanent":
-                wf._is_single_run = False
+            if "defaults" in mod.ccmodule:
+                if "priority" in mod.ccmodule["defaults"]:
+                    task.priority = mod.ccmodule["defaults"]["priority"]
+                if "runOn" in mod.ccmodule["defaults"]:
+                    task.runOn = mod.ccmodule["defaults"]["runOn"]
+                if "resolveOnAny" in mod.ccmodule["defaults"]:
+                    task.resolveOnAny = mod.ccmodule["defaults"]["resolveOnAny"]
+                if "type" in mod.ccmodule["defaults"]:
+                    task.type = mod.ccmodule["defaults"]["type"]
+                if "input_type" in mod.ccmodule and mod.ccmodule["input_type"] == "permanent":
+                    wf._is_single_run = False
 
             task.depends = mod.ccmodule["depends"]
             task.provides = mod.ccmodule["provides"]
