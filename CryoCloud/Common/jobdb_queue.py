@@ -111,12 +111,12 @@ class JobDB:
             self._taskid += 1
         self._jobid += 1
         self._runid += 1
-
         with self._lock:
             self._jobs.append(
                       [self._jobid, self._runid, step, taskid, jobtype, priority,
                        STATE_PENDING, time.time(), expire_time, node, args,
-                       module, modulepath, workdir, itemid, isblocked, None, None, time.time(), None])
+                       module, modulepath, workdir, itemid, isblocked,
+                       0, 0, time.time(), 0])
         # print(" -> Added job", self._jobid)
         return taskid
 
@@ -279,6 +279,8 @@ class JobDB:
     def update_timeouts(self):
         with self._lock:
             for job in self._jobs:
+                if job[EXPIRES] is None:
+                    continue
                 if job[STATE] == STATE_ALLOCATED and job[TSALLOCATED] + job[EXPIRES] < time.time():
                     job[STATE] = STATE_TIMEOUT
 
