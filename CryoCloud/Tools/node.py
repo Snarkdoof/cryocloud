@@ -11,6 +11,7 @@ from argparse import ArgumentParser
 import inspect
 import re
 import json
+import signal
 
 try:
     import argcomplete
@@ -175,7 +176,10 @@ def detect_modules(paths=[], modules=None):
 
 class Worker(multiprocessing.Process):
 
-    def __init__(self, workernum, stopevent, type=jobdb.TYPE_NORMAL):
+    def __init__(self, workernum, stopevent, type=jobdb.TYPE_NORMAL, _jobdb=None):
+        """
+        If jobdb is None, the proper jobdb is used
+        """
         super(Worker, self).__init__()
         API.api_auto_init = False  # Faster startup
 
@@ -193,6 +197,7 @@ class Worker(multiprocessing.Process):
         self._is_ready = False
         self._type = type
         self._module = None
+        self._jobdb = _jobdb
 
         self._worker_type = jobdb.TASK_TYPE[type]
         self.wid = "%s-%s_%d" % (self._worker_type, socket.gethostname(), self.workernum)
@@ -272,22 +277,25 @@ class Worker(multiprocessing.Process):
             self.log.exception("Some other exception")
 
     def run(self):
-
         def sighandler(signum, frame):
             print("%s GOT SIGNAL" % self._worker_type)
             # API.shutdown()
             self._stop_event.set()
+        try:
+            signal.signal(signal.SIGINT, sighandler)
+        except:
+            pass
 
-        signal.signal(signal.SIGINT, sighandler)
         self.log = API.get_log(self.wid)
         self.status = API.get_status(self.wid)
-        self._jobdb = jobdb.JobDB(None, None)
+        if not self._jobdb:
+            self._jobdb = jobdb.JobDB(None, None)
         self.status["state"].set_expire_time(600)
         self.cfg = API.get_config("CryoCloud.Worker")
         self.cfg.set_default("datadir", "/")
 
         last_reported = 0  # We force periodic updates of state as we might be idle for a long time
-        while not self._stop_event.is_set():
+        while not self._stop_event.is_set() and not API.api_stop_event.isSet():
             try:
                 if self._type == jobdb.TYPE_ADMIN:
                     max_jobs = 5

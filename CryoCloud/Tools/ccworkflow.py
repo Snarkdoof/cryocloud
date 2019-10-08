@@ -1016,10 +1016,12 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
     inputs = {}
     _levels = []
 
-    def __init__(self, workflow):
+    def __init__(self, workflow, _jobdb=None):
         self.workflow = workflow
         workflow.handler = self
-        self._jobdb = jobdb.JobDB("Ignored", self.workflow.name)
+        self._jobdb = _jobdb
+        if not _jobdb:
+            self._jobdb = jobdb.JobDB("Ignored", self.workflow.name)
         self.orders = {}  # Orders from interactive sources - let them resolve info here
 
     def get_pebble(self, pebbleid):
@@ -1695,6 +1697,9 @@ if __name__ == "__main__":
     parser.add_argument("--estimate", dest="estimate",
                         action="store_true", default=False,
                         help="Estimate how long this will take and exit")
+    parser.add_argument("--standalone", dest="standalone",
+                        action="store_true", default=False,
+                        help="Run the workflow standalone on this machine, sequentially")
 
     def d(n, o):
         if n in o:
@@ -1731,19 +1736,35 @@ if __name__ == "__main__":
         setattr(options, l, o.split(","))
 
     # Create handler
-    handler = WorkflowHandler(workflow)
-
     try:
+        stopevent = threading.Event()
+        headnode = None
         if options.estimate:
+            handler = WorkflowHandler(workflow)
             estimate = handler.estimate_time()
             print("Estimate: ", estimate)
             raise SystemExit(0)
 
-        headnode = HeadNode(handler, options, neverfail=False, _jobdb=handler.getJobDB())
-        headnode.start()
+        if options.standalone:
+            print("Running STANDALONE. This will be slow.")
+            from CryoCloud.Common.jobdb_queue import JobDB as jdb
+            from CryoCloud.Tools.node import Worker
+            serialjobdb = jdb("JobDB", None)
+            handler = WorkflowHandler(workflow, serialjobdb)
+
+            headnode = HeadNode(handler, options, neverfail=False, _jobdb=serialjobdb)
+            headnode.start()
+
+            worker = Worker(0, stopevent, _jobdb=serialjobdb)
+            w = threading.Thread(target=worker.run)
+            w.start()
+            # worker.start()
+        else:
+            handler = WorkflowHandler(workflow)
+            headnode = HeadNode(handler, options, neverfail=False, _jobdb=handler.getJobDB())
+            headnode.start()
 
         # We create an event triggered by the head node when it's done
-        stopevent = threading.Event()
         headnode.status["state"].add_event_on_value("Done", stopevent)
 
         print("Running, press CTRL-C to end")
@@ -1755,3 +1776,4 @@ if __name__ == "__main__":
     finally:
         print("Shutting down")
         API.shutdown()
+        print("Waiting for all to shut down")
