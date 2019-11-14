@@ -120,7 +120,8 @@ class HeadNode(threading.Thread):
         except:
             pass
 
-    def makeDirectoryWatcher(self, directory, onAdd=None, onModify=None, onRemove=None, onError=None,
+    def makeDirectoryWatcher(self, directory, onAdd=None, onModify=None,
+                             onRemove=None, onError=None, onIdle=None,
                              stabilize=5, recursive=True):
             return CryoCloud.Common.DirectoryWatcher(self._jobdb._actual_runname,
                                                      directory,
@@ -128,6 +129,7 @@ class HeadNode(threading.Thread):
                                                      onModify=onModify,
                                                      onRemove=onRemove,
                                                      onError=onError,
+                                                     onIdle=onIdle,
                                                      stabilize=stabilize,
                                                      recursive=recursive)
 
