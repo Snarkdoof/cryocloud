@@ -679,7 +679,7 @@ class NodeController(threading.Thread):
         if options.modules and "any" in options.modules:
             modules = ["any"]
         else:
-            if options.modules:
+            if options.modules and options.modules != "detect":
                 modules = detect_modules(options.paths, options.modules)
             else:
                 modules = detect_modules(options.paths)
