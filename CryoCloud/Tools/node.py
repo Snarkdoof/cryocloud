@@ -676,10 +676,13 @@ class NodeController(threading.Thread):
         else:
             workers = psutil.cpu_count()
 
+        if options.modules == "detect":
+            options.modules = None
+
         if options.modules and "any" in options.modules:
             modules = ["any"]
         else:
-            if options.modules and options.modules != "detect":
+            if options.modules:
                 modules = detect_modules(options.paths, options.modules)
             else:
                 modules = detect_modules(options.paths)
