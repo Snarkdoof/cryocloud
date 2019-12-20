@@ -831,7 +831,7 @@ if __name__ == "__main__":
                         help="List supported modules on this system")
 
     parser.add_argument("-m", "--modules", dest="modules", default="any",
-                        help="Only use given modules in a comma separated list (otherwise autodetect) - use 'any' for any")
+                        help="Only use given modules in a comma separated list (otherwise autodetect) - use 'any' for any or 'detect' to force detection")
 
     parser.add_argument("-p", "--module-paths", dest="paths", default="",
                         help="Comma separated list of additional paths to look for modules in")
