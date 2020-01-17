@@ -446,6 +446,8 @@ class Worker(multiprocessing.Process):
                 if "copy" in t or "unzip" in t or "mkdir" in t:
                     try:
                         self.status["state"] = "Preparing files"
+                        if not fprep:
+                            fprep = self.get_fprep()
 
                         # We take one by one to re-map files with local, unzipped ones
                         ret = fprep.fix([s])
