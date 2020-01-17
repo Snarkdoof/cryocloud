@@ -479,7 +479,7 @@ class Worker(multiprocessing.Process):
                 for arg in subargs["args"]:
                     if isinstance(subargs["args"][arg], list):
                         for x in range(len(subargs["args"][arg])):
-                            if isinstance(x, str):
+                            if isinstance(subargs["args"][arg][x], str):
                                 t = subargs["args"][arg][x].split(" ")
                                 if "copy" in t or "unzip" in t or "mkdir" in t:
                                     if not fprep:
