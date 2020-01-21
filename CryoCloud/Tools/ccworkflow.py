@@ -1223,6 +1223,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         if n.max_parallel:
             # We must ensure that we don't go OVER this
             with n.lock:
+                # print("ADDING %s Unblocked: %s, max parallel %s" % (lvl, n._mp_unblocked, n.max_parallel))
                 if n._mp_unblocked < n.max_parallel:
                     n._mp_unblocked += 1
                 else:
@@ -1668,6 +1669,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         except:
             self.log.exception("Error in global error handler, ignoring")
 
+        if not pebble.nodename[task["taskid"]].startswith("_"):
+            self.status["%s.processing" % pebble.nodename[task["taskid"]]].dec()
+
         self._flag_cleanup_pebble(pebble)
 
         self._check_kubernetes(node, pebble)
@@ -1708,6 +1712,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         pebble.retval_dict[node] = task["retval"]
 
         workflow.nodes[node].on_completed(pebble, "cancel")
+
+        if not pebble.nodename[task["taskid"]].startswith("_"):
+            self.status["%s.processing" % pebble.nodename[task["taskid"]]].dec()
 
         # Do we have any global error handlers
         if not pebble.is_sub_pebble:
