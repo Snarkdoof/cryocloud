@@ -6,6 +6,7 @@ import select
 import re
 import json
 import psutil
+import tempfile
 
 
 from CryoCore import API
@@ -166,6 +167,7 @@ class DockerProcess():
 
         # We also add "/scratch"
         # cmd.extend(["-v", "%s:/scratch" % self._dockercfg["scratch"]])
+        cmd.extend(["-v", "/tmp:/tmp"])
 
         # also allow ENV
         # cmd.extend(["-e", ....])
@@ -175,10 +177,21 @@ class DockerProcess():
         for c in self.cmd:
             if c.find("-u") > -1:
                 raise Exception("-u specified in cmd, not allowed")
+        cmd.extend(self.cmd)
+
         for c in self.args:
             if c.find("-u") > -1:
                 raise Exception("-u specified in args, not allowed")
-        cmd.extend(self.cmd)
+
+        # We check for a '-t', which is a json task description, write it to a file and
+        # replace the -t with a -f (read from file)
+        taskfile = tempfile.NamedTemporaryFile()
+        for i in range(len(self.args)):
+            if self.args[i] == "-t":
+                self.args[i] = "-f"
+                taskfile.write(self.args[i+1].encode("utf-8"))
+                taskfile.flush()
+                self.args[i + 1] = taskfile.name
         cmd.extend(self.args)
 
         self.log.debug("Running Docker command '%s'" % str(cmd))
