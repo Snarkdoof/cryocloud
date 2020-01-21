@@ -954,6 +954,7 @@ class CryoCloudTask(Task):
                                 cuptask.name = "_" + cuptask.name  # Flag as internal
 
                                 cuptask.module = "remove"
+                                cuptask.type = jobdb.TYPE_ADMIN
                                 cuptask.deferred = True
                                 cuptask.ccnode = {"stat": "parent.node"}
                                 cuptask.args = {
