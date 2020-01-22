@@ -341,7 +341,9 @@ class JobDB(mysql):
         BASESQL = SQL
         BASEARGS = args[:]
 
+        any_module = True
         if len(supportedmodules) > 0 and "any" not in supportedmodules:
+            any_module = False
             SQL += "AND (" + " module=%s OR" * len(supportedmodules)
             SQL = SQL[:-2] + ")"
             args.extend(supportedmodules)
@@ -349,9 +351,13 @@ class JobDB(mysql):
         min_prio = 0
         if prefermodule and preferlevel > 0:
             try:
-                s = "SELECT MAX(priority) FROM jobs WHERE " + "module=%s OR " * len(supportedmodules)
-                s = s[:-3]
-                c = self._execute(s, supportedmodules)
+                s = "SELECT MAX(priority) FROM jobs"
+                if not any_module:
+                    s += " WHERE " + "module=%s OR " * len(supportedmodules)
+                    s = s[:-3]
+                    c = self._execute(s, supportedmodules)
+                else:
+                    c = self._execute(s)
 
                 min_prio = c.fetchone()[0] - preferlevel
             except:
