@@ -250,7 +250,7 @@ class JobDB(mysql):
             c = self._execute("SELECT COUNT(*) FROM jobs WHERE is_blocked=0 AND runid=%s AND step=%s AND STATE<%s",
                               [self._runid, step, STATE_COMPLETED])
             num = c.fetchone()[0]
-            print("MaxParallel is defined as %s, unblocked are: %s" % (max_parallel, num))
+            # print("MaxParallel is defined as %s, unblocked are: %s" % (max_parallel, num))
             if num >= max_parallel:
                 print("INTERNAL: ALREADY HAVE ENOUGH UNBLOCKED")
                 return 0
