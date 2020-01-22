@@ -1408,10 +1408,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             n._mp_blocked -= b
         return 0
 
-    def _check_disable(self):
-        # Go through all steps and see if we have any restrictions that need to be applied (or are OK)
-
-
     def onCompleted(self, task):
         if "itemid" not in task:
             self.log.error("Got task without itemid: %s" % task)
