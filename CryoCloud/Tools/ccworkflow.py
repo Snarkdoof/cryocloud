@@ -1737,12 +1737,12 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         for step, nodename in step_modules:
             print("Checking step", step, "module:", nodename)
-            if nodename not in self.nodes:
+            if nodename not in self.workflow.nodes:
                 print("MISSING NODE", nodename)
                 continue
 
             # Does the node have any restrictions?
-            node = self.nodes[nodename]
+            node = self.workflow.nodes[nodename]
             if not node["restrictions"]:
                 return
 
