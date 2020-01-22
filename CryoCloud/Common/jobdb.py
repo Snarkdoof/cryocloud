@@ -268,11 +268,11 @@ class JobDB(mysql):
         """
         Disable a step as it is outside of parameters (e.g. too little free disk space)
         """
-        self._execute("UPDATE JOBS SET STATE=%s WHERE STATE=%s AND runid=%s AND step=%s",
+        self._execute("UPDATE jobs SET STATE=%s WHERE STATE=%s AND runid=%s AND step=%s",
                       [STATE_DISABLED, STATE_PENDING, self._runid, step])
 
     def enable_step(self, step):
-        self._execute("UPDATE JOBS SET STATE=%s WHERE STATE=%s AND runid=%s AND step=%s",
+        self._execute("UPDATE jobs SET STATE=%s WHERE STATE=%s AND runid=%s AND step=%s",
                       [STATE_PENDING, STATE_DISABLED, self._runid, step])
 
     def flush(self):
