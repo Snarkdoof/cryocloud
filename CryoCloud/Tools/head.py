@@ -284,7 +284,7 @@ class HeadNode(threading.Thread):
 
                     to_check = self._jobdb.list_steps()
                     if len(to_check) > 0:
-                        self.onCheckRestrictions(to_check)
+                        self.handler.onCheckRestrictions(to_check)
 
                     if len(updates) == 0:
                         try:
