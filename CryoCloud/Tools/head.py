@@ -92,6 +92,7 @@ class HeadNode(threading.Thread):
         self.STATE_FAILED = jobdb.STATE_FAILED
         self.STATE_TIMEOUT = jobdb.STATE_TIMEOUT
         self.STATE_CANCELLED = jobdb.STATE_CANCELLED
+        self.STATE_DISABLED = jobdb.STATE_DISABLED
 
         self.TASK_STRING_TO_NUM = {
             "admin": self.TYPE_ADMIN,
@@ -280,6 +281,10 @@ class HeadNode(threading.Thread):
                                 notified = True
                         else:
                             notified = False
+
+                    to_check = self._jobdb.list_steps()
+                    if len(to_check) > 0:
+                        self.onCheckRestrictions(to_check)
 
                     if len(updates) == 0:
                         try:

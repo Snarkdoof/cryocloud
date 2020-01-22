@@ -138,6 +138,7 @@ class Task:
         self.lock = threading.Lock()
         self.level = None
         self.runOnHead = False
+        self.restrictions = []
 
     def __str__(self):
         return "[%s (%s), %s, %s]: priority %d, args: %s\n" %\
@@ -470,6 +471,8 @@ class Workflow:
                         raise Exception("Volumes must be a list")
                     if len(volume) < 2 or len(volume) > 3:
                         raise Exception("Volumes should be on the format [[source, dest, ro], [s,d,rw], [s,d]]")
+            if "restrictions" in child:
+                task.restrictions = child["restrictions"]
 
             # If global, remember this
             if "global" in child:
@@ -1405,6 +1408,10 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             n._mp_blocked -= b
         return 0
 
+    def _check_disable(self):
+        # Go through all steps and see if we have any restrictions that need to be applied (or are OK)
+
+
     def onCompleted(self, task):
         if "itemid" not in task:
             self.log.error("Got task without itemid: %s" % task)
@@ -1726,6 +1733,41 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         self._flag_cleanup_pebble(pebble)
 
         self._check_kubernetes(node, pebble)
+
+    def onCheckRestrictions(self, step_modules):
+        """
+        Check restrictions (type status things that are in/outside of parameters)
+        """
+
+        for step, nodename in step_modules:
+            print("Checking step", step, "module:", nodename)
+            if nodename not in self.nodes:
+                print("MISSING NODE", nodename)
+                continue
+
+            # Does the node have any restrictions?
+            node = self.nodes[nodename]
+            if not node["restrictions"]:
+                return
+
+            # Has some restrictions, check them
+            disable = False
+            for restriction in node["restrictions"]:
+                try:
+                    channel, name = restriction.split(".", 1)
+                    ts, value = self.statusDB.get_last_status_value(channel, name)
+                    r = node["restrictions"][restriction]
+                    if eval(str(value) + r):
+                        print("Restriction is OK")
+                    else:
+                        disable = True
+                        break
+                except Exception as e:
+                    self.log.error("Bad restriction for node %s: %s (%s)" % (nodename, restriction, str(e)))
+            if disable:
+                self._jobdb.disable_step(step)
+            else:
+                self._jobdb.enable_step(step)
 
 
 if 0:  # Make unittests of this graph stuff ASAP

@@ -51,3 +51,10 @@ class DefaultHandler:
 
     def onStopped(self):
         pass
+
+    def onCheckRestrictions(self, step_modules):
+        """
+        Step_modules is a list of tuples (stepnr, module name)
+        It should disable/enable steps according to any restrictions
+        """
+        pass

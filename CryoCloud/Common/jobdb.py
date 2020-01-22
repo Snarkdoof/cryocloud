@@ -7,6 +7,7 @@ import threading
 from CryoCore import API
 from CryoCore.Core.InternalDB import mysql
 
+
 PRI_HIGH = 100
 PRI_NORMAL = 50
 PRI_LOW = 20
@@ -22,6 +23,7 @@ STATE_COMPLETED = 3
 STATE_FAILED = 4
 STATE_TIMEOUT = 5
 STATE_CANCELLED = 6
+STATE_DISABLED = 7
 
 TASK_TYPE = {
     TYPE_NORMAL: "Worker",
@@ -75,11 +77,11 @@ class JobDB(mysql):
                     expiretime SMALLINT,
                     node VARCHAR(128) DEFAULT NULL,
                     worker SMALLINT DEFAULT NULL,
-                    retval TEXT DEFAULT NULL,
+                    retval MEDIUMBLOB DEFAULT NULL,
                     module VARCHAR(256) DEFAULT NULL,
                     modulepath TEXT DEFAULT NULL,
                     workdir TEXT DEFAULT NULL,
-                    args TEXT DEFAULT NULL,
+                    args MEDIUMBLOB DEFAULT NULL,
                     nonce INT DEFAULT 0,
                     itemid BIGINT DEFAULT 0,
                     max_memory BIGINT UNSIGNED DEFAULT 0,
@@ -253,8 +255,25 @@ class JobDB(mysql):
                 print("INTERNAL: ALREADY HAVE ENOUGH UNBLOCKED")
                 return 0
 
-        c = self._execute("UPDATE jobs SET is_blocked=0 WHERE runid=%s AND step=%s AND is_blocked>0 LIMIT %s", [self._runid, step, amount])
+        c = self._execute("UPDATE jobs SET is_blocked=0 WHERE runid=%s AND step=%s AND is_blocked=1 LIMIT %s",
+                          [self._runid, step, amount])
         return c.rowcount
+
+    def list_steps(self):
+        c = self._execute("SELECT DISTINCT(step), module FROM jobs WHERE runid=%s AND (state=%s OR state=%s)",
+                          [self._runid, STATE_PENDING, STATE_DISABLED])
+        return [(row[0], row[1]) for row in c.fetchall()]
+
+    def disable_step(self, step):
+        """
+        Disable a step as it is outside of parameters (e.g. too little free disk space)
+        """
+        self._execute("UPDATE JOBS SET STATE=%s WHERE STATE=%s AND runid=%s AND step=%s",
+                      [STATE_DISABLED, STATE_PENDING, self._runid, step])
+
+    def enable_step(self, step):
+        self._execute("UPDATE JOBS SET STATE=%s WHERE STATE=%s AND runid=%s AND step=%s",
+                      [STATE_PENDING, STATE_DISABLED, self._runid, step])
 
     def flush(self):
         self.commit_jobs()
@@ -326,7 +345,7 @@ class JobDB(mysql):
         will limit the possibility of CryoCloud to allocate resources
         effectively, so if load/unload is low, set the prefer level to zero.
 
-         """
+        """
 
         nonce = random.randint(0, 2147483647)
         args = [STATE_ALLOCATED, time.time(), node, workerid, nonce, type, STATE_PENDING]
