@@ -209,7 +209,12 @@ class FilePrepare:
                 if not os.path.exists(u.path):
                     if DEBUG:
                         self.log.debug("Creating directory %s" % u.path)
-                    os.makedirs(u.path)
+                    try:
+                        os.makedirs(u.path)
+                    except Exception as e:
+                        if not os.path.exists(u.path):
+                            raise Exception("Faield to make directory: %s" % str(e))
+
                 fileList.append(u.path)
                 return {"fileList": fileList, "size": 0}
 
