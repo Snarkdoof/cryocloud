@@ -9,6 +9,8 @@ import stat
 from urllib.parse import urlparse
 import boto3
 import requests
+import time
+import random
 
 DEBUG = False
 
@@ -169,104 +171,124 @@ class FilePrepare:
         """
         total_size = 0
         fileList = []
+        last_error = ""
         # First we check if the files exists
         for url in urls:
-            if url[0] == "{":
+            for i in range(0, 2):
+                try:
+                    s = self._fix_url(url)
+                    break
+                except Exception as e:
+                    last_error = str(e)
+                    s = None
+                    self.log.warning("Failed to fix url, retrying: %s" % str(e))
+                    time.sleep(random.random())
+            if not s:
+                self.log.error("Failed to fix url %s" % url)
+                raise Exception("Failed to fix url %s: %s" % (url, last_error))
+            fileList.extend(s["fileList"])
+            total_size += s["total_size"]
+        return {"fileList": fileList, "size": total_size}
+
+    def _fix_url(self, url):
+
+        total_size = 0
+        if url[0] == "{":
+            continue
+
+        copy = False
+        unzip = False
+        mkdir = False
+        if url.find(" ") > -1:
+            sp = url.split(" ")
+            url = sp[0]
+            if "copy" in sp:
+                copy = True
+            if "unzip" in sp:
+                unzip = True
+            if "mkdir" in sp:
+                mkdir = True
+
+        u = urlparse(url)
+        if u.scheme == "s3":
+            bucket, file = u.path[1:].split("/", 1)
+            local_file = os.path.join(self.s3root, file)
+        else:
+            file = u.path
+            if file[0] != "/":
+                raise Exception("Need full paths, got relative path %s" % u.path)
+            local_file = (self.root + file).replace("//", "/")
+            print("local_file:", local_file)
+
+        compressed = self._is_compressed(file)
+
+        if DEBUG:
+            self.log.debug("Fixing file '%s', scheme '%s', compressed: %s" % (file, u.scheme, compressed))
+
+        if u.scheme == "dir" and mkdir:
+            if DEBUG:
+                self.log.debug("%s a directory, will create if necessary" % u.path)
+            if not os.path.exists(u.path):
+                if DEBUG:
+                    self.log.debug("Creating directory %s" % u.path)
+                try:
+                    os.makedirs(u.path)
+                except Exception as e:
+                    if not os.path.exists(u.path):
+                        raise Exception("Faield to make directory: %s" % str(e))
+
+            fileList.append(u.path)
+            return {"fileList": fileList, "size": 0}
+
+        if compressed:
+            # Do we have this one decompressed already?
+            decomp = (self.root + os.path.splitext(file)[0]).replace("//", "/")
+            if os.path.isdir(decomp):
+                if DEBUG:
+                    self.log.debug("Is compressed but already decompressed")
+                fileList.extend(self._get_filelist(decomp))
+                total_size += self.get_tree_size(decomp)
                 continue
 
-            copy = False
-            unzip = False
-            mkdir = False
-            if url.find(" ") > -1:
-                sp = url.split(" ")
-                url = sp[0]
-                if "copy" in sp:
-                    copy = True
-                if "unzip" in sp:
-                    unzip = True
-                if "mkdir" in sp:
-                    mkdir = True
-
-            u = urlparse(url)
-            if u.scheme == "s3":
-                bucket, file = u.path[1:].split("/", 1)
-                local_file = os.path.join(self.s3root, file)
-            else:
-                file = u.path
-                if file[0] != "/":
-                    raise Exception("Need full paths, got relative path %s" % u.path)
-                local_file = (self.root + file).replace("//", "/")
-                print("local_file:", local_file)
-
-            compressed = self._is_compressed(file)
-
+        if os.path.exists(local_file):
+            if not compressed:
+                fileList.append(local_file)
+        else:
             if DEBUG:
-                self.log.debug("Fixing file '%s', scheme '%s', compressed: %s" % (file, u.scheme, compressed))
+                self.log.debug("%s not available locally, must copy" % local_file)
+            # Not available locally, can we copy?
+            if not copy:
+                raise Exception("Failed to fix %s, not local but no copy allowed" % (url))
 
-            if u.scheme == "dir" and mkdir:
-                if DEBUG:
-                    self.log.debug("%s a directory, will create if necessary" % u.path)
-                if not os.path.exists(u.path):
-                    if DEBUG:
-                        self.log.debug("Creating directory %s" % u.path)
-                    try:
-                        os.makedirs(u.path)
-                    except Exception as e:
-                        if not os.path.exists(u.path):
-                            raise Exception("Faield to make directory: %s" % str(e))
+            # Need to make the destinations
+            path = os.path.dirname(local_file)
+            if not os.path.exists(path):
+                os.makedirs(path)
 
-                fileList.append(u.path)
-                return {"fileList": fileList, "size": 0}
-
-            if compressed:
-                # Do we have this one decompressed already?
-                decomp = (self.root + os.path.splitext(file)[0]).replace("//", "/")
-                if os.path.isdir(decomp):
-                    if DEBUG:
-                        self.log.debug("Is compressed but already decompressed")
-                    fileList.extend(self._get_filelist(decomp))
-                    total_size += self.get_tree_size(decomp)
-                    continue
-
-            if os.path.exists(local_file):
+            # Let's try to copy it
+            if u.scheme == "ssh":
+                self.copy_scp(u.netloc, file, path)
                 if not compressed:
                     fileList.append(local_file)
+            elif u.scheme in ["http", "https"]:
+                r = requests.get(url)
+                if r.status_code != 200:
+                    raise Exception("Failed to get %s: %s %s" % (url, r.status_code, r.reason))
+            elif u.scheme == "s3":
+                self.copy_s3(u.netloc, bucket, file, local_file)
+                fileList.append(local_file)
             else:
-                if DEBUG:
-                    self.log.debug("%s not available locally, must copy" % local_file)
-                # Not available locally, can we copy?
-                if not copy:
-                    raise Exception("Failed to fix %s, not local but no copy allowed" % (url))
+                raise Exception("Unsupported scheme: %s" % u.scheme)
 
-                # Need to make the destinations
-                path = os.path.dirname(local_file)
-                if not os.path.exists(path):
-                    os.makedirs(path)
-
-                # Let's try to copy it
-                if u.scheme == "ssh":
-                    self.copy_scp(u.netloc, file, path)
-                    if not compressed:
-                        fileList.append(local_file)
-                elif u.scheme in ["http", "https"]:
-                    r = requests.get(url)
-                    if r.status_code != 200:
-                        raise Exception("Failed to get %s: %s %s" % (url, r.status_code, r.reason))
-                elif u.scheme == "s3":
-                    self.copy_s3(u.netloc, bucket, file, local_file)
-                    fileList.append(local_file)
-                else:
-                    raise Exception("Unsupported scheme: %s" % u.scheme)
-
-            # is it a compressed file?
-            if compressed and unzip:
-                files = self._uncompress(local_file, keep=False)
-                fileList.extend(files)
-                decomp = os.path.splitext(local_file)[0]
-                # decomp = self.root + os.path.splitext(file)[0]
-                total_size += self.get_tree_size(decomp)
-            else:
-                total_size += os.stat(local_file).st_size
+        # is it a compressed file?
+        if compressed and unzip:
+            files = self._uncompress(local_file, keep=False)
+            fileList.extend(files)
+            decomp = os.path.splitext(local_file)[0]
+            # decomp = self.root + os.path.splitext(file)[0]
+            total_size += self.get_tree_size(decomp)
+        else:
+            total_size += os.stat(local_file).st_size
 
         return {"fileList": fileList, "size": total_size}
 
