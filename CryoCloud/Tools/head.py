@@ -92,6 +92,7 @@ class HeadNode(threading.Thread):
         self.STATE_FAILED = jobdb.STATE_FAILED
         self.STATE_TIMEOUT = jobdb.STATE_TIMEOUT
         self.STATE_CANCELLED = jobdb.STATE_CANCELLED
+        self.STATE_DISABLED = jobdb.STATE_DISABLED
 
         self.TASK_STRING_TO_NUM = {
             "admin": self.TYPE_ADMIN,
@@ -120,7 +121,8 @@ class HeadNode(threading.Thread):
         except:
             pass
 
-    def makeDirectoryWatcher(self, directory, onAdd=None, onModify=None, onRemove=None, onError=None,
+    def makeDirectoryWatcher(self, directory, onAdd=None, onModify=None,
+                             onRemove=None, onError=None, onIdle=None,
                              stabilize=5, recursive=True):
             return CryoCloud.Common.DirectoryWatcher(self._jobdb._actual_runname,
                                                      directory,
@@ -128,6 +130,7 @@ class HeadNode(threading.Thread):
                                                      onModify=onModify,
                                                      onRemove=onRemove,
                                                      onError=onError,
+                                                     onIdle=onIdle,
                                                      stabilize=stabilize,
                                                      recursive=recursive)
 
@@ -278,6 +281,10 @@ class HeadNode(threading.Thread):
                                 notified = True
                         else:
                             notified = False
+
+                    to_check = self._jobdb.list_steps()
+                    if len(to_check) > 0:
+                        self.handler.onCheckRestrictions(to_check)
 
                     if len(updates) == 0:
                         try:

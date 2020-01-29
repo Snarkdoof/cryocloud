@@ -40,6 +40,9 @@ class Dispatcher(pyinotify.ProcessEvent):
     def onError(self, info):
         pass
 
+    def onIdle(self, info):
+        pass
+
     def _make_info(self, event, is_delete=False):
         info = {}
         # print(event)
@@ -139,7 +142,8 @@ class FakeEvent():
 
 
 class DirectoryWatcher(threading.Thread):
-    def __init__(self, runid, target, onAdd=None, onModify=None, onRemove=None, onError=None,
+    def __init__(self, runid, target, onAdd=None, onModify=None, 
+                 onRemove=None, onError=None, onIdle=None,
                  stabilize=0, recursive=False, noDB=False):
         threading.Thread.__init__(self)
         self.stabilize = stabilize
@@ -165,8 +169,11 @@ class DirectoryWatcher(threading.Thread):
             self.monitor.onRemove = onRemove
         if onError:
             self.monitor.onError = onError
+        if onIdle:
+            self.monitor.onIdle = onIdle
         self.notifier = pyinotify.Notifier(wm, self.monitor)
-        self.wdd = wm.add_watch(target, MASK, rec=self.recursive, auto_add=self.recursive)
+        self.wdd = wm.add_watch(target, MASK, rec=self.recursive,
+                                auto_add=self.recursive)
 
         self.daemon = True
 
@@ -204,15 +211,21 @@ class DirectoryWatcher(threading.Thread):
 
     def updateStable(self, pathname, mtime):
         if self._db:
-            self._db.update_file(self.target, pathname.replace(self.target, ""), mtime, True)
+            self._db.update_file(self.target,
+                                 pathname.replace(self.target, ""),
+                                 mtime, True)
 
     def setDone(self, path):
         if self._db:
-            self._db.done_file(self.target, path.replace(self.target, ""), self.runid)
+            self._db.done_file(self.target,
+                               path.replace(self.target, ""), 
+                               self.runid)
 
     def removeFile(self, pathname):
         if self._db:
-            f = self._db.get_file(self.target, pathname.replace(self.target, ""), self.runid)
+            f = self._db.get_file(self.target,
+                                  pathname.replace(self.target, ""),
+                                  self.runid)
             if f:
                 self._db.remove_file(f[0])
 
@@ -254,8 +267,11 @@ class DirectoryWatcher(threading.Thread):
                     for k, event in q:
                         del self._unstable[k]
 
-                for k, event in q:
-                    self.monitor.process_IN_MODIFY(event)
+                if q:
+                    for k, event in q:
+                        self.monitor.process_IN_MODIFY(event)
+                else:
+                    self.monitor.onIdle()
             except Queue.Empty:
                 pass
 

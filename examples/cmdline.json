@@ -13,6 +13,7 @@
     }, {
       "module": "noop",
       "name": "Test",
+      "priority": 20,
       "downstreamOf": ["Start"],
       "args": {
         "time": {"option": "time"}
