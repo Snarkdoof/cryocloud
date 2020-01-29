@@ -731,6 +731,10 @@ class JobDB(mysql):
     def remove_worker(self, workerid):
         self._execute("DELETE FROM worker WHERE id=%s", [workerid])
 
+    def get_admin_worker_nodes(self):
+        c = self._execute("SELECT DISTINCT(node) FROM jobs WHERE type=%s", [TYPE_ADMIN])
+        return [row[0] for row in c.fetchall()]
+
     def get_workers(self, modules):
         """
         Get a map of modules and workers. If no worker is available for a module, it will have a blank list

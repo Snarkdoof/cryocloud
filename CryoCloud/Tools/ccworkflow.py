@@ -911,19 +911,31 @@ class CryoCloudTask(Task):
                         lst = args[arg]
                     else:
                         lst = [args[arg]]
+                    p_nodes = ["localhost"]
+                    if "nodes" in pebble.stats[parent.name] and isinstance(pebble.stats[parent.name]["nodes"], list):
+                        p_nodes = pebble.stats[parent.name]["nodes"]
+                    elif "node" in pebble.stats[parent.name] and pebble.stats[parent.name]["node"]:
+                        p_nodes = [pebble.stats[parent.name]["node"]]
+                    idx = -1
                     for a in lst:
+                        idx += 1
                         if self.args[arg]["type"] == "file":
                             if a.startswith("s3://") or a.startswith("ssh://") or a.startswith("http"):
                                 p = a
                             else:
+                                # print("Need to add stuff to file '%s', %s" % (a, pebble))
+                                print("Parent name: %s, stats: %s" % (parent.name, str(pebble.stats)))
+                                print("idx", idx, p_nodes)
+                                # print("Retval: %s" % (str(pebble.retval_dict)))
                                 if "proto" in self.args[arg]:
                                     p = self.args[arg]["proto"] + "://"
                                 else:
                                     p = "ssh://"
-                                if "node" not in pebble.stats[parent.name] or pebble.stats[parent.name]["node"] is None:
-                                    p += "localhost" + a
+                                if len(p_nodes) > 1:
+                                    p += p_nodes[idx] + a
                                 else:
-                                    p += pebble.stats[parent.name]["node"] + a
+                                    p += p_nodes[0] + a
+
                             if "unzip" in self.args[arg]:
                                 if (isinstance(self.args[arg]["unzip"], str) and
                                    self.args[arg]["unzip"].lower() == "true") or self.args[arg]["unzip"]:
@@ -966,7 +978,8 @@ class CryoCloudTask(Task):
                                 cuptask.ccnode = {"stat": "parent.node"}
                                 cuptask.args = {
                                     "src": p._tempdirs[_tempid],
-                                    "recursive": True
+                                    "recursive": True,
+                                    "ignoreerrors": True
                                 }
                                 self.workflow.nodes[cuptask.name] = cuptask
                                 p._cleanup_tasks.append((cuptask.name, p.gid, "success", self.name))
@@ -1478,15 +1491,22 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             # We merge BACK into the master
             retvals = {}
             deferred = master._deferred
-            stats = {"runtime": 0, "cpu_time": 0, "max_memory": 0}
+            stats = {"runtime": 0, "cpu_time": 0, "max_memory": 0, "nodes": []}
             for t in master._sub_tasks.values():
+                print("MERGING", self._pebbles[t], self._pebbles[t].retval_dict, self._pebbles[t].stats)
                 if self._pebbles[t].retval_dict[node]:
                     for key in self._pebbles[t].retval_dict[node]:
                         if key not in retvals:
                             retvals[key] = []
                         retvals[key].append(self._pebbles[t].retval_dict[node][key])
                 for i in ["runtime", "cpu_time", "max_memory"]:
-                    stats[i] = self._pebbles[t].stats[node][i]
+                    if i not in stats:
+                        stats[i] = 0
+                    if i in ["runtime", "cpu_time"]:
+                        stats[i] += self._pebbles[t].stats[node][i]
+                    elif i in ["max_memory"]:
+                        stats[i] = max(stats[i], self._pebbles[t].stats[node][i])
+                stats["nodes"].append(self._pebbles[t].stats[node]["node"])
                 for i in self._pebbles[t]._deferred:
                     if i not in deferred:
                         deferred.append(i)
@@ -1581,7 +1601,14 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             caller = self.workflow.nodes[callerName]
             self.log.debug("Running cleanup job, caller %s" % caller)
             pbl = self._pebbles[pid]
-            self.workflow.nodes[nodename].resolve(pbl, result, caller, deferred=True)
+            if nodename == "remove":
+                # Run on all nodes
+                for node in self._jobdb.get_admin_worker_nodes():
+                    n = copy.copy(self.workflow.nodes[nodename])
+                    n.ccnode = node
+                    n.resolve(pbl, result, caller, deferred=True)
+            else:
+                self.workflow.nodes[nodename].resolve(pbl, result, caller, deferred=True)
 
         # If this was an order, we'll register the return values before
         # cleaning up the pebble

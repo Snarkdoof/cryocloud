@@ -165,7 +165,7 @@ class FilePrepare:
 
         return retval
 
-    def fix(self, urls):
+    def fix(self, urls, stop_event=None):
         """
         Fix all files, returns the local file paths for all files
         """
@@ -175,6 +175,8 @@ class FilePrepare:
         # First we check if the files exists
         for url in urls:
             for i in range(0, 2):
+                if stop_event and stop_event.isSet():
+                    raise Exception("Stopped")
                 try:
                     s = self._fix_url(url)
                     if s:
