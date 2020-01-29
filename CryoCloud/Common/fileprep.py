@@ -165,7 +165,7 @@ class FilePrepare:
 
         return retval
 
-    def fix(self, urls):
+    def fix(self, urls, stop_event=None):
         """
         Fix all files, returns the local file paths for all files
         """
@@ -175,9 +175,12 @@ class FilePrepare:
         # First we check if the files exists
         for url in urls:
             for i in range(0, 2):
+                if stop_event and stop_event.isSet():
+                    raise Exception("Stopped")
                 try:
                     s = self._fix_url(url)
-                    break
+                    if s:
+                        break
                 except Exception as e:
                     last_error = str(e)
                     s = None
@@ -187,14 +190,14 @@ class FilePrepare:
                 self.log.error("Failed to fix url %s" % url)
                 raise Exception("Failed to fix url %s: %s" % (url, last_error))
             fileList.extend(s["fileList"])
-            total_size += s["total_size"]
+            total_size += s["size"]
         return {"fileList": fileList, "size": total_size}
 
     def _fix_url(self, url):
-
+        fileList = []
         total_size = 0
         if url[0] == "{":
-            continue
+            raise Exception("Invalid URL '%s'" % url)
 
         copy = False
         unzip = False
@@ -235,7 +238,7 @@ class FilePrepare:
                     os.makedirs(u.path)
                 except Exception as e:
                     if not os.path.exists(u.path):
-                        raise Exception("Faield to make directory: %s" % str(e))
+                        raise Exception("Failed to make directory: %s" % str(e))
 
             fileList.append(u.path)
             return {"fileList": fileList, "size": 0}
@@ -248,7 +251,7 @@ class FilePrepare:
                     self.log.debug("Is compressed but already decompressed")
                 fileList.extend(self._get_filelist(decomp))
                 total_size += self.get_tree_size(decomp)
-                continue
+                return {"fileList": fileList, "size": total_size}
 
         if os.path.exists(local_file):
             if not compressed:
