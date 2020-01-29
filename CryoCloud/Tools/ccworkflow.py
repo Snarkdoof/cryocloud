@@ -924,8 +924,8 @@ class CryoCloudTask(Task):
                                 p = a
                             else:
                                 # print("Need to add stuff to file '%s', %s" % (a, pebble))
-                                print("Parent name: %s, stats: %s" % (parent.name, str(pebble.stats)))
-                                print("idx", idx, p_nodes)
+                                # print("Parent name: %s, stats: %s" % (parent.name, str(pebble.stats)))
+                                # print("idx", idx, p_nodes)
                                 # print("Retval: %s" % (str(pebble.retval_dict)))
                                 if "proto" in self.args[arg]:
                                     p = self.args[arg]["proto"] + "://"
@@ -1493,7 +1493,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             deferred = master._deferred
             stats = {"runtime": 0, "cpu_time": 0, "max_memory": 0, "nodes": []}
             for t in master._sub_tasks.values():
-                print("MERGING", self._pebbles[t], self._pebbles[t].retval_dict, self._pebbles[t].stats)
+                # print("MERGING", self._pebbles[t], self._pebbles[t].retval_dict, self._pebbles[t].stats)
                 if self._pebbles[t].retval_dict[node]:
                     for key in self._pebbles[t].retval_dict[node]:
                         if key not in retvals:
