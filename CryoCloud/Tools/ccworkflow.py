@@ -1154,7 +1154,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                     n._mp_blocked += 1
                     blocked = 1
 
-        args["__pfx__"] = "pbl" + log_prefix
+        args["__pfx__"] = "pbl%s" % log_prefix
         return self.head.add_job(lvl, taskid, args, module=module, jobtype=jobtype,
                                  itemid=itemid, workdir=workdir,
                                  priority=priority,
