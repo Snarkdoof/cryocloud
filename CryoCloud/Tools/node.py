@@ -294,13 +294,15 @@ class Worker(multiprocessing.Process):
                 for arg in subargs["args"]:
                     if isinstance(subargs["args"][arg], list):
                         for x in range(len(subargs["args"][arg])):
-                            t = subargs["args"][arg][x].split(" ")
-                            if "copy" in t or "unzip" in t:
-                                if not fprep:
-                                    fprep = fileprep.FilePrepare(self.cfg["datadir"])
-                                ret = fprep.fix([subargs["args"][arg][x]])
-                                subargs["args"][arg][x] = ret["fileList"][0]
-                    else:
+                            if isinstance(subargs["args"][arg][x], str):
+                                t = subargs["args"][arg][x].split(" ")
+                                if "copy" in t or "unzip" in t:
+                                    if not fprep:
+                                        fprep = fileprep.FilePrepare(self.cfg["datadir"])
+                                    ret = fprep.fix([subargs["args"][arg][x]])
+                                    subargs["args"][arg][x] = ret["fileList"][0]
+                    elif isinstance(subargs["args"][arg], str):
+                    # else:
                         t = subargs["args"][arg].split(" ")
                         if "copy" in t or "unzip" in t:
                             if not fprep:
