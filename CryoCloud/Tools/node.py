@@ -257,6 +257,11 @@ class Worker(multiprocessing.Process):
         # taskid = "%s.%s-%s_%d" % (task["runname"], self._worker_type, socket.gethostname(), self.workernum)
         # print(taskid, "Processing", task)
 
+        if "__pfx__" in task["args"]:
+            self.log.prefix = task["args"]["__pfx__"]
+        else:
+            self.log.prefix = None
+
         # Report that I'm on it
         start_time = time.time()
         fprep = None
