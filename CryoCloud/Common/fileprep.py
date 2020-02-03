@@ -11,10 +11,40 @@ import boto3
 import requests
 import time
 import random
+import concurrent.futures
 
-DEBUG = False
+DEBUG = True
 
 os.environ['S3_USE_SIGV4'] = 'True'  # For minio S3
+
+
+def _unzip_member(fn, filename, dest):
+    with open(fn, 'rb') as f:
+        zf = zipfile.ZipFile(f)
+        zf.extract(filename, dest)
+
+
+class QuickZipFile(zipfile.ZipFile):
+
+    def quick_exctract_all(self, dest):
+
+        for member in self.infolist():  # Do directories first
+            if member.is_dir():
+                _unzip_member(self.filename, member.filename, dest)
+        futures = []
+        # with concurrent.futures.ProcessPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            for member in self.infolist():
+                if member.is_dir():
+                    continue
+                futures.append(
+                    executor.submit(
+                        _unzip_member,
+                        self.filename,
+                        member.filename,
+                        dest,
+                    )
+                )
 
 
 class FilePrepare:
@@ -90,7 +120,7 @@ class FilePrepare:
         # We create a directory with the same name, but without extension
         dst = os.path.splitext(s)[0]
         if os.path.exists(dst):
-            self.log.warning("Destination '%s' exists for uncompress, we assume it's done already" % dst)
+            self.log.info("Destination '%s' exists for uncompress, we assume it's done already" % dst)
             retval = self._get_filelist(dst)
 
         # We unzip into a temporary directory, then rename it (in case of parallel jobs)
@@ -105,7 +135,7 @@ class FilePrepare:
                 names = f.getnames()
             else:
                 self.log.debug("Unzipping %s to %s" % (s, dst))
-                f = zipfile.ZipFile(s)
+                f = QuickZipFile(s)
                 names = f.namelist()
             for name in names:
                 if name.startswith("./"):
@@ -120,7 +150,10 @@ class FilePrepare:
                     parent = os.path.join(dst, name[:name.find("/")])
                     if parent not in retval:
                         retval.append(parent)
-            f.extractall(decomp)
+            if isinstance(f, QuickZipFile):
+                f.quick_exctract_all(decomp)
+            else:
+                f.extractall(decomp)
             done += 1
         except Exception as e:
             # retval["errors"] += "%s: %s\n" % (s, e)
