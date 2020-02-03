@@ -89,6 +89,7 @@ class Pebble:
         self._tempdirs = {}
         self._dbg_cleaned = False
         self._cleanup_tasks = []
+        self._involved_nodes = []  # For cleanup
 
     def __str__(self):
         if self.is_sub_pebble:
@@ -1393,6 +1394,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         pebble = self._pebbles[task["itemid"]]
         self._updateProgress(pebble, task["step"], {"queued": -1, "allocated": 1, "pending": -1})
 
+        if not task["node"] in pebble._involved_nodes:
+            pebble._involved_nodes.append(task["node"])
+
         if not pebble.nodename[task["taskid"]].startswith("_"):
             self.status["%s.processing" % pebble.nodename[task["taskid"]]].inc()
             self.status["%s.pending" % pebble.nodename[task["taskid"]]].dec()
@@ -1593,16 +1597,14 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         while len(p._cleanup_tasks) > 0:
             nodename, pid, result, callerName = p._cleanup_tasks.pop(0)
             caller = self.workflow.nodes[callerName]
-            self.log.debug("Running cleanup job, caller %s" % caller)
+            # self.log.debug("Running cleanup job, caller %s (nodename %s)" % (caller, nodename))
             pbl = self._pebbles[pid]
-            if nodename == "remove":
-                # Run on all nodes
-                for node in self._jobdb.get_admin_worker_nodes():
-                    n = copy.copy(self.workflow.nodes[nodename])
-                    n.ccnode = node
-                    n.resolve(pbl, result, caller, deferred=True)
-            else:
-                self.workflow.nodes[nodename].resolve(pbl, result, caller, deferred=True)
+
+            # We run cleanup on all nodes that were involved (in case they have non-shared disks)
+            for node in pbl._involved_nodes:
+                n = copy.copy(self.workflow.nodes[nodename])
+                n.ccnode = node
+                n.resolve(pbl, result, caller, deferred=True)
 
         # If this was an order, we'll register the return values before
         # cleaning up the pebble
