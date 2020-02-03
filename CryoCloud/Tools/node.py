@@ -441,6 +441,11 @@ class Worker(multiprocessing.Process):
         except Exception as e:
             self.log.warning("CryoCore is old, please update it: %s" % e)
 
+        if "__pfx__" in task["args"]:
+            self.log.prefix = task["args"]["__pfx__"]
+        else:
+            self.log.prefix = None
+
         # Report that I'm on it
         start_time = time.time()
         fprep = None

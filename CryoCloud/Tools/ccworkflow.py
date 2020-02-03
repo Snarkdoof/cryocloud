@@ -528,16 +528,6 @@ class Workflow:
         wf.build_graph(validate)
         return wf
 
-    def remove_node(self, nodename):
-        if nodename not in self.nodes:
-            return
-
-        node = self.nodes[nodename]
-        for n in node._upstreams:
-            n.undownstreamOf(node)
-
-        self.nodes.remove(node)
-
     def get_pebble(self, pebbleid):
         return self.handler.get_pebble(pebbleid)
 
@@ -707,8 +697,8 @@ class Workflow:
             try:
                 callback(pebble, message)
             except:
-                self.log.exception("Exception in immediate callback for '%s': %s" %
-                                   (what, message))
+                self.handler.log.exception("Exception in immediate callback for '%s': %s" %
+                                           (what, message))
 
     def deliver_message(self, what, message):
         self.messages[what] = message
@@ -717,7 +707,7 @@ class Workflow:
                 try:
                     callback(pebble, message)
                 except:
-                    self.log.exception("Exception in callback for '%s': %s" % (what, message))
+                    self.handler.log.exception("Exception in callback for '%s': %s" % (what, message))
                 self.message_callbacks[what].remove((callback, pebble))  # We only deliver ONCE
 
     def shouldRun(self, what):
@@ -1212,7 +1202,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         return self.orders[order]
 
     def _addJob(self, n, lvl, taskid, args, module, jobtype,
-                itemid, workdir, priority, node, parent):
+                itemid, workdir, priority, node, parent=None, log_prefix=None):
 
         self.log.debug("_addJob %s" % json.dumps(args))
         if n.docker:
@@ -1276,6 +1266,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
             args["__post__"] = p
         args["__ll__"] = API.log_level_str[self.options.loglevel.upper()]
+        args["__pfx__"] = "pbl%s" % log_prefix
         return self.head.add_job(lvl, taskid, args, module=module, jobtype=jobtype,
                                  itemid=itemid, workdir=workdir,
                                  priority=priority,
@@ -1347,7 +1338,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                     i = self._addJob(node, lvl, taskid, args, module=mod, jobtype=jobt,
                                      itemid=subpebble.gid, workdir=runtime_info["workdir"],
                                      priority=runtime_info["priority"],
-                                     node=runtime_info["node"], parent=parent)
+                                     node=runtime_info["node"], parent=parent,
+                                     log_prefix=pebble.gid)
                     subpebble.jobid = i
 
                 else:
@@ -1357,7 +1349,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                     i = self._addJob(node, lvl, taskid, args, module=mod, jobtype=jobt,
                                      itemid=pebble.gid, workdir=runtime_info["workdir"],
                                      priority=runtime_info["priority"],
-                                     node=runtime_info["node"], parent=parent)
+                                     node=runtime_info["node"], parent=parent,
+                                     log_prefix=pebble.gid)
                     pebble.jobid = i
             if not node.name.startswith("_"):
                 self.status["%s.pending" % node.name].inc(len(origargs))
@@ -1372,7 +1365,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         i = self._addJob(node, lvl, taskid, args, module=mod, jobtype=jobt,
                          itemid=pebble.gid, workdir=runtime_info["workdir"],
                          priority=runtime_info["priority"],
-                         node=runtime_info["node"], parent=parent)
+                         node=runtime_info["node"], parent=parent,
+                         log_prefix=pebble.gid)
         pebble.jobid = i
         # pebble._sub_pebbles[i] = {"x": None, "y": None, "node": node, "done": False}
 
