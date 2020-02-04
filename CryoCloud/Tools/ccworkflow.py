@@ -8,9 +8,9 @@ lines.
 
 import time
 import json
-import random
 import imp
 import os
+import struct
 import sys
 import copy
 import re
@@ -45,7 +45,7 @@ class Pebble:
     def __init__(self, gid=None):
         self.gid = gid
         if gid is None:
-            self.gid = random.randint(0, 100000000)  # TODO: DO this better
+            self.gid = struct.unpack("I", os.urandom(4))[0]
         self.resolved = []
         self.args = {}
         self.retval_dict = {}
@@ -82,7 +82,7 @@ class Task:
         self.workflow = workflow
         self.taskid = taskid
         if taskid is None:
-            self.taskid = random.randint(0, 100000000000)  # generate this better
+            self.taskid = struct.unpack("I", os.urandom(4))[0]
         self._upstreams = []
         self._downstreams = []
         self.priority = 50
@@ -91,7 +91,7 @@ class Task:
         self.args = {}
         self.runOn = "always"
         self.runIf = None
-        self.name = "task%d" % random.randint(0, 1000000)
+        self.name = "task%d" % struct.unpack("I", os.urandom(4))[0]
         self.module = None
         self.config = None
         self.resolveOnAny = False
@@ -685,6 +685,7 @@ class TestTask(Task):
         time.sleep(10)
         self.on_completed(pebble, "success")
 
+
 class CryoCloudTask(Task):
 
     remove_on_done = False
@@ -858,10 +859,12 @@ class CryoCloudTask(Task):
                         else:
                             p += pebble.stats[parent.name]["node"] + args[arg]
                         if "unzip" in self.args[arg]:
-                            if (isinstance(self.args[arg]["unzip"], str) and self.args[arg]["unzip"].lower() == "true") or self.args[arg]["unzip"]:
+                            if (isinstance(self.args[arg]["unzip"], str) and
+                               self.args[arg]["unzip"].lower() == "true") or self.args[arg]["unzip"]:
                                 p += " unzip"
                         if "copy" in self.args[arg]:
-                            if (isinstance(self.args[arg]["copy"], str) and self.args[arg]["copy"].lower() == "false") or not self.args[arg]["copy"]:
+                            if (isinstance(self.args[arg]["copy"], str) and
+                               self.args[arg]["copy"].lower() == "false") or not self.args[arg]["copy"]:
                                 pass
                         else:
                             p += " copy"
@@ -874,7 +877,7 @@ class CryoCloudTask(Task):
                         if "id" in self.args[arg]:
                             _tempid = self.args[arg]["id"]
                         else:
-                            _tempid = random.randint(0, 100000000)
+                            _tempid = struct.unpack("I", os.urandom(4))[0]
 
                         p = pebble
                         if p.is_sub_pebble:
@@ -898,8 +901,7 @@ class CryoCloudTask(Task):
                             }
                             self.workflow.nodes[cuptask.name] = cuptask
                             p._cleanup_tasks.append((cuptask.name, p.gid, "success", self.name))
-                            #cuptask.downstreamOf(self)
-
+                            # cuptask.downstreamOf(self)
 
                         args[arg] = "dir://" + p._tempdirs[_tempid] + " mkdir"
 
@@ -1212,7 +1214,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                 if x < len(origargs) - 1:
                     # SHOULD MAKE A COPY OF THE PEBBLE AND GO ON FROM HERE
                     subpebble = copy.deepcopy(pebble)
-                    subpebble.gid = random.randint(0, 100000000)  # TODO: DO this better
+                    subpebble.gid = struct.unpack("I", os.urandom(4))[0]
                     subpebble.is_sub_pebble = True
                     pebble._sub_tasks[x] = subpebble.gid
                     self._jobdb.update_profile(subpebble.gid,
@@ -1221,7 +1223,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                                                state=jobdb.STATE_PENDING,
                                                priority=runtime_info["priority"])
                     self._pebbles[subpebble.gid] = subpebble
-                    taskid = random.randint(0, 100000000)  # TODO: Better
+                    taskid = struct.unpack("I", os.urandom(4))[0]
                     subpebble.nodename[taskid] = node.name
                     i = self._addJob(node, lvl, taskid, args, module=mod, jobtype=jobt,
                                      itemid=subpebble.gid, workdir=runtime_info["workdir"],
@@ -1231,7 +1233,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
                 else:
                     pebble._sub_tasks[x] = pebble.gid
-                    taskid = random.randint(0, 100000000)  # TODO: Better
+                    taskid = struct.unpack("I", os.urandom(4))[0]
                     pebble.nodename[taskid] = node.name
                     i = self._addJob(node, lvl, taskid, args, module=mod, jobtype=jobt,
                                      itemid=pebble.gid, workdir=runtime_info["workdir"],
@@ -1246,7 +1248,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         if not node.name.startswith("_"):
             self.status["%s.pending" % node.name].inc()
 
-        taskid = random.randint(0, 100000000)  # TODO: Better
+        taskid = struct.unpack("I", os.urandom(4))[0]
         pebble.nodename[taskid] = node.name
         i = self._addJob(node, lvl, taskid, args, module=mod, jobtype=jobt,
                          itemid=pebble.gid, workdir=runtime_info["workdir"],
@@ -1468,8 +1470,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             if pebble.gid in self._pebbles:
                 del self._pebbles[pebble.gid]
 
-
-
     def onError(self, task):
 
         # print("*** ERROR", task)
@@ -1526,7 +1526,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         try:
             workflow.nodes[node].on_completed(pebble, "error")
         except:
-            self.log.exception("Exception resolving bad pebble, possibly something failed too miserably to return the proper return values. Ignoring.")
+            self.log.exception("Exception resolving bad pebble, possibly something failed "
+                               "too miserably to return the proper return values. Ignoring.")
 
         # Do we have any global error handlers (and is THIS one of them?)
         try:
