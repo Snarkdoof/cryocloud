@@ -45,7 +45,7 @@ class Pebble:
     def __init__(self, gid=None):
         self.gid = gid
         if gid is None:
-            self.gid = struct.unpack("I", os.urandom(4))[0]
+            self.gid = struct.unpack("I", os.urandom(3))[0]
         self.resolved = []
         self.args = {}
         self.retval_dict = {}
@@ -82,7 +82,7 @@ class Task:
         self.workflow = workflow
         self.taskid = taskid
         if taskid is None:
-            self.taskid = struct.unpack("I", os.urandom(4))[0]
+            self.taskid = struct.unpack("I", os.urandom(3))[0]
         self._upstreams = []
         self._downstreams = []
         self.priority = 50
@@ -91,7 +91,7 @@ class Task:
         self.args = {}
         self.runOn = "always"
         self.runIf = None
-        self.name = "task%d" % struct.unpack("I", os.urandom(4))[0]
+        self.name = "task%d" % struct.unpack("I", os.urandom(3))[0]
         self.module = None
         self.config = None
         self.resolveOnAny = False
@@ -877,7 +877,7 @@ class CryoCloudTask(Task):
                         if "id" in self.args[arg]:
                             _tempid = self.args[arg]["id"]
                         else:
-                            _tempid = struct.unpack("I", os.urandom(4))[0]
+                            _tempid = struct.unpack("I", os.urandom(3))[0]
 
                         p = pebble
                         if p.is_sub_pebble:
@@ -1214,7 +1214,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                 if x < len(origargs) - 1:
                     # SHOULD MAKE A COPY OF THE PEBBLE AND GO ON FROM HERE
                     subpebble = copy.deepcopy(pebble)
-                    subpebble.gid = struct.unpack("I", os.urandom(4))[0]
+                    subpebble.gid = struct.unpack("I", os.urandom(3))[0]
                     subpebble.is_sub_pebble = True
                     pebble._sub_tasks[x] = subpebble.gid
                     self._jobdb.update_profile(subpebble.gid,
@@ -1223,7 +1223,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                                                state=jobdb.STATE_PENDING,
                                                priority=runtime_info["priority"])
                     self._pebbles[subpebble.gid] = subpebble
-                    taskid = struct.unpack("I", os.urandom(4))[0]
+                    taskid = struct.unpack("I", os.urandom(3))[0]
                     subpebble.nodename[taskid] = node.name
                     i = self._addJob(node, lvl, taskid, args, module=mod, jobtype=jobt,
                                      itemid=subpebble.gid, workdir=runtime_info["workdir"],
@@ -1233,7 +1233,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
                 else:
                     pebble._sub_tasks[x] = pebble.gid
-                    taskid = struct.unpack("I", os.urandom(4))[0]
+                    taskid = struct.unpack("I", os.urandom(3))[0]
                     pebble.nodename[taskid] = node.name
                     i = self._addJob(node, lvl, taskid, args, module=mod, jobtype=jobt,
                                      itemid=pebble.gid, workdir=runtime_info["workdir"],
@@ -1248,7 +1248,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         if not node.name.startswith("_"):
             self.status["%s.pending" % node.name].inc()
 
-        taskid = struct.unpack("I", os.urandom(4))[0]
+        taskid = struct.unpack("I", os.urandom(3))[0]
         pebble.nodename[taskid] = node.name
         i = self._addJob(node, lvl, taskid, args, module=mod, jobtype=jobt,
                          itemid=pebble.gid, workdir=runtime_info["workdir"],
