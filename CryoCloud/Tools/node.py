@@ -103,6 +103,12 @@ class Worker(multiprocessing.Process):
         print("%s %s created" % (self._worker_type, workernum))
 
     def _switchJob(self, job):
+
+        if "__pfx__" in job["args"]:
+            self.log.prefix = job["args"]["__pfx__"]
+        else:
+            self.log.prefix = None
+
         if self._current_job == (job["runname"], job["module"]):
             # Same job
             # return
@@ -256,11 +262,6 @@ class Worker(multiprocessing.Process):
     def _process_task(self, task):
         # taskid = "%s.%s-%s_%d" % (task["runname"], self._worker_type, socket.gethostname(), self.workernum)
         # print(taskid, "Processing", task)
-
-        if "__pfx__" in task["args"]:
-            self.log.prefix = task["args"]["__pfx__"]
-        else:
-            self.log.prefix = None
 
         # Report that I'm on it
         start_time = time.time()
