@@ -91,7 +91,7 @@ class Task:
         self.args = {}
         self.runOn = "always"
         self.runIf = None
-        self.name = "task%d" % struct.unpack("I", os.urandom(4))[0] / 2
+        self.name = "task%d" % (struct.unpack("I", os.urandom(4))[0] / 2)
         self.module = None
         self.config = None
         self.resolveOnAny = False
