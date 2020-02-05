@@ -64,6 +64,7 @@ class Pebble:
         self._subpebble = None  # This will be a number if we're a subpebble
         self._stop_on = []
         self._sub_tasks = {}  # If we have a split, we must remember which pebbles are the "siblings"
+        self._master_task = None
         self._merge_result = "success"
         self._resolve_pebble = self
         self._deferred = []
@@ -1080,6 +1081,11 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         # Generate a Pebble to represent this piece of work
         pebble = Pebble()
+        while pebble.gid in self._pebbles:
+            self.log.error("Some how generated pebble ID that's already used!")
+            pebble = Pebble()
+            time.sleep(0.1)
+
         # print("CREATED PEBBLE", pebble)
         # self._jobdb.update_profile(pebble.gid, self.workflow.name, product=self.workflow.name, type=0)  # The whole job
 
@@ -1124,7 +1130,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
     def _addJob(self, n, lvl, taskid, args, module, jobtype,
                 itemid, workdir, priority, node, log_prefix=None):
 
-        self.log.debug("_addJob %s" % json.dumps(args))
+        self.log.debug("_addJob %s, prefix: %s" % (json.dumps(args), log_prefix))
         if n.docker:
             module = "docker"
             t = copy.deepcopy(args)
@@ -1212,6 +1218,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             pebble._master_task = pebble.gid
             pebble._num_subtasks = len(origargs)
             pebble._sub_tasks = {}
+            log_prefix = pebble.gid
             for x in range(len(origargs)):
                 args[node.splitOn] = origargs[x]
                 self._updateProgress(pebble, lvl, {"total": 1, "queued": 1, "pending": 1})
@@ -1232,7 +1239,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                     i = self._addJob(node, lvl, taskid, args, module=mod, jobtype=jobt,
                                      itemid=subpebble.gid, workdir=runtime_info["workdir"],
                                      priority=runtime_info["priority"],
-                                     node=runtime_info["node"], log_prefix=pebble.gid)
+                                     node=runtime_info["node"], log_prefix=log_prefix)
                     subpebble.jobid = i
 
                 else:
@@ -1242,7 +1249,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                     i = self._addJob(node, lvl, taskid, args, module=mod, jobtype=jobt,
                                      itemid=pebble.gid, workdir=runtime_info["workdir"],
                                      priority=runtime_info["priority"],
-                                     node=runtime_info["node"], log_prefix=pebble.gid)
+                                     node=runtime_info["node"], log_prefix=log_prefix)
                     pebble.jobid = i
             if not node.name.startswith("_"):
                 self.status["%s.pending" % node.name].inc(len(origargs))
@@ -1254,10 +1261,14 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         taskid = _genrandom()
         pebble.nodename[taskid] = node.name
+        if pebble._master_task:
+            log_prefix = pebble._master_task
+        else:
+            log_prefix = pebble.gid
         i = self._addJob(node, lvl, taskid, args, module=mod, jobtype=jobt,
                          itemid=pebble.gid, workdir=runtime_info["workdir"],
                          priority=runtime_info["priority"],
-                         node=runtime_info["node"], log_prefix=pebble.gid)
+                         node=runtime_info["node"], log_prefix=log_prefix)
         pebble.jobid = i
         # pebble._sub_pebbles[i] = {"x": None, "y": None, "node": node, "done": False}
 
