@@ -139,18 +139,18 @@ class DockerProcess():
 
     def run(self):
         docker = "docker"
+        cmd = [docker]
         if self.gpu:
             try:
-                retval = subprocess.call(["nvidia-docker", "version"])
-                if retval == 0:
-                    docker = "nvidia-docker"
-                    self.log.info("Using NVIDIA Docker for GPU acceleration")
+                retval = subprocess.call(["docker", "--gpus"])
+                if retval == 125:
+                    docker.extend(["--gpus", "all"])
+                    self.log.info("Using GPU acceleration")
                 else:
-                    self.log.warning("NVIDIA Docker requested but not available, not using GPU")
+                    self.log.warning("GPU Docker requested but not available, not using GPU")
             except:
-                    self.log.warning("NVIDIA Docker requested but not available, not using GPU")
-
-        cmd = [docker, "run"]
+                    self.log.warning("GPU Docker requested but not available, not using GPU")
+        cmd.append("run")
 
         for d in self.dirs:
             if len(d) == 3:
