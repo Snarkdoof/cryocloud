@@ -725,8 +725,10 @@ class NodeController(threading.Thread):
             w.start()
             self._worker_pool.append(w)
 
-        if options.gpumodules and options.num_gpus > 0:
+        if options.gpumodules or options.num_gpus > 0:
             for i in range(0, options.num_gpus):
+                if not options.gpumodules:
+                    options.gpumodules = ["any"]
                 print("Starting GPU worker %d supporting" % i, options.gpumodules)
                 w = Worker(i, self._stop_event, type=jobdb.TYPE_GPU, modules=options.gpumodules,
                            module_paths=options.paths, name=options.name, options=options)
