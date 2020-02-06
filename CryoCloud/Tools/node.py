@@ -884,10 +884,10 @@ if __name__ == "__main__":
     parser.add_argument("--debug", dest="debug", action="store_true",
                         help="Print debug info on stdout")
 
-    parser.add_argument("--num_gpus", dest="num_gpus", default=0,
+    parser.add_argument("--gpu", "--num-gpus", dest="num_gpus", default=0,
                         help="Number of GPUs to run on (GPU workers - run at most one if uncertain)")
-    parser.add_argument("--gpu-modules", dest="gpumodules", default="",
-                        help="GPU based modules in a comma separated list (otherwise autodetect - NOT IMPLEMENTED) "
+    parser.add_argument("--gpu-modules", dest="gpumodules", default="any",
+                        help="GPU based modules in a comma separated list (otherwise 'any') "
                              "- use 'any' for any or 'detect' to force detection")
 
     if "argcomplete" in sys.modules:
