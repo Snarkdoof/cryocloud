@@ -227,22 +227,18 @@ class Worker(multiprocessing.Process):
         self.log.debug("Supported modules:" + str(self._modules))
 
     def _switchJob(self, job):
+
+        if "__pfx__" in job["args"]:
+            self.log.prefix = job["args"]["__pfx__"]
+        else:
+            self.log.prefix = None
+
         st_mtime = None
         if self._module:
             st_mtime = os.stat(os.path.abspath(self._module.__file__)).st_mtime
 
         if self._current_job == (job["module"], st_mtime):
             return  # Same module, not changed on disk
-
-        # UNLOAD?
-        if self._module and "load" in [x[0] for x in inspect.getmembers(self._module)]:
-
-            try:
-                # TODO: Use inspect.getmembers() to check if we actually have an unload first?
-                self._module.unload()
-            except Exception as e:
-                print("Can't unload", self._current_job, e)
-                pass
 
         # UNLOAD?
         if self._module and "load" in [x[0] for x in inspect.getmembers(self._module)]:
@@ -440,11 +436,6 @@ class Worker(multiprocessing.Process):
             API.set_log_level(task["args"]["__ll__"])
         except Exception as e:
             self.log.warning("CryoCore is old, please update it: %s" % e)
-
-        if "__pfx__" in task["args"]:
-            self.log.prefix = task["args"]["__pfx__"]
-        else:
-            self.log.prefix = None
 
         # Report that I'm on it
         start_time = time.time()
