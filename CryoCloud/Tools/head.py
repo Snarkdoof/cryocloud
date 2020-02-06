@@ -85,6 +85,7 @@ class HeadNode(threading.Thread):
         self.TYPE_NORMAL = jobdb.TYPE_NORMAL
         self.TYPE_ADMIN = jobdb.TYPE_ADMIN
         self.TYPE_MANUAL = jobdb.TYPE_MANUAL
+        self.TYPE_GPU = jobdb.TYPE_GPU
 
         self.STATE_PENDING = jobdb.STATE_PENDING
         self.STATE_ALLOCATED = jobdb.STATE_ALLOCATED
@@ -97,7 +98,8 @@ class HeadNode(threading.Thread):
         self.TASK_STRING_TO_NUM = {
             "admin": self.TYPE_ADMIN,
             "manual": self.TYPE_MANUAL,
-            "normal": self.TYPE_NORMAL
+            "normal": self.TYPE_NORMAL,
+            "gpu": self.TYPE_GPU
         }
 
         self.handler.head = self

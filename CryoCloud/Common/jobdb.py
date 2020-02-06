@@ -16,6 +16,7 @@ PRI_BULK = 0
 TYPE_NORMAL = 1
 TYPE_ADMIN = 2
 TYPE_MANUAL = 3
+TYPE_GPU = 4
 
 STATE_PENDING = 1
 STATE_ALLOCATED = 2
@@ -28,7 +29,8 @@ STATE_DISABLED = 7
 TASK_TYPE = {
     TYPE_NORMAL: "Worker",
     TYPE_ADMIN: "AdminWorker",
-    TYPE_MANUAL: "ManualWorker"
+    TYPE_MANUAL: "ManualWorker",
+    TYPE_GPU: "GpuWorker"
 }
 
 PRI_STRING = {

@@ -129,7 +129,7 @@ def load(modulename, path=None):
     return modules[modulename]
 
 
-def detect_modules(paths=[], modules=None):
+def detect_modules(paths=[], modules=None, exceptmodules=[], testload=True):
     """
     Detect loadable and runnable modules in all given paths.
     If modules is given (as a list), only the listed modules will be tested
@@ -160,6 +160,20 @@ def detect_modules(paths=[], modules=None):
             if not f.endswith(".py"):
                 continue
 
+            modname = f.replace(".py", "")
+            if modules and modname not in modules:
+                continue  # Skip, a list of candidates are given but this is not one of them
+
+            if modname in exceptmodules or f in exceptmodules:
+                if DEBUG:
+                    print("Exceptmodule '%s' ignored" % f)
+                continue
+
+            if not testload:
+                if modname not in mods:
+                    mods.append(modname)
+                continue
+
             # Is this a cryocloud module?
             ccmodule = load_ccmodule(p)
             if ccmodule:
@@ -167,7 +181,7 @@ def detect_modules(paths=[], modules=None):
                     print("Found a CCModule", f)
 
                 try:
-                    m = load(f.replace(".py", ""), path=path)
+                    m = load(modname, path=path)
                     if DEBUG:
                         print("Loaded", f, "from", os.path.abspath(m.__file__))
                     if m and "canrun" in [x[0] for x in inspect.getmembers(m)]:
@@ -175,17 +189,17 @@ def detect_modules(paths=[], modules=None):
                             if DEBUG:
                                 print("Module %s loaded but can't run" % m)
                             continue
-                    if modules is None or f.replace(".py", "") in modules:
-                        mods.append(f.replace(".py", ""))
+                    if modname not in mods:
+                        mods.append(modname)
                 except:
                     print("Failed to load", p)
-
     return mods
 
 
 class Worker(multiprocessing.Process):
 
-    def __init__(self, workernum, stopevent, type=jobdb.TYPE_NORMAL, module_paths=[], modules=[], name=None):
+    def __init__(self, workernum, stopevent, type=jobdb.TYPE_NORMAL, module_paths=[], modules=[], name=None,
+                 options=None):
         super(Worker, self).__init__(daemon=True)
         API.api_auto_init = False  # Faster startup
 
@@ -205,6 +219,7 @@ class Worker(multiprocessing.Process):
         self._module = None
         self._modules = modules
         self._module_paths = module_paths
+        self.options = options
 
         self._worker_type = jobdb.TASK_TYPE[type]
         if name is None:
@@ -223,7 +238,10 @@ class Worker(multiprocessing.Process):
     def rescan_modules(self, signum=None, frame=None):
         self.log.info("Rescanning for supported modules")
         # Look for modules
-        self._modules = detect_modules(self._module_paths)
+        if self.options:
+            self._modules = detect_modules(self._module_paths, options.modules, options.exceptmodules, testload=options.test_modules)
+        else:
+            self._modules = detect_modules(self._module_paths, testload=options.test_modules)
         self.log.debug("Supported modules:" + str(self._modules))
 
     def _switchJob(self, job):
@@ -681,16 +699,18 @@ class NodeController(threading.Thread):
         else:
             workers = psutil.cpu_count()
 
-        if options.modules == "detect":
+        if options.exceptmodules and "any" in options.modules:
+            options.modules = ["detect"]
+        if options.modules and "detect" in options.modules:
             options.modules = None
 
         if options.modules and "any" in options.modules:
             modules = ["any"]
         else:
             if options.modules:
-                modules = detect_modules(options.paths, options.modules)
+                modules = detect_modules(options.paths, options.modules, options.exceptmodules, testload=options.test_modules)
             else:
-                modules = detect_modules(options.paths)
+                modules = detect_modules(options.paths, exceptmodules=options.exceptmodules, testload=options.test_modules)
 
         if len(modules) == 0:
             print("ZERO SUPPORTED MODULES! Looked in", options.paths, "for", options.modules)
@@ -698,12 +718,20 @@ class NodeController(threading.Thread):
         for i in range(0, workers):
             # wid = "%s.%s.Worker-%s_%d" % (self.jobid, self.name, socket.gethostname(), i)
             print("Starting worker %d supporting" % i, modules)
-            w = Worker(i, self._stop_event, modules=modules, module_paths=options.paths, name=options.name)
+            w = Worker(i, self._stop_event, modules=modules, module_paths=options.paths, name=options.name, options=options)
             # w = multiprocessing.Process(target=worker, args=(i, self._options.address,
             #                             self._options.port, AUTHKEY, self._stop_event))
             # args=(wid, self._task_queue, self._results_queue, self._stop_event))
             w.start()
             self._worker_pool.append(w)
+
+        if options.gpumodules and options.num_gpus > 0:
+            for i in range(0, options.num_gpus):
+                print("Starting GPU worker %d supporting" % i, options.gpumodules)
+                w = Worker(i, self._stop_event, type=jobdb.TYPE_GPU, modules=options.gpumodules,
+                           module_paths=options.paths, name=options.name, options=options)
+                w.start()
+                self._worker_pool.append(w)
 
         for i in range(0, int(options.adminworkers)):
             print("Starting adminworker %d" % i)
@@ -838,15 +866,27 @@ if __name__ == "__main__":
     parser.add_argument("--list-modules", dest="list_modules", action="store_true",
                         help="List supported modules on this system")
 
+    parser.add_argument("--test-modules", dest="test_modules", action="store_true",
+                        help="Test that all modules can actually load and run (doesn't work with dockers)")
+
     parser.add_argument("-m", "--modules", dest="modules", default="any",
                         help="Only use given modules in a comma separated list (otherwise autodetect) "
                              "- use 'any' for any or 'detect' to force detection")
+
+    parser.add_argument("-e", "--except", dest="exceptmodules", default="",
+                        help="Do NOT use given modules in a comma separated list (needs autodetect)")
 
     parser.add_argument("-p", "--module-paths", dest="paths", default="",
                         help="Comma separated list of additional paths to look for modules in")
 
     parser.add_argument("--debug", dest="debug", action="store_true",
                         help="Print debug info on stdout")
+
+    parser.add_argument("--num_gpus", dest="num_gpus", default=0,
+                        help="Number of GPUs to run on (GPU workers - run at most one if uncertain)")
+    parser.add_argument("--gpu-modules", dest="gpumodules", default="",
+                        help="GPU based modules in a comma separated list (otherwise autodetect - NOT IMPLEMENTED) "
+                             "- use 'any' for any or 'detect' to force detection")
 
     if "argcomplete" in sys.modules:
         argcomplete.autocomplete(parser)
@@ -855,19 +895,21 @@ if __name__ == "__main__":
     options.paths = options.paths.split(",")
     if options.modules:
         options.modules = options.modules.split(",")
+    if options.exceptmodules:
+        options.exceptmodules = options.exceptmodules.split(",")
+    options.num_gpus = int(options.num_gpus)
+    if options.gpumodules:
+        options.gpumodules = options.gpumodules.split(",")
+        if options.num_gpus == 0:
+            print("WARNING: 0 GPUs specified but GPU modules given. Setting to 1 GPU")
+            options.num_gpus = 1
 
     if options.debug:
         DEBUG = True
 
     if options.list_modules:
         print("Supported modules:")
-        l = detect_modules(options.paths)
-        print(l)
-        raise SystemExit(0)
-
-    if options.list_modules:
-        print("Supported modules:")
-        l = detect_modules()
+        l = detect_modules(options.paths, exceptmodules=options.exceptmodules, testload=options.test_modules)
         print(l)
         raise SystemExit(0)
 

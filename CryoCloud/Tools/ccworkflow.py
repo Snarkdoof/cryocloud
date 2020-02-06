@@ -1926,11 +1926,9 @@ if __name__ == "__main__":
     parser.add_argument("--kubernetes", dest="kubernetes",
                         action="store_true", default=False,
                         help="Control Kubernetes")
-
     parser.add_argument("--loglevel", dest="loglevel",
                         default="INFO",
                         help="Minimum log level, default INFO, should be DEBUG, INFO or ERROR")
-
     def d(n, o):
         if n in o:
             return o[n]
