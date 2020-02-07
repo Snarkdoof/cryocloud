@@ -901,10 +901,10 @@ if __name__ == "__main__":
         options.exceptmodules = options.exceptmodules.split(",")
     options.num_gpus = int(options.num_gpus)
     if options.gpumodules:
-        options.gpumodules = options.gpumodules.split(",")
-        if options.num_gpus == 0:
+        if options.gpumodules != "any" and options.num_gpus == 0:
             print("WARNING: 0 GPUs specified but GPU modules given. Setting to 1 GPU")
             options.num_gpus = 1
+        options.gpumodules = options.gpumodules.split(",")
 
     if options.debug:
         DEBUG = True
