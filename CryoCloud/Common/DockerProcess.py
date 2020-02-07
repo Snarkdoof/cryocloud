@@ -140,16 +140,19 @@ class DockerProcess():
     def run(self):
         docker = "docker"
         cmd = [docker, "run"]
+        self.log.debug("USE GPU: %s" % self.gpu)
+
         if self.gpu:
-            try:
-                retval = subprocess.call(["docker", "run", "--gpus", "all"])
-                if retval == 1:
-                    docker.extend(["--gpus", "all"])
-                    self.log.info("Using GPU acceleration")
-                else:
-                    self.log.warning("GPU Docker requested but not available, not using GPU")
-            except:
-                    self.log.warning("GPU Docker requested but not available, not using GPU")
+            cmd.extend(["--gpus", "all"])  # TODO: Check that gpus can in fact be run?
+            # try:
+            #    retval = subprocess.call(["docker", "run", "--gpus", "all"])
+            #    if retval == 1:
+            #        cmd.extend(["--gpus", "all"])
+            #        self.log.info("Using GPU acceleration")
+            #    else:
+            #        self.log.warning("GPU Docker requested but not available, not using GPU (retval %d)" % retval)
+            # except Exception as e:
+            #        self.log.warning("GPU Docker requested but not available, not using GPU (%s)" % str(e))
 
         for d in self.dirs:
             if len(d) == 3:
