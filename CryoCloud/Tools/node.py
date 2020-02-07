@@ -725,7 +725,7 @@ class NodeController(threading.Thread):
             w.start()
             self._worker_pool.append(w)
 
-        if options.gpumodules or options.num_gpus > 0:
+        if options.num_gpus > 0:
             for i in range(0, options.num_gpus):
                 if not options.gpumodules:
                     options.gpumodules = ["any"]
