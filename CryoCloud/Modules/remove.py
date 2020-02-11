@@ -108,7 +108,7 @@ def process_task(self, task):
             errors += 1
             errormsg += "Error removing %s: %s\n" % (s, e)
             if ignoreerrors:
-                self.log.warning(str(e))
+                # self.log.debug(str(e))
                 done += 1
                 self.status["progress"] = 100 * done / float(len(src))
                 continue
