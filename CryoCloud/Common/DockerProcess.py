@@ -248,7 +248,10 @@ class DockerProcess():
             # Check for output on stderr - set error message
             if buf[p.stderr]:
                 # Should we parse this for some known stuff?
-                self.log.error(buf[p.stderr])
+                if buf[p.stderr].find("Traceback") > -1:
+                    self.log.error(buf[p.stderr])
+                else:
+                    self.log.debug(buf[p.stderr])
                 buf[p.stderr] = ""
 
             # See if the process is still running
