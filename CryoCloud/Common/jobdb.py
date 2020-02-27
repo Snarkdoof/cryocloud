@@ -426,7 +426,10 @@ class JobDB(mysql):
                     jobs = []
                     for jobid, step, taskid, t, priority, args, runname, jmodule, modulepath, rmodule, steps, workdir, itemid in c.fetchall():
                         if args:
-                            args = json.loads(args)
+                            if isinstance(args, bytes):
+                                args = json.loads(args.decode("utf-8"))
+                            else:
+                                args = json.loads(args)
                         if jmodule:
                             module = jmodule
                         else:
@@ -465,7 +468,10 @@ class JobDB(mysql):
         c = self._execute(SQL, args)
         for jobid, step, taskid, t, priority, args, tschange, state, expire_time, module, modulepath, tsallocated, node, worker, retval, workdir, itemid, cpu_time, max_memory in c.fetchall():
             if args:
-                args = json.loads(args)
+                if isinstance(args, bytes):
+                    args = json.loads(args.decode("utf-8"))
+                else:
+                    args = json.loads(args)
             if retval:
                 retval = json.loads(retval)
             job = {"id": jobid, "step": step, "taskid": taskid, "type": t, "priority": priority,
