@@ -284,7 +284,7 @@ class Worker(multiprocessing.Process):
             if modulepath:
                 path = [modulepath]
             self._module = job["module"]
-            # self.log.debug("Loading module %s (%s)" % (self._module, path))
+            self.log.debug("Loading module %s (%s)" % (self._module, path))
             self._module = load(self._module, path)
 
             st_mtime = os.stat(os.path.abspath(self._module.__file__)).st_mtime
