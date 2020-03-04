@@ -1099,6 +1099,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         self._jobdb = jobdb.JobDB("Ignored", self.workflow.name)
         self.orders = {}  # Orders from interactive sources - let them resolve info here
         self.statusDB = None
+        self._is_restricted = False
 
     def get_pebble(self, pebbleid):
         if pebbleid in self._pebbles:
@@ -1778,7 +1779,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         """
         Check restrictions (type status things that are in/outside of parameters)
         """
-
         for step, modulename in step_modules:
             node = None
             for n in self.workflow.nodes.values():
@@ -1805,7 +1805,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                     if value is None:
                         value = 0
                     if not eval(str(value) + r):
-                        print("Restrictions %s%s not met" % (str(value), r))
                         disable = True
                         break
                 except Exception as e:
@@ -1813,8 +1812,14 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                     self.log.error("Bad restriction for node %s: %s (%s)" % (modulename, restriction, str(e)))
             if disable:
                 self._jobdb.disable_step(step)
+                if not self._is_restricted:
+                    print(time.ctime(), "Restrictions %s%s not met" % (str(value), r))
+                self._is_restricted = True
             else:
                 self._jobdb.enable_step(step)
+                if self._is_restricted:
+                    print(time.ctime(), "Restrictions are all OK")
+                self._is_restricted = False
 
 
 if 0:  # Make unittests of this graph stuff ASAP
