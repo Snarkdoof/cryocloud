@@ -26,7 +26,7 @@ import threading
 from CryoCloud.Tools.head import HeadNode
 
 from CryoCore import API
-from CryoCore.Core.Status.StatusDbReader import StatusDbReader
+from CryoCore.Core.Status import StatusDbReader
 import CryoCloud
 from CryoCloud.Common import jobdb
 
@@ -39,7 +39,6 @@ sys.path.append("./CryoCloud/Modules/")  # Add CC modules with full path
 
 sys.path.append("./Modules/")  # Add module path for the working dir of the job
 sys.path.append("./modules/")  # Add module path for the working dir of the job
-
 DEBUG = False
 
 
@@ -147,6 +146,7 @@ class Task:
         self.level = None
         self.runOnHead = False
         self.restrictions = []
+        self.pip = None
 
     def __str__(self):
         return "[%s (%s), %s, %s]: priority %d, args: %s\n" %\
@@ -412,6 +412,9 @@ class Workflow:
                     task.type = mod.ccmodule["defaults"]["type"]
                 if "input_type" in mod.ccmodule and mod.ccmodule["input_type"] == "permanent":
                     wf._is_single_run = False
+
+            if "pip" in mod.ccmodule:
+                task.pip = mod.ccmodule["pip"]
 
             task.depends = mod.ccmodule["depends"]
             task.provides = mod.ccmodule["provides"]
@@ -1279,6 +1282,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             args["__post__"] = p
         args["__ll__"] = API.log_level_str[self.options.loglevel.upper()]
         args["__pfx__"] = "pbl%s" % log_prefix
+        if n.pip:
+            args["__pip__"] = n.pip
         return self.head.add_job(lvl, taskid, args, module=module, jobtype=jobtype,
                                  itemid=itemid, workdir=workdir,
                                  priority=priority,
@@ -1801,12 +1806,13 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                     if not self.statusDB:
                         self.statusDB = StatusDbReader()
                     ts, value = self.statusDB.get_last_status_value(channel, name)
-                    r = node.restrictions[restriction]
-                    if value is None:
-                        value = 0
-                    if not eval(str(value) + r):
-                        disable = True
-                        break
+                    if ts:
+                        r = node.restrictions[restriction]
+                        if value is None:
+                            value = 0
+                        if not eval(str(value) + r):
+                            disable = True
+                            break
                 except Exception as e:
                     print("FESK", e)
                     self.log.error("Bad restriction for node %s: %s (%s)" % (modulename, restriction, str(e)))
