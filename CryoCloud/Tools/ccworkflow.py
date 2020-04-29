@@ -15,6 +15,7 @@ import sys
 import copy
 import re
 import uuid
+import random
 
 from argparse import ArgumentParser
 try:
