@@ -1815,7 +1815,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                             disable = True
                             break
                 except Exception as e:
-                    self.log.exception("Bad restriction for node %s: %s (%s) (%s)" % (modulename, restriction, str(e), str(value) + r))
+                    self.log.exception("Bad restriction for node %s: %s (%s)" % (modulename, restriction, str(e)))
             if disable:
                 self._jobdb.disable_step(step)
                 if not self._is_restricted:
