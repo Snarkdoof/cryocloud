@@ -27,7 +27,7 @@ import threading
 from CryoCloud.Tools.head import HeadNode
 
 from CryoCore import API
-from CryoCore.Core.Status import StatusDbReader
+from CryoCore.Core.Status.StatusDbReader import StatusDbReader
 import CryoCloud
 from CryoCloud.Common import jobdb
 
