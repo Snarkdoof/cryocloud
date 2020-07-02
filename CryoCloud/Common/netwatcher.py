@@ -7,6 +7,8 @@ import queue
 import json
 import jsonschema
 import uuid
+import os
+import mimetypes
 
 if 0:
     ccmodule = {
@@ -62,6 +64,27 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(message)
         # self.wfile.close()
 
+    def _send_file(self, path):
+        try:
+            with open(path, "rb") as f:
+                data = f.read()  # WARNING - DO NOT SEND LARGE FILES
+        except Exception as e:
+            print("Woops", e)
+            return self.send_error(404)
+
+        self.send_response(200)
+        self.send_header("Content-Type", mimetypes.guess_type(path))
+        self.send_header("Content-Length", len(data))
+        self.send_header("Content-Encoding", "utf-8")
+        if self.server.cors:
+            self.send_header("Access-Control-Allow-Origin", self.server.cors)
+            self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS, GET")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+
+        self.end_headers()
+        self.wfile.write(data)
+        # self.wfile.close()
+
     def do_OPTIONS(self):
         self.path = self.path.replace("//", "/")
         if self.path == "/task":
@@ -82,6 +105,25 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 print("BAD REQUEST FOR STATUS (%s): %s" % (order, e))
                 return self.send_error(404, "No info for order %s" % order)
+
+        if self.path.startswith("/close/"):
+            order = self.path[8:]
+            try:
+                info = self.server.handler.closeOrder(order)
+                return self._replyJSON(200, info)
+            except Exception as e:
+                print("BAD REQUEST FOR STATUS (%s): %s" % (order, e))
+                return self.send_error(404, "No info for order %s" % order)
+
+        if self.path.startswith("/stub"):
+            p = self.path[1:]
+            if not os.path.exists(p):
+                for fn in os.listdir("."):
+                    if fn.startswith("stub") and fn.endswith(".py"):
+                        p = fn
+                        break
+            if os.path.exists(p):
+                return self._send_file(p)
 
         self.send_error(404, "Could not find: " + self.path)
 

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # PYTHON_ARGCOMPLETE_OK
-
 from __future__ import print_function
 import sys
 import psutil
@@ -37,7 +36,6 @@ try:
     import imp
 except:
     import importlib as imp
-
 
 DEBUG = False
 
@@ -253,8 +251,10 @@ class Worker(multiprocessing.Process):
 
         st_mtime = None
         if self._module:
-            st_mtime = os.stat(os.path.abspath(self._module.__file__)).st_mtime
-
+            try:
+                st_mtime = os.stat(os.path.abspath(self._module.__file__)).st_mtime
+            except Exception as e:
+                raise Exception("Exception checking '%s': %s" % (self._module, e))
         if self._current_job == (job["module"], st_mtime):
             return  # Same module, not changed on disk
 
@@ -454,6 +454,14 @@ class Worker(multiprocessing.Process):
             API.set_log_level(task["args"]["__ll__"])
         except Exception as e:
             self.log.warning("CryoCore is old, please update it: %s" % e)
+
+        if "__pip__" in task["args"]:
+            def safe_check(cmd):
+                for i in ";?&":
+                    cmd = cmd.replace(i, "")
+                return cmd
+            self.log.debug("PIP requirements are given, running pip")
+            print("pip install %s" % (safe_check(task["args"]["__pip__"])))
 
         # Report that I'm on it
         start_time = time.time()

@@ -14,7 +14,6 @@ try:
     import argcomplete
 except:
     print("Missing argcomplete, autocomplete not available")
-
 from CryoCore import API
 from CryoCloud.Common import jobdb
 import CryoCloud.Common

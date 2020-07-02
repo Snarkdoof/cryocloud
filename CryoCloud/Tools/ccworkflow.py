@@ -1217,6 +1217,12 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             self.log.exception("INTERNAL")
         return self.orders[order]
 
+
+    def closeOrder(self, order):
+        if order in self.orders:
+            del self.orders[order]
+
+
     def _addJob(self, n, lvl, taskid, args, module, jobtype,
                 itemid, workdir, priority, node, parent=None, log_prefix=None):
 
@@ -1432,6 +1438,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
     def _unblock_step(self, node):
         unblock = None
         n = workflow.nodes[node]
+        if n._mp_unblocked > 0:
+            n._mp_unblocked -= 1
+
         with n.lock:
             if n._mp_blocked > 0:
                 # n._mp_blocked -= 1
@@ -1444,6 +1453,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             b = self._jobdb.unblock_step(unblock, max_parallel=n.max_parallel)
             n._mp_unblocked += b
             n._mp_blocked -= b
+            # print("* unblock", n.max_parallel, "unblocked is now", n._mp_unblocked, "blocked is", n._mp_blocked)
+
         return 0
 
     def onCompleted(self, task):
@@ -1623,9 +1634,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             pbl = self._pebbles[pid]
 
             # We run cleanup on all nodes that were involved (in case they have non-shared disks)
-            for node in pbl._involved_nodes:
+            for _node in pbl._involved_nodes:
                 n = copy.copy(self.workflow.nodes[nodename])
-                n.ccnode = node
+                n.ccnode = _node
                 n.resolve(pbl, result, caller, deferred=True)
 
         # If this was an order, we'll register the return values before
