@@ -28,7 +28,7 @@ except:
 
 
 from CryoCore import API
-from CryoCloud.Common import jobdb, fileprep
+from CryoCloud.Common import jobdb, fileprep, MicroService
 
 import multiprocessing
 
@@ -243,6 +243,13 @@ class Worker(multiprocessing.Process):
         self.log.debug("Supported modules:" + str(self._modules))
 
     def _switchJob(self, job):
+
+        if "__surl__" in job["args"]:
+            dst = os.path.join(self.cfg["tempdir"], "ccstubs")
+            # if not dst in sys.path:
+            #    sys.path.append(dst)
+            MicroService.get_stub(job["module"], job["args"]["__surl__"], dst)
+            job["modulepath"] = dst
 
         if "__pfx__" in job["args"]:
             self.log.prefix = job["args"]["__pfx__"]
@@ -566,6 +573,7 @@ class Worker(multiprocessing.Process):
 
         new_state = jobdb.STATE_FAILED
         canStop = False
+        monitor_thread = None
         import inspect
         members = inspect.getmembers(self._module)
         for name, member in members:
@@ -575,9 +583,12 @@ class Worker(multiprocessing.Process):
                     break
 
         if canStop:
-            t = threading.Thread(target=monitor)
-            t.daemon = True
-            t.start()
+            try:
+                monitor_thread = threading.Thread(target=monitor)
+                monitor_thread.daemon = True
+                monitor_thread.start()
+            except:
+                self.log.exception("Can't start monitoring thread, won't be able to abort")
         ret = None
         try:
             if self._module is None:
@@ -635,6 +646,11 @@ class Worker(multiprocessing.Process):
         # Update to indicate we're done
         self._jobdb.update_job(task["id"], new_state, retval=ret, cpu=my_cpu_time, memory=self.max_memory)
 
+        # Clean up thread
+        if monitor_thread:
+            stop_monitor.set()  # This should already be done, but be certain!
+            monitor_thread.join()
+
     def get_fprep(self):
         return fileprep.FilePrepare(self.cfg["datadir"], self.cfg["tempdir"])
 
@@ -672,7 +688,6 @@ class Worker(multiprocessing.Process):
                     self.log.debug("Prepping %s (%d of %d)" % (str(l), i, len(ret[key["output"]])))
                     target.append(prep(l))
                 self.log.debug("post_process completed (list)")
-                print("RETURNING", target)
                 return target
             else:
                 try:

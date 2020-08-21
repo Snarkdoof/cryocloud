@@ -16,6 +16,7 @@ import copy
 import re
 import uuid
 import random
+import tempfile
 
 from argparse import ArgumentParser
 try:
@@ -29,7 +30,7 @@ from CryoCloud.Tools.head import HeadNode
 from CryoCore import API
 from CryoCore.Core.Status.StatusDbReader import StatusDbReader
 import CryoCloud
-from CryoCloud.Common import jobdb
+from CryoCloud.Common import jobdb, MicroService
 
 if "CC_DIR" in os.environ:
     CC_DIR = os.environ["CC_DIR"]
@@ -40,6 +41,12 @@ sys.path.append("./CryoCloud/Modules/")  # Add CC modules with full path
 
 sys.path.append("./Modules/")  # Add module path for the working dir of the job
 sys.path.append("./modules/")  # Add module path for the working dir of the job
+
+stubdir = os.path.join(tempfile.gettempdir(), "ccstubs")
+if not os.path.exists(stubdir):
+    os.makedirs(stubdir)
+sys.path.append(stubdir)
+
 DEBUG = False
 
 
@@ -148,6 +155,7 @@ class Task:
         self.runOnHead = False
         self.restrictions = []
         self.pip = None
+        self.serviceURL = None
 
     def __str__(self):
         return "[%s (%s), %s, %s]: priority %d, args: %s\n" %\
@@ -251,7 +259,11 @@ class Task:
                 s = "Done"
             if "failed" in progress and progress["failed"] > 0:
                 s = "Failed"
-                progress["error"] = pebble.retval_dict[self.name]
+                if self.name in pebble.retval_dict:
+                    progress["error"] = pebble.retval_dict[self.name]
+                else:
+                    progress["error"] = "Unknown error"
+
             retval.append(({"name": self.name, "done": s, "progress": progress}))
 
         # I'm done, what about my children?
@@ -259,36 +271,48 @@ class Task:
             retval.extend(node.list_progress(pebble))
         return retval
 
-    def is_done(self, pebble):
+    def is_done(self, pebble, include_deferred=False, log=None):
         """
         Returns true iff the graph has completed for this pebble
         """
+        if log:
+            log.info("is_done %s checking pebble %s" % (self.name, pebble.gid))
         DEBUG = False
         if self.is_global:
             return True  # These never block anything - it's global error handlers
 
-        if self.deferred:
+        if self.deferred and not include_deferred:
+            if log:
+                log.info("is_done: %s is a deferred job and deferred are not included" % pebble.gid)
             return True  # Deferred jobs do not block stuff
 
         # If I shouldn't run, this tree is complete
         if self.name in pebble._stop_on:
+            if log:
+                log.info("is_done: %s should not run" % pebble.gid)
             return True  # Will not run further
 
         # If I'm not done, just return now
         if self.name != "Entry" and self.name not in pebble.retval_dict and not self.is_input:
             if DEBUG:
-                print(self.name, "I'm not completed yet")
+                print(self.name, "not completed yet")
+            if log:
+                log.info("is_done: %s haven't completed" % pebble.gid)
             return False  # We've NOT completed
 
         # I'm done, what about my children?
         for node in self._downstreams:
-            if not node.is_done(pebble):
+            if not node.is_done(pebble, include_deferred, log):
                 if DEBUG:
                     print("Child", node, "is not done")
+                if log:
+                    log.info("is_done: %s child %s hasn't completed" % (self.name, node))
                 return False  # Not done
 
         if DEBUG:
             print(self.name, "I'm all done")
+        if log:
+            log.info("is_done: %s all done" % pebble.gid)
         # I'm done, and so are my children
         return True
 
@@ -474,6 +498,8 @@ class Workflow:
                 task.replicas = int(child["replicas"])
             if "runOnHead" in child:
                 task.runOnHead = bool(child["runOnHead"])
+            if "serviceURL" in child:
+                task.serviceURL = child["serviceURL"]
             if "volumes" in child:
                 task.volumes = child["volumes"]
                 if not isinstance(task.volumes, list):
@@ -521,7 +547,7 @@ class Workflow:
 
         wf = Workflow()
         wf._is_single_run = True  # If we don't have any "permanent" inputs, we will stop
-        wf.name = workflow["name"]
+        wf.name = workflow["name"].replace(" ", "_")
         if "description" in workflow:
             wf.description = workflow["description"]
         if "options" in workflow:
@@ -532,6 +558,9 @@ class Workflow:
 
         # Entries are a bit special
         for entry in workflow["nodes"]:
+            if "serviceURL" in entry:
+                MicroService.get_stub(entry["module"], entry["serviceURL"], stubdir)
+
             task = make_task(wf, entry)
             load_children([task], entry)
 
@@ -808,7 +837,7 @@ class CryoCloudTask(Task):
                         retval = pebble.retval_dict[parent.name][param]
                     else:
                         print("%s not provided by calling parent (%s), checking all" % (param, parent.name))
-                        print(pebble.retval_dict)
+                        print("retvals", pebble.retval_dict.keys())
                         for p in self._upstreams:
                             print("Checking", p)
                             if p.name in pebble.retval_dict and param in pebble.retval_dict[p.name]:
@@ -878,8 +907,8 @@ class CryoCloudTask(Task):
                         if param in pebble.retval_dict[parent.name]:
                             args[arg] = pebble.retval_dict[parent.name][param]
                         if arg not in args:  # Check other parents for info
-                            print("%s not provided by calling parent (%s), checking all" % (param, parent.name))
-                            print(pebble.retval_dict)
+                            print("%s not provided by calling parent (f144) (%s), checking all" % (param, parent.name))
+                            print("retvals:", pebble.retval_dict[parent.name].keys())
                             for p in self._upstreams:
                                 print("Checking", p)
                                 if p.name in pebble.retval_dict and param in pebble.retval_dict[p.name]:
@@ -997,7 +1026,7 @@ class CryoCloudTask(Task):
 
             if arg not in args:
                 args[arg] = None
-                print("Failed to resolve argument %s for %s (%s)" % (arg, self.name, self.module))
+                #print("Failed to resolve argument %s for %s (%s)" % (arg, self.name, self.module))
                 # raise Exception("Failed to resolve argument %s for %s (%s)" % (arg, self.name, self.module))
 
         # print("ARGS", self.args, "->", args)
@@ -1098,6 +1127,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
     _levels = []
 
     def __init__(self, workflow):
+        CryoCloud.DefaultHandler.__init__(self)
         self.workflow = workflow
         workflow.handler = self
         self._jobdb = jobdb.JobDB("Ignored", self.workflow.name)
@@ -1145,7 +1175,15 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             self.kube = None
 
         # Entry has been resolved, just go
-        self.workflow.entry.resolve()
+        # The entry should be multithreaded really, so we start it as a thread...
+        # self.workflow.entry.resolve()
+        t = threading.Thread(target=self.workflow.entry.resolve)
+        t.start()
+
+    def onCleanup(self):
+        while len(self._cleanup) > 0:
+            pbl = self._cleanup.pop(0)
+            self._cleanup_pebble(pbl)
 
     def onAdd(self, task):
         """
@@ -1153,11 +1191,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         modules
         """
         # Should we clean anything?
-        while len(self._cleanup) > 0:
-            pbl = self._cleanup.pop(0)
-            self._cleanup_pebble(pbl)
-        self.log.debug("INPUT TASK added: %s" % task)
-
+        # while len(self._cleanup) > 0:
+        #    pbl = self._cleanup.pop(0)
+        #    self._cleanup_pebble(pbl)
         # We need to find the source if this addition
         if "caller" not in task:
             self.log.error("'caller' is missing on Add, please check the calling module. "
@@ -1169,6 +1205,45 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             self.log.error("Can't find caller '%s' in workflow, giving up" % task["caller"])
             return
 
+        print("Pebbles", len(self._pebbles), "orders:", len(self.orders), "cleanup:", len(self._cleanup), len(self.workflow.nodes))
+
+        # Do we have restrictions on additions - if so, block here
+        node = self.workflow.nodes[task["caller"]]
+        restricted = False
+        if node.restrictions:
+            # We need to sleep a bit, until we get shared memory cryocore support
+            # TODO: CHECK FOR SHARED MEM
+            time.sleep(0.5)
+            while not API.api_stop_event.isSet():
+                disable = False
+                for restriction in node.restrictions:
+                    try:
+                        channel, name = restriction.split(":", 1)
+                        if not self.statusDB:
+                            self.statusDB = StatusDbReader()
+                        ts, value = self.statusDB.get_last_status_value(channel, name)
+                        if ts:
+                            r = node.restrictions[restriction]
+                            if value is None:
+                                value = 0
+                            if not eval(str(value) + r):
+                                disable = True
+                                break
+                    except Exception as e:
+                        self.log.exception("Bad restriction for node %s: %s (%s)" % (modulename, restriction, str(e)))
+                if not disable:
+                    if restricted:
+                        print(time.ctime(), "Restrictions resolved, continue")
+                    break
+                # time.sleep(0.250)  # Check on 4hz
+                time.sleep(1)
+                if not restricted:
+                    restricted = True
+                    print(time.ctime(), "Restrictions not met, waiting")
+
+        self.log.debug("INPUT TASK added: %s" % task)
+
+
         # Generate a Pebble to represent this piece of work
         pebble = Pebble()
         while pebble.gid in self._pebbles:
@@ -1176,7 +1251,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             pebble = Pebble()
             time.sleep(0.1)
 
-        # print("CREATED PEBBLE", pebble)
+        print("CREATED PEBBLE", pebble)
         # self._jobdb.update_profile(pebble.gid, self.workflow.name, product=self.workflow.name, type=0)  # The whole job
 
         pebble.resolved.append(task["caller"])
@@ -1190,10 +1265,13 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         caller = self.workflow.nodes[task["caller"]]
 
         # We can now resolve this caller with the correct info
-        caller.on_completed(pebble, "success")
+        self.jobQueue.put((caller, pebble, "success"))
+        print("*** Added job to queue")
+        # caller.on_completed(pebble, "success")
 
         if "_order" in task:
             pebble.order = task["_order"]
+            print("New order", pebble.gid, len(self.orders))
             self.orders[task["_order"]] = {"pebbleid": pebble.gid}
             self.log.debug("Registered order %s" % task["_order"])
 
@@ -1214,13 +1292,16 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                 # self.orders[order]["progress"] = progress
         except:
             print("ERROR", pebble.progress, "Is sub:", pebble.is_sub_pebble)
-            self.log.exception("INTERNAL")
+            self.log.exception("INTERNAL, pebble %s" % pebble.gid)
         return self.orders[order]
 
 
     def closeOrder(self, order):
         if order in self.orders:
             del self.orders[order]
+            print("Removed order", order)
+        else:
+            print("Close of unknown order", order, self.orders.keys())
 
 
     def _addJob(self, n, lvl, taskid, args, module, jobtype,
@@ -1289,6 +1370,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             args["__post__"] = p
         args["__ll__"] = API.log_level_str[self.options.loglevel.upper()]
         args["__pfx__"] = "pbl%s" % log_prefix
+        if n.serviceURL:
+            args["__surl__"] = n.serviceURL
         if n.pip:
             args["__pip__"] = n.pip
         return self.head.add_job(lvl, taskid, args, module=module, jobtype=jobtype,
@@ -1366,7 +1449,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                                      node=runtime_info["node"], parent=parent,
                                      log_prefix=pebble.gid)
                     subpebble.jobid = i
-
                 else:
                     pebble._sub_tasks[x] = pebble.gid
                     taskid = _genrandom()
@@ -1403,7 +1485,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         p = pebble
         if (pebble.is_sub_pebble):
             p = self._pebbles[pebble._master_task]
-
         if level not in p.progress:
             p.progress[level] = {"total": 0, "queued": 0, "allocated": 0, "failed": 0, "completed": 0, "pending": 0}
         for key in items:
@@ -1416,7 +1497,10 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         # task["itemid"] is the graph identifier
         if task["itemid"] not in self._pebbles:
-            self.log.warning("Got allocated task for unknown Pebble %s" % task)
+            if task["module"] == "remove":
+                self.log.debug("Got allocated task for unknown Pebble %s" % task)
+            else:
+                self.log.warning("Got allocated task for unknown Pebble %s" % task)
             return
 
         pebble = self._pebbles[task["itemid"]]
@@ -1458,13 +1542,17 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         return 0
 
     def onCompleted(self, task):
+
         if "itemid" not in task:
             self.log.error("Got task without itemid: %s" % task)
             return
 
         # task["itemid"] is the graph identifier
         if task["itemid"] not in self._pebbles:
-            self.log.error("Got completed task for unknown Pebble %s" % task)
+            if task["module"] == "remove":
+                self.log.debug("Got completed task for unknown Pebble %s" % task)
+            else:
+                self.log.error("Got completed task for unknown Pebble %s" % task)
             return
 
         pebble = self._pebbles[task["itemid"]]
@@ -1517,7 +1605,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             for t in master._sub_tasks.values():
                 if node not in self._pebbles[t].completed:
                     return
-            self.log.debug("%s: All % subtasks have completed, MERGE NOW" % (node, len(master._sub_tasks)))
+            self.log.debug("%s: All %s subtasks have completed, MERGE NOW" % (node, len(master._sub_tasks)))
 
             # We merge BACK into the master
             retvals = {}
@@ -1543,6 +1631,12 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                         deferred.append(i)
 
                 self._pebbles[t]._deferred = []  # Should not be necessary, but we keep seeing old jobs
+
+                # We must now delete the sub pebble!
+                if t != master.gid:
+                    del self._pebbles[t]
+                    # print("Delete subpebble")
+                # _sub_tasks will be reset after traversing
 
                 # deferred.extend(self._pebbles[t]._deferred)
             master._deferred = deferred
@@ -1610,23 +1704,37 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
     def _perform_cleanup(self, p, node):
 
         if p._dbg_cleaned:
+            print("Cleanup called multiple times (deferred job?)", p, node)
             return
-        p._dbg_cleaned = True
+
+        # If this was an order, we'll register the return values before
+        # cleaning up the pebble
+        if p.order in self.orders:
+            self.orders[p.order]["completed"] = True
+            self.orders[p.order]["retval_full"] = p.retval_dict
+            if node in p.retval_dict:
+                self.orders[p.order]["retval"] = p.retval_dict[node]
+
         # Do deferred jobs
-        while len(p._deferred) > 0:
-            nodename, pid, result, callerName = p._deferred.pop(0)
+        if len(p._deferred) > 0:
+            while len(p._deferred) > 0:
+                nodename, pid, result, callerName = p._deferred.pop(0)
 
-            # TODO: If we come to the end of the line without merging, we're going to
-            # do the same deferred job many times. Check if this is a sub-process and if so,
-            # ignore it?
-            if p.is_sub_pebble:
-                print("CLEANUP deferred job of subpebble, is this correct? Ignoring it for now")
-                continue
-            caller = self.workflow.nodes[callerName]
-            self.log.debug("Running deferred job, caller %s" % caller)
-            pbl = self._pebbles[pid]
-            self.workflow.nodes[nodename].resolve(pbl, result, caller, deferred=True)
+                # TODO: If we come to the end of the line without merging, we're going to
+                # do the same deferred job many times. Check if this is a sub-process and if so,
+                # ignore it?
+                if p.is_sub_pebble:
+                    print("CLEANUP deferred job of subpebble, is this correct? Ignoring it for now")
+                    continue
+                caller = self.workflow.nodes[callerName]
+                self.log.debug("Running deferred job, caller %s" % caller)
+                pbl = self._pebbles[pid]
+                self.workflow.nodes[nodename].resolve(pbl, result, caller, deferred=True)
 
+            # Give time for the deferred jobs to be done
+            return
+
+        p._dbg_cleaned = True
         while len(p._cleanup_tasks) > 0:
             nodename, pid, result, callerName = p._cleanup_tasks.pop(0)
             caller = self.workflow.nodes[callerName]
@@ -1639,17 +1747,11 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                 n.ccnode = _node
                 n.resolve(pbl, result, caller, deferred=True)
 
-        # If this was an order, we'll register the return values before
-        # cleaning up the pebble
-        if p.order in self.orders:
-            self.orders[p.order]["completed"] = True
-            self.orders[p.order]["retval_full"] = p.retval_dict
-            if node in p.retval_dict:
-                self.orders[p.order]["retval"] = p.retval_dict[node]
 
     def _flag_cleanup_pebble(self, pebble):
 
-        if not workflow.entry.is_done(pebble):
+        if not workflow.entry.is_done(pebble, True, log=self.log):
+            self.log.debug("Not all done for pebble %s" % pebble.gid)
             return
 
         if not pebble.is_sub_pebble:
@@ -1657,11 +1759,18 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                 self._cleanup.append(pebble)
 
     def _cleanup_pebble(self, pebble):
+        print("Should delete pebble", pebble.gid)
+        if not threading.currentThread().getName().endswith(".HeadNode"):
+            raise Exception("Cleanup from WRONG THREAD")
+
+
         if not pebble.is_sub_pebble:
+            self.log.info("*** DELETING PEBBLE %s" % pebble.gid)
+            print("Delete pebble", pebble, self._pebbles.keys(), pebble._sub_tasks)
             for n in pebble._cleanup_tasks:
                 del self.workflow.nodes[n]
 
-            for pbl in pebble._sub_tasks.values():
+            for pbl in pebble._sub_tasks.keys():
                 if pbl in self._pebbles:
                     del self._pebbles[pbl]
             if pebble.gid in self._pebbles:

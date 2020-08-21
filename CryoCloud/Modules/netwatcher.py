@@ -32,12 +32,12 @@ def start(handler, args, stop_event):
     if "port" not in args:
         raise Exception("Required argument 'port' not given")
     if "schema" not in args:
-        raise Exception("Required argument 'schema' not given")
+        handler.log.warning("'schema' not given for netwatcher, no validation will be done")
+        # raise Exception("Required argument 'schema' not given")
     if "__name__" not in args:
         raise Exception("Require name as argument")
-    cors = None
-    if "cors" in args:
-        cors = args["cors"]
+    cors = args.get("cors", None)
+    schema = args.get("schema", None)
 
     def onAdd(info):
 
@@ -64,10 +64,9 @@ def start(handler, args, stop_event):
         info["caller"] = args["__name__"]
         return handler.onAdd(info)
 
-    if not os.path.exists(args["schema"]):
-        raise Exception("Can't find schema '%s'" % args["schema"])
-
-    schema = json.loads(open(args["schema"], "r").read())
+    if schema and not os.path.exists(schema):
+        raise Exception("Can't find schema '%s'" % schema)
+        schema = json.loads(open(args["schema"], "r").read())
 
     nw = CryoCloud.Common.NetWatcher(int(args["port"]),
                                      onAdd=onAdd,

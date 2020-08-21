@@ -477,7 +477,7 @@ class JobDB(mysql):
             job = {"id": jobid, "step": step, "taskid": taskid, "type": t, "priority": priority,
                    "node": node, "worker": worker, "args": args, "tschange": tschange, "state": state,
                    "expire_time": expire_time, "module": module, "modulepath": modulepath, "retval": retval,
-                   "workdir": workdir, "itemid": itemid, "cpu": cpu_time, "mem": max_memory}
+                   "workdir": workdir, "itemid": itemid, "cpu": cpu_time, "mem": max_memory, "run": self._runid}
             if tsallocated:
                 job["runtime"] = time.time() - tsallocated
             jobs.append(job)

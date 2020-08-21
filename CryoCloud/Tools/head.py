@@ -6,6 +6,7 @@ import sys
 import time
 from argparse import ArgumentParser
 import threading
+import queue
 
 import inspect
 import os.path
@@ -50,6 +51,7 @@ class HeadNode(threading.Thread):
         self.cfg = API.get_config(self.name, version=options.version)
         self.log = API.get_log(self.name)
         self.status = API.get_status(self.name)
+
         self.options = options
         self.neverfail = neverfail
         self.status["state"] = "Initializing"
@@ -147,6 +149,25 @@ class HeadNode(threading.Thread):
     def add_job(self, step, taskid, args, jobtype=jobdb.TYPE_NORMAL, priority=jobdb.PRI_NORMAL,
                 node=None, expire_time=None, module=None, modulepath=None, workdir=None, itemid=None,
                 isblocked=0):
+        if 0:
+            # FAKE COMPLETED IMMEDIATELY
+            job = {
+                "taskid": taskid,
+                "itemid": itemid,
+                "module": module,
+                "node": node,
+                "step": 0,
+                "worker": 0,
+                "priority": jobdb.PRI_NORMAL,
+                "retval": args,
+                "runtime": 0,
+                "mem": 0,
+                "cpu": 0
+            }
+            self.handler.onAllocated(job)
+            self.handler.onCompleted(job)
+            return
+
         if expire_time is None:
             expire_time = self.options.max_task_time
         tid = self._jobdb.add_job(step, taskid, args, expire_time=expire_time, module=module, node=node,
@@ -228,6 +249,18 @@ class HeadNode(threading.Thread):
                 last_run = 0
                 notified = False
                 while not API.api_stop_event.is_set():
+                    # Any queued new jobs we should deliver?
+                    for i in range(0, 50):
+                        try:
+                            caller, pebble, result = self.handler.jobQueue.get_nowait()
+                            # Should resolve a pebble (start an input job really)
+                            caller.on_completed(pebble, result)
+                            print("RESOLVED PEBBLE, result")
+                        except queue.Empty:
+
+                            self.handler.onCleanup()
+                            break
+
                     updates = self._jobdb.list_jobs(since=last_run, notstate=jobdb.STATE_PENDING)
                     for job in updates:
                         last_run = job["tschange"]  # Just in case, we seem to get some strange things here

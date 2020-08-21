@@ -102,17 +102,16 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
                 info = self.server.handler.getStats(order)
                 info["ts"] = time.time()
                 return self._replyJSON(200, info)
-            except Exception as e:
-                print("BAD REQUEST FOR STATUS (%s): %s" % (order, e))
+            except:
+                # print("BAD REQUEST FOR STATUS (%s): %s" % (order, e))
                 return self.send_error(404, "No info for order %s" % order)
 
         if self.path.startswith("/close/"):
-            order = self.path[8:]
+            order = self.path[7:]
             try:
                 info = self.server.handler.closeOrder(order)
                 return self._replyJSON(200, info)
-            except Exception as e:
-                print("BAD REQUEST FOR STATUS (%s): %s" % (order, e))
+            except:
                 return self.send_error(404, "No info for order %s" % order)
 
         if self.path.startswith("/stub"):

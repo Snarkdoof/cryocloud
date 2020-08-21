@@ -10,6 +10,7 @@ ccmodule = {
         "ignored": "Anything you want"
     },
     "outputs": {
+        "ignored": "Whatever you sent into ignored"
     },
     "defaults": {
         "priority": 10,  # Bulk
@@ -32,6 +33,7 @@ def process_task(self, task, cancel_event):
     that was reached (hopefully 100)
 
     """
+    ignored = task["args"].get("ignored", None)
     import random
     progress = 0
     while not cancel_event.isSet() and not self._stop_event.is_set() and progress < 100:
@@ -52,4 +54,4 @@ def process_task(self, task, cancel_event):
 
         self.status["progress"] = progress
 
-    return progress, None
+    return progress, {"ignored": ignored}
