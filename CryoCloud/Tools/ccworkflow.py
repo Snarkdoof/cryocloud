@@ -275,6 +275,7 @@ class Task:
         """
         Returns true iff the graph has completed for this pebble
         """
+        log = None
         if log:
             log.info("is_done %s checking pebble %s" % (self.name, pebble.gid))
         DEBUG = False
@@ -1768,7 +1769,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             self.log.info("*** DELETING PEBBLE %s" % pebble.gid)
             print("Delete pebble", pebble, self._pebbles.keys(), pebble._sub_tasks)
             for n in pebble._cleanup_tasks:
-                del self.workflow.nodes[n]
+                if n in self.workflow.nodes:
+                    del self.workflow.nodes[n]
 
             for pbl in pebble._sub_tasks.keys():
                 if pbl in self._pebbles:
