@@ -1642,7 +1642,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                     return
             self.log.debug("%s: All %s subtasks have completed, MERGE NOW" % (node, len(master._sub_tasks)))
 
-            workflow.merge_split(pebble, workflow.nodes[node])
 
             # We merge BACK into the master
             retvals = {}
@@ -1682,7 +1681,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             master._sub_tasks = {}
             pebble = master  # We go for the master from here
 
-            pebble.retval_dict[node] = retvals
+            workflow.merge_split(pebble, workflow.nodes[node])
+            # pebble.retval_dict[node] = retvals
             pebble.stats[node].update(stats)  # This is not really all that good, have stats pr job on merge
         try:
             workflow.nodes[node].on_completed(pebble, "success")
