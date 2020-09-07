@@ -610,6 +610,39 @@ class Workflow:
 
         return s
 
+    def merge_split(self, pebble, merge_node):
+        """
+        Merge return values between a split and the given merge node,
+        modifies the given pebble retvals, order is preserved
+        """
+        # Need ordering and pebble list
+        pebbles = [(place, pebble._sub_tasks[place]) for place in pebble._sub_tasks]
+        pebbles.sort()
+        retvals = {}
+
+        def backtrack(node, pebble_ids, retvals):
+            # merge stuff back into main pebble
+            r = {}
+            for pebble_id in pebble_ids:
+                p = self.handler.get_pebble(pebble_id[1])
+                rets = p.retval_dict[node.name] 
+                for key in rets:
+                    if key not in r:
+                        r[key] = [rets[key]]
+                    else:
+                        r[key].append(rets[key])
+            retvals[node.name] = r
+            if node.splitOn:
+                return
+            for n in node._upstreams:
+                backtrack(n, pebble_ids, retvals)
+
+        backtrack(merge_node, pebbles, retvals)
+
+        for key in retvals:
+            pebble.retval_dict[key] = retvals[key]
+        return retvals
+
     def validate(self, node=None, exceptionOnWarnings=True, recurseCheckNodes=None):
         """
         Go through the tree and see that all dependencies are met.
@@ -1594,7 +1627,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             pebble.completed.append(node)
 
             if len(master._sub_tasks) < pebble._num_subtasks:
-                print("Subtasks not even defined completely yet")
+                print("Subtasks not even defined completely yet, workflow merge error? (%d < %d)" %
+                      (len(master._sub_tasks), pebble._num_subtasks))
                 return
 
             # Sanity
@@ -1608,17 +1642,21 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                     return
             self.log.debug("%s: All %s subtasks have completed, MERGE NOW" % (node, len(master._sub_tasks)))
 
+            workflow.merge_split(pebble, workflow.nodes[node])
+
             # We merge BACK into the master
             retvals = {}
             deferred = master._deferred
             stats = {"runtime": 0, "cpu_time": 0, "max_memory": 0, "nodes": []}
+
+            # Merging doesn't handle all splitted modules already processed, should ideally do that too!
             for t in master._sub_tasks.values():
                 # print("MERGING", self._pebbles[t], self._pebbles[t].retval_dict, self._pebbles[t].stats)
-                if self._pebbles[t].retval_dict[node]:
-                    for key in self._pebbles[t].retval_dict[node]:
-                        if key not in retvals:
-                            retvals[key] = []
-                        retvals[key].append(self._pebbles[t].retval_dict[node][key])
+                # if self._pebbles[t].retval_dict[node]:
+                #     for key in self._pebbles[t].retval_dict[node]:
+                #         if key not in retvals:
+                #             retvals[key] = []
+                #         retvals[key].append(self._pebbles[t].retval_dict[node][key])
                 for i in ["runtime", "cpu_time", "max_memory"]:
                     if i not in stats:
                         stats[i] = 0
