@@ -168,8 +168,21 @@ class DockerProcess():
             cmd.extend(["-v", "%s:%s%s" % (source, destination, options)])
 
         # We also add "/scratch"
-        # cmd.extend(["-v", "%s:/scratch" % self._dockercfg["scratch"]])
-        # cmd.extend(["-v", "/tmp:/tmp"])
+        hasit = False
+        for a in cmd:
+            if a.find("/scratch") > -1:
+                hasit = True
+                break
+        if not hasit:
+            cmd.extend(["-v", ":/scratch" % self._dockercfg["scratch"]])
+
+        hasit = False
+        for a in cmd:
+            if a.find("/tmp") > -1:
+                hasit = True
+                break
+        if not hasit:
+            cmd.extend(["-v", "/tmp:/tmp", "rw"])
 
         # also allow ENV
         # cmd.extend(["-e", ....])
