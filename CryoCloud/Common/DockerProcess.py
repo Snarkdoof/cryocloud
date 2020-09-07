@@ -170,19 +170,19 @@ class DockerProcess():
         # We also add "/scratch"
         hasit = False
         for a in cmd:
-            if a.find("/scratch") > -1:
+            if a.find(":/scratch") > -1:
                 hasit = True
                 break
         if not hasit:
-            cmd.extend(["-v", ":/scratch" % self._dockercfg["scratch"]])
+            cmd.extend(["-v", "%s:/scratch:rw" % self._dockercfg["scratch"]])
 
         hasit = False
         for a in cmd:
-            if a.find("/tmp") > -1:
+            if a.find(":/tmp") > -1:
                 hasit = True
                 break
         if not hasit:
-            cmd.extend(["-v", "/tmp:/tmp", "rw"])
+            cmd.extend(["-v", "/tmp:/tmp:rw"])
 
         # also allow ENV
         # cmd.extend(["-e", ....])
