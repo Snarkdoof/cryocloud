@@ -1687,7 +1687,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         try:
             workflow.nodes[node].on_completed(pebble, "success")
         except:
-            self.log.exception("Exception notifying success")
+            self.log.exception("Exception notifying success (node %s)" % node)
             self.log.error("Pebble was %s" % str(pebble))
             print("ERROR PROCESSING", pebble, pebble.retval_dict, pebble.progress)
 
