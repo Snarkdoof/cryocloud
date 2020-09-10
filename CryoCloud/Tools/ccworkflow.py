@@ -1649,7 +1649,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
 
             # We merge BACK into the master
-            workflow.merge_split(pebble, master)  # workflow.nodes[node])
+            workflow.merge_split(master, workflow.nodes[node])
 
             retvals = {}
             deferred = master._deferred
