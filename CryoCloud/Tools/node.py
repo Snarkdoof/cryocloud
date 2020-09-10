@@ -839,7 +839,7 @@ class NodeController(threading.Thread):
                         self.status["%s.%s" % (diskname, key)] = diskusage[diskusage._fields.index(key)]
                         self.status["%s.%s" % (diskname, key)].set_expire_time(self.cfg["expire_time"])
             except:
-                self.log.exception("Failed to gather disk usage statistics")
+                self.log.warning("Failed to gather disk usage statistics")
 
             if 0:
                 try:
