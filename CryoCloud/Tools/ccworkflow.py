@@ -618,7 +618,7 @@ class Workflow:
         # Need ordering and pebble list
         pebbles = [(place, pebble._sub_tasks[place]) for place in pebble._sub_tasks]
         pebbles.sort()
-        self.handler.log.debug("MERGE_SPLIT %s" % str(pebbles))
+        self.handler.log.debug("MERGE_SPLIT %s" % str(merge_node))
         retvals = {}
 
         def backtrack(node, pebble_ids, retvals):
@@ -644,7 +644,7 @@ class Workflow:
         for key in retvals:
             pebble.retval_dict[key] = retvals[key]
 
-        self.handler.log.debug("retvals %s" % str(retvals))
+        # self.handler.log.debug("retvals %s" % str(retvals))
 
         return retvals
 
@@ -1649,7 +1649,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
 
             # We merge BACK into the master
-            workflow.merge_split(pebble, workflow.nodes[node])
+            workflow.merge_split(pebble, master)  # workflow.nodes[node])
+
             retvals = {}
             deferred = master._deferred
             stats = {"runtime": 0, "cpu_time": 0, "max_memory": 0, "nodes": []}
