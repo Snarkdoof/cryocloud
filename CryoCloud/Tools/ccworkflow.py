@@ -618,10 +618,12 @@ class Workflow:
         # Need ordering and pebble list
         pebbles = [(place, pebble._sub_tasks[place]) for place in pebble._sub_tasks]
         pebbles.sort()
+        self.handler.log.debug("MERGE_SPLIT %s" % str(pebbles))
         retvals = {}
 
         def backtrack(node, pebble_ids, retvals):
             # merge stuff back into main pebble
+            self.handler.log.debug("Merging %s" % str(node))
             r = {}
             for pebble_id in pebble_ids:
                 p = self.handler.get_pebble(pebble_id[1])
@@ -641,6 +643,9 @@ class Workflow:
 
         for key in retvals:
             pebble.retval_dict[key] = retvals[key]
+
+        self.handler.log.debug("retvals %s" % str(retvals))
+
         return retvals
 
     def validate(self, node=None, exceptionOnWarnings=True, recurseCheckNodes=None):
