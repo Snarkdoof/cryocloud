@@ -21,7 +21,7 @@ def get_stub(module_name, url, destination):
 
 
 class Poster:
-    def __init__(self, url, timeout=1.0):
+    def __init__(self, url, timeout=5.0):
 
         if url.find("://") > -1:
             url = url[url.find("://") + 3:]
