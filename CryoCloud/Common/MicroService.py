@@ -2,6 +2,7 @@ import http.client
 import json
 import time
 import os
+import tempfile
 import socket
 import CryoCore
 
@@ -46,6 +47,13 @@ class Poster:
         if not os.path.exists(destination):
             os.makedirs(destination)
 
+        full_destination = os.path.join(destination, module_name + ".py")
+
+        # We don't re-download if stub was downloaded less than 10 seconds ago
+        if os.path.exists(full_destination):
+            if time.time() - os.stat(full_destination).st_ctime < 10:
+                return
+
         conn = http.client.HTTPConnection(self.host, self.port, timeout=timeout)
         conn.request("GET", self._root + "stub")
 
@@ -53,9 +61,11 @@ class Poster:
         if response.code != 200:
             raise Exception("Failed to get stub: %s" + response.read())
 
-        full_destination = os.path.join(destination, module_name + ".py")
-        with open(full_destination, "wb") as f:
-            f.write(response.read())
+        t, tempfilename = tempfile.mkstemp(dir=destination)
+        os.write(t, response.read())
+        os.close(t)
+
+        os.rename(tempfilename, full_destination)
 
     def post(self, data, postJson=True):
 
