@@ -217,7 +217,7 @@ class DockerProcess():
             import time
             dbgfile = open("/tmp/docker-%s" % time.ctime(), "w")
             dbg_cmd.extend(self.args)
-            dbgfile.write((" ".join(dbg_cmd)).encode("utf-8"))
+            dbgfile.write(" ".join(dbg_cmd))
             dbgfile.close()
 
         p = subprocess.Popen(cmd, env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
