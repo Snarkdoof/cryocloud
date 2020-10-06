@@ -202,7 +202,14 @@ class DockerProcess():
         # We check for a '-t', which is a json task description, write it to a file and
         # replace the -t with a -f (read from file)
         taskfile = tempfile.NamedTemporaryFile()
-        dbg_cmd = [x for x in cmd]
+        if self.debug:
+            dbg_cmd = [x for x in cmd]
+            import time
+            dbgfile = open("/tmp/docker-%s" % time.ctime(), "w")
+            dbg_cmd.extend(self.args)
+            dbgfile.write(" ".join(dbg_cmd))
+            dbgfile.close()
+
         for i in range(len(self.args)):
             if self.args[i] == "-t":
                 self.args[i] = "-f"
@@ -212,18 +219,6 @@ class DockerProcess():
         cmd.extend(self.args)
 
         self.log.debug("Running Docker command '%s'" % str(cmd))
-
-        if self.debug:
-            import time
-            for i, x in enumerate(dbg_cmd):
-                if x == "-f":
-                    dbg_cmd[i] = "-t"
-                    dbg_cmd[i + 1] = open(dbg_cmd[i + 1], "r").read()
-
-            dbgfile = open("/tmp/docker-%s" % time.ctime(), "w")
-            dbg_cmd.extend(self.args)
-            dbgfile.write(" ".join(dbg_cmd))
-            dbgfile.close()
 
         p = subprocess.Popen(cmd, env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         # We set the outputs as nonblocking
