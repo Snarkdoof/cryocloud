@@ -20,7 +20,7 @@ class DockerProcess():
     def __init__(self, cmd, status, log, stop_event,
                  env={}, dirs=[], gpu=False,
                  userid=None, groupid=None, log_all=True,
-                 args=[], cancel_event=None):
+                 args=[], cancel_event=None, debug=False):
 
         # Read in all partitions on this machine, used to identify volumes
         # TODO: Might not work with automounts, is this an issue?
@@ -29,6 +29,7 @@ class DockerProcess():
             if len(part.mountpoint) > 1:
                 self.partitions.append(part.mountpoint)
         self.partitions.sort(key=lambda k: -len(k))
+        self.debug = debug
 
         def lookup(path):
             if not isinstance(path, str):
@@ -201,6 +202,7 @@ class DockerProcess():
         # We check for a '-t', which is a json task description, write it to a file and
         # replace the -t with a -f (read from file)
         taskfile = tempfile.NamedTemporaryFile()
+        dbg_cmd = [x for x in cmd]
         for i in range(len(self.args)):
             if self.args[i] == "-t":
                 self.args[i] = "-f"
@@ -210,6 +212,14 @@ class DockerProcess():
         cmd.extend(self.args)
 
         self.log.debug("Running Docker command '%s'" % str(cmd))
+
+        if self.debug:
+            import time
+            dbgfile = open("/tmp/docker-%s" % time.ctime(), "w")
+            dbg_cmd.extend(self.args)
+            dbgfile.write((" ".join(dbg_cmd)).encode("utf-8"))
+            dbgfile.close()
+
         p = subprocess.Popen(cmd, env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         # We set the outputs as nonblocking
         fcntl.fcntl(p.stdout, fcntl.F_SETFL, os.O_NONBLOCK)

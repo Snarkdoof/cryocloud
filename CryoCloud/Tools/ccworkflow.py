@@ -1355,6 +1355,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             if "arguments" not in args:
                 args["arguments"] = []
             args["gpu"] = n.gpu
+            if self.options.debug:
+                args["debug"] = True
             args["arguments"].extend(["cctestrun", "--indocker"])
 
             if n.dir:
@@ -2106,6 +2108,9 @@ if __name__ == "__main__":
     parser.add_argument("--loglevel", dest="loglevel",
                         default="INFO",
                         help="Minimum log level, default INFO, should be DEBUG, INFO or ERROR")
+    parser.add_argument("--debug", action="store_true", dest="debug",
+                        default=False,
+                        help="Debug if possible")
     def d(n, o):
         if n in o:
             return o[n]
@@ -2154,6 +2159,9 @@ if __name__ == "__main__":
         print("O", o)
         if o:
             setattr(options, l, json.loads(o))
+
+    if options.debug:
+        options.loglevel = "DEBUG"
 
     # Create handler
     handler = WorkflowHandler(workflow)

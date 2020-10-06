@@ -12,7 +12,8 @@ ccmodule = {
         "env": "Environment variables",
         "dirs": "Directories to map as volumes",
         "arguments": "Arguments for docker process",
-        "log_all": "Log all output as debug, default False"
+        "log_all": "Log all output as debug, default False",
+        "debug": "Debug - write docker commands to /tmp/ default False"
     },
     "outputs": {
     },
@@ -36,34 +37,27 @@ def process_task(worker, task, cancel_event=None):
     dirs = []
     args = []
 
-    if "gpu" in task["args"] and task["args"]["gpu"]:
-        gpu = True
+    a = task["args"]
+    gpu = a.get("gpu", False)
 
     if "target" not in task["args"]:
         raise Exception("Missing docker target")
-
-    target = task["args"]["target"]
-    if target.__class__ != list:
+    target = a["target"]
+    if not isinstance(target, list):
         target = [target]
 
     if len(target) == 0:
         raise Exception("Require parameter 'target'")
 
-    if "env" in task["args"]:
-        env = task["args"]["env"]
+    env = a.get("env", {})
+    dirs = a.get("dirs", [])
+    args = a.get("arguments", [])
+    log_all = a.get("log_all", False)
+    debug = a.get("debug", False)
 
-    if "dirs" in task["args"]:
-        dirs = task["args"]["dirs"]
-
-    if "arguments" in task["args"]:
-        args = task["args"]["arguments"]
-
-    log_all = False
-    if "log_all" in task["args"]:
-        log_all = task["args"]["log_all"]
     dp = DockerProcess(target, worker.status, worker.log, API.api_stop_event,
                        dirs=dirs, env=env, gpu=gpu, args=args, log_all=log_all,
-                       cancel_event=cancel_event)
+                       cancel_event=cancel_event, debug=debug)
     # cancel_event=cancel_event)  # Doesn't work
     retval = dp.run()
 
