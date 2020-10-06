@@ -215,6 +215,11 @@ class DockerProcess():
 
         if self.debug:
             import time
+            for i, x in enumerate(dbg_cmd):
+                if x == "-f":
+                    dbg_cmd[i] = "-t"
+                    dbg_cmd[i + 1] = open(dbg_cmd[i + 1], "r").read()
+
             dbgfile = open("/tmp/docker-%s" % time.ctime(), "w")
             dbg_cmd.extend(self.args)
             dbgfile.write(" ".join(dbg_cmd))
