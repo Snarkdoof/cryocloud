@@ -6,7 +6,7 @@ cd ~/git/cryocloud
 git pull
 
 # Now we're current, update all repos
-cd
+cd ~/git
 /home/cryocore/git/cryocloud/clouds/update_repos `pwd`
 
 # Start ccnodes
