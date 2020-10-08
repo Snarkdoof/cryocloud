@@ -1,0 +1,26 @@
+#!/bin/env python3
+import os
+import sys
+
+basedir = sys.argv[1]
+
+repos = {
+  "cryocore": None,
+  "cryocloud": None,
+  "x-country": ("git@gitlab.itek.norut.no:norut/x-country.git", "develop"),
+  "environments": ("git@gitlab.itek.norut.no:norut/environments.git", "master"),
+  "CryoniteOil": ("git@gitlab.itek.norut.no:cryonite/CryoniteOil.git", "develop")
+}
+
+for repo in repos:
+  path = os.path.join(basedir, repo)
+  if repos[repo]:
+    url, branch = repos[repo]
+    if not os.path.exists(path):
+      os.chdir(basedir)
+      subprocess.call("git clone %s" % url)
+      os.chdir(os.path.join(basedir, repo))
+      subprocess.call("git checkout %s" % branch)
+
+    os.chdir(os.path.join(basedir, repo))
+    subprocess.call("git pull")
