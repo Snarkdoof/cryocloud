@@ -10,6 +10,6 @@ cd ~/git
 /home/cryocore/git/cryocloud/clouds/update_repos `pwd`
 
 # Start ccnodes
-screen -d ccnode
+screen -d -m ccnode
 
 # Check for GPUs and start GPU nodes too
