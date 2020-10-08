@@ -19,9 +19,9 @@ for repo in repos:
     url, branch = repos[repo]
     if not os.path.exists(path):
       os.chdir(basedir)
-      subprocess.call("git clone %s" % url)
+      subprocess.call(["git", "clone", url])
       os.chdir(os.path.join(basedir, repo))
-      subprocess.call("git checkout %s" % branch)
+      subprocess.call(["git", "checkout", branch])
 
     os.chdir(os.path.join(basedir, repo))
-    subprocess.call("git pull")
+    subprocess.call(["git", "pull"])
