@@ -2,11 +2,12 @@
 
 echo "Startup script for Google Cloud ccnodes"
 
-cd /home/cryocore/git/cryocloud
+cd ~/git/cryocloud
 git pull
 
 # Now we're current, update all repos
-/home/cryocore/git/cryocloud/clouds/update_repos
+cd
+/home/cryocore/git/cryocloud/clouds/update_repos `pwd`
 
 # Start ccnodes
 screen -d ccnode
