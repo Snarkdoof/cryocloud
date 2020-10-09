@@ -743,6 +743,22 @@ class JobDB(mysql):
         c = self._execute("SELECT DISTINCT(node) FROM jobs WHERE type=%s", [TYPE_ADMIN])
         return [row[0] for row in c.fetchall()]
 
+    def get_worker_nodes(self, seen_since_sec=120, adminsOnly=False):
+        """
+        Return a list of all nodes that have workers
+        """
+        SQL = "SELECT id, last_seen FROM worker WHERE last_seen> NOW() - INTERVAL %d second" % seen_since_sec
+        c = self._execute(SQL)
+        res = []
+        for id, last_seen in c.fetchall():
+            t, n = id.split("-", 1)
+            n = n[:n.find("_")]
+            if adminsOnly and t != "AdminWorker":
+                continue
+            if n not in res:
+                res.append(n)
+        return res
+
     def get_workers(self, modules):
         """
         Get a map of modules and workers. If no worker is available for a module, it will have a blank list

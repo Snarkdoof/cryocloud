@@ -50,27 +50,31 @@ def process_task(worker, task):
 
     if not os.path.exists(dst):
         os.makedirs(dst)
+    olddir = os.getcwd()
+    try:
+        os.chdir(dst)
+        dst_path = os.path.join(dst, name)
+        if not os.path.exists(dst_path):
+            # Must clone it
+            worker.status["state"] = "cloning"
+            worker.log.info("Cloning %s from %s" % (name, src))
+            cmd = ["git", "clone", src, dst_path]
+            if subprocess.call(cmd) != 0:
+                raise Exception("Clone of %s failed" % src)
 
-    dst_path = os.path.join(dst, name)
-    if not os.path.exists(dst_path):
-        # Must clone it
-        worker.status["state"] = "cloning"
-        worker.log.info("Cloning %s from %s" % (name, src))
-        cmd = ["git", "clone", src, dst_path]
+        worker.status["state"] = "updating"
+        os.chdir(dst_path)
+        cmd = ["git", "checkout", branch]
         if subprocess.call(cmd) != 0:
-            raise Exception("Clone of %s failed" % src)
+            raise Exception("Checkout branch %s of %s failed" % (branch, name))
 
-    worker.status["state"] = "updating"
-    os.chdir(dst_path)
-    cmd = ["git", "checkout", branch]
-    if subprocess.call(cmd) != 0:
-        raise Exception("Checkout branch %s of %s failed" % (branch, name))
+        # Update
+        cmd = ["git", "pull"]
+        if subprocess.call(cmd) != 0:
+            raise Exception("Checkout pull of %s failed" % (name))
 
-    # Update
-    cmd = ["git", "pull"]
-    if subprocess.call(cmd) != 0:
-        raise Exception("Checkout pull of %s failed" % (name))
-
-    worker.status["state"] = "idle"
+        worker.status["state"] = "idle"
+    finally:
+        os.chdir(olddir)
 
     return 100, {"branch": branch}
