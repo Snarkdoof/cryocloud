@@ -7,7 +7,12 @@ import zipfile
 import shutil
 import stat
 from urllib.parse import urlparse
-import boto3
+
+try:
+    import boto3
+except:
+    print("Warning: No boto3 support")
+
 import requests
 import time
 import random
