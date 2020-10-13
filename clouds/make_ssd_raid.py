@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import subprocess
 import sys
@@ -10,11 +10,9 @@ if len(sys.argv) != 3:
 md = sys.argv[1]
 mount = sys.argv[2]
 
-if not md.startswit("/dev"):
+if not md.startswith("/dev"):
     md = "/dev/%s" % md
 
-if os.path.exists(md):
-    raise SystemExit("md device %s already exists" % md)
 if not os.path.exists(mount):
     raise SystemExit("Missing mount point %s" % mount)
 
@@ -29,9 +27,10 @@ for dev in lsblk:
 
 print("  - found devices", devices)
 
-mdadm = "sudo mdadm --create /dev/md0 --level=0 --raid-devices=%d " % len(devices)
+mdadm = "sudo mdadm --create /dev/md0 --level=0 --raid-devices=%d" % len(devices)
 mdadm = mdadm.split(" ")
-mdadm.extend(devices)
+mdadm.extend(["/dev/%s" % d for d in devices])
+
 
 r = subprocess.call(mdadm)
 if r != 0:
@@ -40,6 +39,9 @@ else:
     print("md0 created")
     # Unmount if already mounted
     subprocess.call(["sudo", "umount", mount])
+
+    # Format
+    subprocess.call(["sudo", "mkfs.ext4", "-m", "0", md])
     r = subprocess.call(["sudo", "mount", md, mount])
     if r != 0:
         print("Mount failed")
