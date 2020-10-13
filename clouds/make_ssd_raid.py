@@ -25,6 +25,10 @@ for dev in lsblk:
     if dev.startswith("nvme"):
         devices.append(dev)
 
+if len(devices) == 0:
+    print("No nvme devices available")
+    raise SystemExit(0)
+
 print("  - found devices", devices)
 
 mdadm = "sudo mdadm --create /dev/md0 --level=0 --raid-devices=%d" % len(devices)
