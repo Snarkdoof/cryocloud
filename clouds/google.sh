@@ -9,6 +9,9 @@ git pull
 cd ~/git
 /home/cryocore/git/cryocloud/clouds/update_repos `pwd`
 
+# Check for any SSD disks, mount on /scratch as raid-0
+
+
 # Start ccnodes
 screen -d -m ccnode
 
