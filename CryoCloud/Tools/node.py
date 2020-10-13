@@ -2,7 +2,6 @@
 # PYTHON_ARGCOMPLETE_OK
 from __future__ import print_function
 import sys
-import psutil
 import time
 import socket
 import os
@@ -14,6 +13,11 @@ import json
 import signal
 import datetime
 from urllib.parse import urlparse
+
+try:
+    import psutil
+except:
+    print("Warning: Missing psutil, might not be able to run properly")
 
 try:
     import argcomplete
@@ -335,7 +339,6 @@ class Worker(multiprocessing.Process):
             self.log.exception("Some other exception")
 
     def run(self):
-
         def sighandler(signum, frame):
             print("%s %s GOT SIGNAL %s" % (self._worker_type, self.wid, signum))
             # API.shutdown()
