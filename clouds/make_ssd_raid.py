@@ -50,4 +50,6 @@ else:
     if r != 0:
         print("Mount failed")
 
+    subprocess.call(["sudo", "chown", "-R", "cryocore:cryocore", mount])
+
 raise SystemExit(r)
