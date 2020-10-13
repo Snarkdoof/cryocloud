@@ -18,7 +18,7 @@ if not os.path.exists(mount):
 
 print("Creating %s and mounting it on %s" % (md, mount))
 
-lsblk = subprocess.check_output("lsblk -d -o name".split(" ")).decode("utf-8")
+lsblk = subprocess.check_output("lsblk -d -o name".split(" ")).decode("utf-8").split(" ")
 
 devices = []
 for dev in lsblk:
