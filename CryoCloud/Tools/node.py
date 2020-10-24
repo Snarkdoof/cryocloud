@@ -367,7 +367,12 @@ class Worker(multiprocessing.Process):
 
         last_reported = 0  # We force periodic updates of state as we might be idle for a long time
         last_job_time = None
+        jobs_executed = 0
         while not self._softstopevent.is_set() and not self._stop_event.is_set():
+            if options.maxruns and options.maxruns >= jobs_executed:
+                self._stop_event.set()
+                continue
+
             try:
                 if self._type == jobdb.TYPE_ADMIN:
                     max_jobs = 5
@@ -389,6 +394,7 @@ class Worker(multiprocessing.Process):
                         self.status["state"].set_value("Idle", force_update=True)
                         last_reported = time.time()
                     continue
+                jobs_executed += len(jobs)
                 self.log.debug("Got %d jobs" % len(jobs))
                 for job in jobs:
                     last_job_time = datetime.datetime.utcnow()
@@ -951,6 +957,9 @@ if __name__ == "__main__":
                         help="GPU based modules in a comma separated list (otherwise 'any') "
                              "- use 'any' for any or 'detect' to force detection")
 
+    parser.add_argument("--max-runs", dest="maxruns", default=None,
+                        help="If given, the node will exit after a number of runs (resource leaks etc)")
+
     if "argcomplete" in sys.modules:
         argcomplete.autocomplete(parser)
 
@@ -961,6 +970,8 @@ if __name__ == "__main__":
     if options.exceptmodules:
         options.exceptmodules = options.exceptmodules.split(",")
     options.num_gpus = int(options.num_gpus)
+    if options.maxruns:
+        options.maxruns = int(options.maxruns)
     if options.gpumodules:
         if options.gpumodules != "any" and options.num_gpus == 0:
             print("WARNING: 0 GPUs specified but GPU modules given. Setting to 1 GPU")
