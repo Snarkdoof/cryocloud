@@ -201,12 +201,16 @@ def detect_modules(paths=[], modules=None, exceptmodules=[], testload=True):
 class Worker(multiprocessing.Process):
 
     def __init__(self, workernum, stopevent, type=jobdb.TYPE_NORMAL, module_paths=[], modules=[], name=None,
-                 options=None):
+                 options=None, softstopevent=None):
         super(Worker, self).__init__(daemon=True)
         API.api_auto_init = False  # Faster startup
 
         # self._stop_event = stopevent
-        self._stop_event = threading.Event()
+        self._stop_event = multiprocessing.Event()
+        if not softstopevent:
+            self._softstopevent = multiprocessing.Event()
+        else:
+            self._softstopevent = softstopevent
         self._manager = None
         self.workernum = workernum
         self._name = None
@@ -339,10 +343,16 @@ class Worker(multiprocessing.Process):
             self.log.exception("Some other exception")
 
     def run(self):
+
         def sighandler(signum, frame):
-            print("%s %s GOT SIGNAL %s" % (self._worker_type, self.wid, signum))
-            # API.shutdown()
-            self._stop_event.set()
+            print("%s %s Stopping when jobs are done %s" % (self._worker_type, self.wid, signum))
+
+            if self._softstopevent.is_set():
+                print("%s %s User requests immediate shutdown %s" % (self._worker_type, self.wid, signum))
+                # API.shutdown()
+                self._stop_event.set()
+
+            self._softstopevent.set()
 
         signal.signal(signal.SIGHUP, self.rescan_modules)
         signal.signal(signal.SIGINT, sighandler)
@@ -357,7 +367,7 @@ class Worker(multiprocessing.Process):
 
         last_reported = 0  # We force periodic updates of state as we might be idle for a long time
         last_job_time = None
-        while not self._stop_event.is_set():
+        while not self._softstopevent.is_set() and not self._stop_event.is_set():
             try:
                 if self._type == jobdb.TYPE_ADMIN:
                     max_jobs = 5
@@ -419,7 +429,7 @@ class Worker(multiprocessing.Process):
             self._jobdb.remove_worker(self.wid)
         except Exception as e:
             print("Failed to remove worker:", e)
-
+        self._stop_event.set()
         # print(self._worker_type, self.wid, "stopping")
         # self._stop_event.set()
         print(self._worker_type, self.wid, "stopping")
@@ -428,7 +438,7 @@ class Worker(multiprocessing.Process):
         # If we were not done we should update the DB
         self._jobdb.force_stopped(self.workernum, node=socket.gethostname())
 
-        print(self._worker_type, self.wid, "stopped")
+        print(self._worker_type, self.wid, "stopped", self._softstopevent.is_set(), self._stop_event.is_set())
 
     def stop_job(self):
         try:
@@ -558,9 +568,9 @@ class Worker(multiprocessing.Process):
         stop_monitor = threading.Event()
 
         def monitor():
-            while not self._stop_event.isSet() and not cancel_event.isSet() and not stop_monitor.isSet():
+            while not self._stop_event.is_set() and not cancel_event.is_set() and not stop_monitor.is_set():
                 status = self._jobdb.get_job_state(task["id"])
-                if stop_monitor.isSet():
+                if stop_monitor.is_set():
                     break
                 if status == jobdb.STATE_CANCELLED:
                     self.log.info("Cancelling job on request")
@@ -605,7 +615,7 @@ class Worker(multiprocessing.Process):
 
             # Stop the monitor if it's running
             stop_monitor.set()
-            if canStop and cancel_event.isSet():
+            if canStop and cancel_event.is_set():
                 new_state = jobdb.STATE_CANCELLED
                 task["result"] = "Cancelled"
             else:
@@ -708,7 +718,7 @@ class NodeController(threading.Thread):
     def __init__(self, options):
         threading.Thread.__init__(self)
         self._worker_pool = []
-        # self._stop_event = multiprocessing.Event()
+        self._soft_stop_event = multiprocessing.Event()
         self._stop_event = API.api_stop_event
         self._options = options
         self._manager = None
@@ -744,7 +754,8 @@ class NodeController(threading.Thread):
         for i in range(0, workers):
             # wid = "%s.%s.Worker-%s_%d" % (self.jobid, self.name, socket.gethostname(), i)
             print("Starting worker %d supporting" % i, modules)
-            w = Worker(i, self._stop_event, modules=modules, module_paths=options.paths, name=options.name, options=options)
+            w = Worker(i, self._stop_event, modules=modules, module_paths=options.paths,
+                       name=options.name, options=options)  # , softstopevent=self._soft_stop_event)
             # w = multiprocessing.Process(target=worker, args=(i, self._options.address,
             #                             self._options.port, AUTHKEY, self._stop_event))
             # args=(wid, self._task_queue, self._results_queue, self._stop_event))
@@ -803,6 +814,13 @@ class NodeController(threading.Thread):
         for worker in self._worker_pool:
             os.kill(worker.pid, signal.SIGHUP)
 
+    def stop(self):
+        if self._soft_stop_event.is_set():
+            print("STOPPING EVERYTHING")
+            API.shutdown()
+
+        self._soft_stop_event.set()
+
     def run(self):
         if self._report_status:
             self.status["state"] = "Running"
@@ -855,14 +873,31 @@ class NodeController(threading.Thread):
             time_left = max(0, self.cfg["sample_rate"] + time.time() - last_run)
             time.sleep(time_left)
 
+            if self._soft_stop_event.is_set():
+                # Soft stop
+                all_done = True
+                for w in self._worker_pool:
+                    if not w._stop_event.is_set():
+                        print("Still waiting for workers")
+                        all_done = False
+                        break
+                if all_done:
+                    print("All workers stopped")
+                    break
+
+
         if self._report_status:
             self.status["state"] = "Stopping workers"
+
         self._stop_event.set()
         left = len(self._worker_pool)
         for w in self._worker_pool:
-            w.join(3)  # Timeout of MAX 3 seconds
+            #w.join(3)  # Timeout of MAX 3 seconds
+            w.join()
             left -= 1
             self.log.debug("Worker stopped, %d left" % (left))
+
+        print("All workers stopped")
 
         if self._manager:
             self._manager.shutdown()
@@ -964,23 +999,27 @@ if __name__ == "__main__":
             if signum == signal.SIGHUP:
                 print("RELOAD STUFF")
                 return
-            try:
-                global forcestop
-                if forcestop:
-                    print("SHOULD FORCE STOP")
-                    raise SystemExit("User aborted")
-                forcestop = True
-            except Exception as e:
-                print("Woops:", e)
-                # raise SystemExit()
+            if 0:
+                try:
+                    global forcestop
+                    if forcestop:
+                        print("SHOULD FORCE STOP")
+                        raise SystemExit("User aborted")
+                    forcestop = True
+                except Exception as e:
+                    print("Woops:", e)
+                    # raise SystemExit()
 
             print("Stopped by user signal")
-            API.shutdown()
+            node.stop()
+            #    print("User insisting on stopping right away")
+            #    API.shutdown()
+            #node._soft_stop_event.set()
 
         signal.signal(signal.SIGINT, sighandler)
         signal.signal(signal.SIGHUP, node.reload)
 
-        while not API.api_stop_event.isSet():
+        while not API.api_stop_event.is_set():
             try:
                 time.sleep(1)
             except KeyboardInterrupt:
