@@ -382,7 +382,7 @@ class Worker(multiprocessing.Process):
                 if len(jobs) == 0:
                     self._jobdb.update_worker(self.wid, json.dumps(self._modules), last_job_time)
 
-                    time.sleep(1)
+                    time.sleep(2.5)
                     if last_reported + 300 > time.time():
                         self.status["state"] = "Idle"
                     else:
