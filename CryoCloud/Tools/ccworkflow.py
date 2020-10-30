@@ -513,6 +513,10 @@ class Workflow:
             if "restrictions" in child:
                 task.restrictions = child["restrictions"]
 
+            # If GPU enabled, flag as type gpu
+            if task.gpu:
+                task.type = "gpu"
+
             # If global, remember this
             if "global" in child:
                 task.is_global = True
