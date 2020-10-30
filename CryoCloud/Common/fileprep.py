@@ -223,7 +223,7 @@ class FilePrepare:
                     last_error = str(e)
                     s = None
                     self.log.warning("Failed to fix url, retrying: %s" % str(e))
-                    time.sleep(random.random())
+                    time.sleep(random.random() * 2)
             if not s:
                 self.log.error("Failed to fix url %s" % url)
                 raise Exception("Failed to fix url %s: %s" % (url, last_error))
@@ -294,8 +294,8 @@ class FilePrepare:
             if not compressed:
                 fileList.append(local_file)
         else:
-            if DEBUG:
-                self.log.debug("%s not available locally, must copy" % local_file)
+            # if DEBUG:
+            self.log.debug("%s not available locally, must copy" % local_file)
             # Not available locally, can we copy?
             if not copy:
                 raise Exception("Failed to fix %s, not local but no copy allowed" % (url))
