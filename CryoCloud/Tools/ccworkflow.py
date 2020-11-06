@@ -978,6 +978,10 @@ class CryoCloudTask(Task):
                     if arg not in args:
                         raise Exception("Require stat '%s' but no such stat was found for %s (%s), %s has %s" %
                                         (arg, self.name, self.module, name, str(pebble.stats[name])))
+                else:
+                    # Not a known thing, just assume this is a dict that's supposed to be sent
+                    args[arg] = self.args[arg]
+                    continue
 
                 # Is this a file? If so, we should tag along a prepare statement
                 if "type" in self.args[arg]:
