@@ -127,6 +127,8 @@ The following workflow is a simple demonstration of
 
   **global**: *true/false* - Use in combination with *"runOn":"error"* for a global error handler. Any error will trigger this handler. Cleanup is likely better done using *tempdir* or *deferred* modules.
 
+  **gpu**: true/false* - Does this module require a GPU to run? Default false. If true, tasks will *only* be processed by GPU workers. Try to keep GPU modules as tight as possible to avoid CPU intensive tasks blocking GPUs.
+
   **image**: *docker image* - Docker image that can be executed to handle jobs for this module. Particularly useful for Kubernetes integration.
 
   **max_parallel**: *number* - Limit the amount of jobs that is allowed to run in parallel. Useful for example to limit jobs for external services (e.g. downloads). 
@@ -137,6 +139,8 @@ The following workflow is a simple demonstration of
 
   **name**: *Unique name for this workflow* - Use for readability and to get access to return values for later modules
 
+  **outputs**: *map of outputs* - as defined in the module definition. This overrides the module definition, and is mostly useful for input modules that take in anything. The *netwatcher* is an example here, where the given jsonschema restricts arguments, or a module that loads files and passes on information. Do not use for normal modules if at all possible (they should know what they provide).
+
   **post**: *[{'output': argumentname, 'target': prefix, 'basename':true/false}]* - Post processing specification. Highly useful for postprocessing returned files in contained modules. For example: *{"output": "dst", "target": "s3://server/container/", "basename": true}* will upload the file returned as 'dst' to the given S3 container. *target* is mapped like *args*, so for example *"target": {"options": "targetserver"}* allows a commandline parameter to speficy the final destionation of the workflow. If the return value is a list, it will be iterated over and all items in the list will be processed.
 
   **priority**: *number* - Override the default priority of the ccmodule. CryoCloud will choose higher priority jobs over lower. Useful to balance throughput vs latency of a workflow, limit disk usage, spread IO etc.
@@ -145,19 +149,30 @@ The following workflow is a simple demonstration of
 
   **resolveOnAny**: Resolve when ALL parents have completed (default) or when ANY parent has completed",
 
+  **restrictions**: Map of restrictions for running. This can typically be limitations to avoid an unbalanced (or variable) workflow to clog up something. An example can be:
+  ---
+  "restrictions": {
+    "CryoniteTidevann:geocode.pending": "<3",
+    "NodeController.seer3:cache.free": ">536870912000"
+  }
+  ---
+  These restrictions tries to keep the number of pending geocode jobs to 3 or less (it will queue another job if it's 2), and also wait to start processing until the free disk on the 'cache' disk on seer3 is at least 500GB. This of course means that a workflow can be blocked due to external factors. Such blocking might be printed by ccworkflow, but a top tip is to check that they restrictions are met if things aren't running.
+
   **runIf**: *if statement* - Python statement, e.g. *"output:SomeModule.someReturnValue!='SomeString'"*. The module will only run if the statement returns True. Useful to split the flow in one of multiple branches. Notice that if you want to check a boolean option, you must use *=='True'*, not *== True*, as the output will be a string regardless of type.
 
   **runOn**: *success/error/timeout/always/never* - when resolved, the parent either succeeded, failed or timed out. Limit when this module runs (can be set default by module)
 
   **runOnHead**: *true/false* - Should this module be executed on the head node. Notice that this is ONLY useful for tiny jobs, as the head is always a single machine, and not likely a processing machine at that. Useful for example for merging, rewriting arguments etc.
 
-  **splitOn**: *argument name* - The named args must be a list. This list will be split into separate entries and executed as parallel jobs.
+  **serviceURL**: *url* - The URL of a running microservice. The module definition is fetched from this URL on startup, so no stubs need to be available otherwise. As the definition is fetched and checked on startup, the microservice needs to be running at the time ccworkflow is started.
+
+  **splitOn**: *argument name* - The named args must be a list. This list will be split into separate entries and executed as parallel jobs. Notice that nested splits are not supported, so the workflow must be merged before a new split. If you need multiple splits, check *microservices*, which is in a separate repository (cryonite/microservices).
 
   **replicas**: *number* - How many replicas to start if managing containers. Default 1, only used for Kubernetes integration for now.
 
-  **type**: *normal/admin* - type of CryoCloud worker that should take this job
+  **type**: *normal/admin* - type of CryoCloud worker that should take this job. Admin jobs are typically processed in bulk, should be rather quick and possibly IO intensive. Good examples of admin jobs could be moving files or archiving them after processing. Note that each physical CryoCloud node typically only has a single admin worker, but at least one normal worker pr CPU.
 
-  **volumes**: *[[source1, dest1, ro], [source2, dest2, rw]]* - Force mappings of directories as volumes. CryoCloud will automatically map directories that are given as paths, so you only need this if your module require external volumes that are not referred to by the workflow. Try without specifying this first.
+  **volumes**: *[[source1, dest1, ro], [source2, dest2, rw]]* - Force mappings of directories as volumeqs. CryoCloud will automatically map directories that are given as paths, so you only need this if your module require external volumes that are not referred to by the workflow. Try without specifying this first.
 
   **workdir**: *path* - Working directory for this module. Must be an absolute path on the processing nodes (not the one running ccworkflow). Useful for example as *"workdir": {"option": "codedir"}*, allowing command line specification of the code to run.
 
