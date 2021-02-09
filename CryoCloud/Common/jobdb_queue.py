@@ -178,7 +178,8 @@ class JobDB:
         return None
 
     def allocate_job(self, workerid, type=TYPE_NORMAL, node=None,
-                     max_jobs=1, prefermodule=None, preferlevel=0):
+                     max_jobs=1, prefermodule=None, preferlevel=0,
+                     supportedmodules=None):
         """
         Preferlevel is currently 0 or over 0, nothing else does anything
         """
@@ -284,6 +285,9 @@ class JobDB:
                 if job[STATE] == STATE_ALLOCATED and job[TSALLOCATED] + job[EXPIRES] < time.time():
                     job[STATE] = STATE_TIMEOUT
 
+    def list_steps(self):
+        return []
+
     def get_jobstats(self):
         steps = {}
         return steps  # Not supported for now
@@ -370,3 +374,9 @@ class JobDB:
 
     def estimate_resources(self, module, datasize=None, priority=None):
         return {}
+
+    def update_worker(self, workerid, modules, last_job):
+        pass
+
+    def remove_worker(self, args):
+        pass
