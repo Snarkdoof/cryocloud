@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="us-ascii"?>
+<application xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" id="application">
+  <jobTemplates>
+    <jobTemplate id="my_template">
+      <streamingExecutable>/application/my_node/run</streamingExecutable>
+    </jobTemplate>
+  </jobTemplates>
+    <workflow id="hands-on-1" title="Basic Workflow" abstract="Exercise 1, a basic workflow">
+    <workflowVersion>1.0</workflowVersion>
+    <node id="my_node">
+      <job id="my_template"/>
+      <sources>
+        <source refid="file:urls">/application/inputs/list</source>
+      </sources>
+    </node>
+  </workflow>
+</application>

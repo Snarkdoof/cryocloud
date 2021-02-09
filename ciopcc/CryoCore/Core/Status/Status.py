@@ -2,7 +2,7 @@ import time
 import sys
 
 try:
-    import ciop
+    from cioppy import Cioppy as ciop 
 except:
     import fakeciop as ciop
 

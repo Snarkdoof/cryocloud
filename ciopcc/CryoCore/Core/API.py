@@ -10,7 +10,7 @@ import sys
 import traceback
 
 try:
-    import ciop
+    from cioppy import Cioppy as ciop 
 except:
     print("WARNING: ** Fake ciop **")
     import fakeciop as ciop
@@ -60,7 +60,7 @@ class logger:
         ciop.log("ERROR", msg)
     def exception(self, msg):
         fullmsg = msg + traceback.format_exc()
-        ciop.log("EXCEPTION", fullmsg)
+        ciop.log("ERROR", fullmsg)
 
 log = logger()
 
