@@ -6,6 +6,7 @@ import select
 import re
 import json
 import psutil
+import tempfile
 
 
 from CryoCore import API
@@ -19,7 +20,7 @@ class DockerProcess():
     def __init__(self, cmd, status, log, stop_event,
                  env={}, dirs=[], gpu=False,
                  userid=None, groupid=None, log_all=True,
-                 args=[], cancel_event=None):
+                 args=[], cancel_event=None, debug=False):
 
         # Read in all partitions on this machine, used to identify volumes
         # TODO: Might not work with automounts, is this an issue?
@@ -28,6 +29,7 @@ class DockerProcess():
             if len(part.mountpoint) > 1:
                 self.partitions.append(part.mountpoint)
         self.partitions.sort(key=lambda k: -len(k))
+        self.debug = debug
 
         def lookup(path):
             if not isinstance(path, str):
@@ -138,18 +140,20 @@ class DockerProcess():
 
     def run(self):
         docker = "docker"
-        if self.gpu:
-            try:
-                retval = subprocess.call(["nvidia-docker", "version"])
-                if retval == 0:
-                    docker = "nvidia-docker"
-                    self.log.info("Using NVIDIA Docker for GPU acceleration")
-                else:
-                    self.log.warning("NVIDIA Docker requested but not available, not using GPU")
-            except:
-                    self.log.warning("NVIDIA Docker requested but not available, not using GPU")
-
         cmd = [docker, "run"]
+        self.log.debug("USE GPU: %s" % self.gpu)
+
+        if self.gpu:
+            cmd.extend(["--gpus", "all"])  # TODO: Check that gpus can in fact be run?
+            # try:
+            #    retval = subprocess.call(["docker", "run", "--gpus", "all"])
+            #    if retval == 1:
+            #        cmd.extend(["--gpus", "all"])
+            #        self.log.info("Using GPU acceleration")
+            #    else:
+            #        self.log.warning("GPU Docker requested but not available, not using GPU (retval %d)" % retval)
+            # except Exception as e:
+            #        self.log.warning("GPU Docker requested but not available, not using GPU (%s)" % str(e))
 
         for d in self.dirs:
             if len(d) == 3:
@@ -165,7 +169,21 @@ class DockerProcess():
             cmd.extend(["-v", "%s:%s%s" % (source, destination, options)])
 
         # We also add "/scratch"
-        # cmd.extend(["-v", "%s:/scratch" % self._dockercfg["scratch"]])
+        hasit = False
+        for a in cmd:
+            if a.find(":/scratch") > -1:
+                hasit = True
+                break
+        if not hasit:
+            cmd.extend(["-v", "%s:/scratch:rw" % self._dockercfg["scratch"]])
+
+        hasit = False
+        for a in cmd:
+            if a.find(":/tmp") > -1:
+                hasit = True
+                break
+        if not hasit:
+            cmd.extend(["-v", "/tmp:/tmp:rw"])
 
         # also allow ENV
         # cmd.extend(["-e", ....])
@@ -175,13 +193,33 @@ class DockerProcess():
         for c in self.cmd:
             if c.find("-u") > -1:
                 raise Exception("-u specified in cmd, not allowed")
+        cmd.extend(self.cmd)
+
         for c in self.args:
             if c.find("-u") > -1:
                 raise Exception("-u specified in args, not allowed")
-        cmd.extend(self.cmd)
+
+        # We check for a '-t', which is a json task description, write it to a file and
+        # replace the -t with a -f (read from file)
+        taskfile = tempfile.NamedTemporaryFile()
+        if self.debug:
+            dbg_cmd = [x for x in cmd]
+            import time
+            dbgfile = open("/tmp/docker-%s" % time.ctime(), "w")
+            dbg_cmd.extend(self.args)
+            dbgfile.write(" ".join(dbg_cmd))
+            dbgfile.close()
+
+        for i in range(len(self.args)):
+            if self.args[i] == "-t":
+                self.args[i] = "-f"
+                taskfile.write(self.args[i+1].encode("utf-8"))
+                taskfile.flush()
+                self.args[i + 1] = taskfile.name
         cmd.extend(self.args)
 
         self.log.debug("Running Docker command '%s'" % str(cmd))
+
         p = subprocess.Popen(cmd, env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         # We set the outputs as nonblocking
         fcntl.fcntl(p.stdout, fcntl.F_SETFL, os.O_NONBLOCK)
@@ -233,7 +271,10 @@ class DockerProcess():
             # Check for output on stderr - set error message
             if buf[p.stderr]:
                 # Should we parse this for some known stuff?
-                self.log.error(buf[p.stderr])
+                if buf[p.stderr].find("Traceback") > -1:
+                    self.log.error(buf[p.stderr])
+                else:
+                    self.log.debug(buf[p.stderr])
                 buf[p.stderr] = ""
 
             # See if the process is still running

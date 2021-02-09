@@ -3,10 +3,10 @@ import time
 import random
 import json
 import threading
-import psutil
 
 from CryoCore import API
 from CryoCore.Core.InternalDB import mysql
+
 
 PRI_HIGH = 100
 PRI_NORMAL = 50
@@ -16,6 +16,7 @@ PRI_BULK = 0
 TYPE_NORMAL = 1
 TYPE_ADMIN = 2
 TYPE_MANUAL = 3
+TYPE_GPU = 4
 
 STATE_PENDING = 1
 STATE_ALLOCATED = 2
@@ -23,11 +24,13 @@ STATE_COMPLETED = 3
 STATE_FAILED = 4
 STATE_TIMEOUT = 5
 STATE_CANCELLED = 6
+STATE_DISABLED = 7
 
 TASK_TYPE = {
     TYPE_NORMAL: "Worker",
     TYPE_ADMIN: "AdminWorker",
-    TYPE_MANUAL: "ManualWorker"
+    TYPE_MANUAL: "ManualWorker",
+    TYPE_GPU: "GpuWorker"
 }
 
 PRI_STRING = {
@@ -76,11 +79,11 @@ class JobDB(mysql):
                     expiretime SMALLINT,
                     node VARCHAR(128) DEFAULT NULL,
                     worker SMALLINT DEFAULT NULL,
-                    retval TEXT DEFAULT NULL,
+                    retval MEDIUMBLOB DEFAULT NULL,
                     module VARCHAR(256) DEFAULT NULL,
                     modulepath TEXT DEFAULT NULL,
                     workdir TEXT DEFAULT NULL,
-                    args TEXT DEFAULT NULL,
+                    args MEDIUMBLOB DEFAULT NULL,
                     nonce INT DEFAULT 0,
                     itemid BIGINT DEFAULT 0,
                     max_memory BIGINT UNSIGNED DEFAULT 0,
@@ -135,6 +138,13 @@ class JobDB(mysql):
                 cancelled INT,
                 PRIMARY KEY(module, priority, time)
             )""",
+            """CREATE TABLE IF NOT EXISTS worker (
+                id VARCHAR(256) PRIMARY KEY,
+                modules VARCHAR(4000) DEFAULT "",
+                last_seen TIMESTAMP DEFAULT NOW() ON UPDATE NOW(),
+                last_job TIMESTAMP NULL
+                )
+            """,
             "CREATE INDEX job_state ON jobs(state)",
             "CREATE INDEX job_type ON jobs(type)",
             "CREATE INDEX profile_module ON profile_summary(module)"
@@ -237,9 +247,35 @@ class JobDB(mysql):
         c = self._execute("UPDATE jobs SET is_blocked=0 WHERE jobid=%s", [jobid])
         return c.rowcount
 
-    def unblock_step(self, step, amount=1):
-        c = self._execute("UPDATE jobs SET is_blocked=0 WHERE runid=%s AND step=%s AND is_blocked>0 LIMIT %s", [self._runid, step, amount])
+    def unblock_step(self, step, amount=1, max_parallel=None):
+        if max_parallel:
+            c = self._execute("SELECT COUNT(*) FROM jobs WHERE is_blocked=0 AND runid=%s AND step=%s AND STATE<%s",
+                              [self._runid, step, STATE_COMPLETED])
+            num = c.fetchone()[0]
+            # print("MaxParallel is defined as %s, unblocked are: %s" % (max_parallel, num))
+            if num >= max_parallel:
+                print("INTERNAL: ALREADY HAVE ENOUGH UNBLOCKED")
+                return 0
+
+        c = self._execute("UPDATE jobs SET is_blocked=0 WHERE runid=%s AND step=%s AND is_blocked=1 LIMIT %s",
+                          [self._runid, step, amount])
         return c.rowcount
+
+    def list_steps(self):
+        c = self._execute("SELECT DISTINCT(step), module FROM jobs WHERE runid=%s AND (state=%s OR state=%s)",
+                          [self._runid, STATE_PENDING, STATE_DISABLED])
+        return [(row[0], row[1]) for row in c.fetchall()]
+
+    def disable_step(self, step):
+        """
+        Disable a step as it is outside of parameters (e.g. too little free disk space)
+        """
+        self._execute("UPDATE jobs SET STATE=%s WHERE STATE=%s AND runid=%s AND step=%s",
+                      [STATE_DISABLED, STATE_PENDING, self._runid, step])
+
+    def enable_step(self, step):
+        self._execute("UPDATE jobs SET STATE=%s WHERE STATE=%s AND runid=%s AND step=%s",
+                      [STATE_PENDING, STATE_DISABLED, self._runid, step])
 
     def flush(self):
         self.commit_jobs()
@@ -288,12 +324,30 @@ class JobDB(mysql):
             return row[0]
         return None
 
-    def allocate_job(self, workerid, type=TYPE_NORMAL, node=None,
-                     max_jobs=1, prefermodule=None, preferlevel=0):
+    def num_pending_jobs(self, module):
         """
-        Preferlevel is currently 0 or over 0, nothing else does anything
+        Returns the number of non-completed jobs of a given module
         """
-        # TODO: Check for timeouts here too?
+        SQL = "SELECT COUNT(*) FROM jobs WHERE module=%s AND state<%s"
+        c = self._execute(SQL, [module, STATE_COMPLETED])
+        num = c.fetchone()[0]
+        # print("PENDING JOBS", SQL, num)
+        return num
+
+    def allocate_job(self, workerid, supportedmodules, type=TYPE_NORMAL, node=None,
+                     max_jobs=1, prefermodule=None, preferlevel=100):
+        """
+
+        Preferlevel is a measure of how lower priority a task can have before
+        a preferred job is selected. In other words, 0 disregards preference,
+        a very high preferlevel ignores unpreferred jobs with a high priority.
+        Use a high preference level if the module is very specialized, e.g.
+        require particular hardware. If the load/unload times are substantial,
+        a high preference is also useful. However, a high preference level
+        will limit the possibility of CryoCloud to allocate resources
+        effectively, so if load/unload is low, set the prefer level to zero.
+
+        """
 
         nonce = random.randint(0, 2147483647)
         args = [STATE_ALLOCATED, time.time(), node, workerid, nonce, type, STATE_PENDING]
@@ -305,21 +359,51 @@ class JobDB(mysql):
         else:
             SQL += "node IS NULL "
 
-        if prefermodule:
+        BASESQL = SQL
+        BASEARGS = args[:]
+
+        any_module = True
+        if len(supportedmodules) > 0 and "any" not in supportedmodules:
+            any_module = False
+            SQL += "AND (" + " module=%s OR" * len(supportedmodules)
+            SQL = SQL[:-2] + ")"
+            args.extend(supportedmodules)
+        # print(SQL)
+        min_prio = 0
+        if prefermodule and preferlevel > 0:
+            try:
+                s = "SELECT MAX(priority) FROM jobs"
+                if not any_module:
+                    s += " WHERE " + "module=%s OR " * len(supportedmodules)
+                    s = s[:-3]
+                    c = self._execute(s, supportedmodules)
+                else:
+                    c = self._execute(s)
+
+                min_prio = c.fetchone()[0] - preferlevel
+            except:
+                pass
             original = SQL + " ORDER BY priority DESC, tsadded LIMIT %s"
             originalargs = args[:]
             originalargs.append(max_jobs)
 
-            SQL += "AND module=%s "
+            SQL = BASESQL
+            args = BASEARGS
+            SQL += "AND module=%s AND priority>%s"
             args.append(prefermodule)
+            args.append(min_prio)
+            # print(SQL, args)
+
+            # SQL += "AND module=%s AND priority>%s "
         SQL += " ORDER BY priority DESC, tsadded LIMIT %s"
         args.append(max_jobs)
         c = None
         for i in range(0, 3):
             try:
+                # print(SQL, args)
                 c = self._execute(SQL, args)
                 if c.rowcount == 0 and prefermodule:
-                    if preferlevel > 0:
+                    if preferlevel > 1000:
                         return []  # We didn't have any suitable jobs
 
                     # We didn't find any jobs with the preferred module, go generic
@@ -329,6 +413,7 @@ class JobDB(mysql):
                 break
             except:
                 self.log.exception("Failed to get job, retrying")
+                self.log.error("SQL statement was: '%s' with args '%s" % (SQL, args))
         if not c:
             raise Exception("Failed to get job")
 
@@ -341,7 +426,10 @@ class JobDB(mysql):
                     jobs = []
                     for jobid, step, taskid, t, priority, args, runname, jmodule, modulepath, rmodule, steps, workdir, itemid in c.fetchall():
                         if args:
-                            args = json.loads(args)
+                            if isinstance(args, bytes):
+                                args = json.loads(args.decode("utf-8"))
+                            else:
+                                args = json.loads(args)
                         if jmodule:
                             module = jmodule
                         else:
@@ -380,13 +468,16 @@ class JobDB(mysql):
         c = self._execute(SQL, args)
         for jobid, step, taskid, t, priority, args, tschange, state, expire_time, module, modulepath, tsallocated, node, worker, retval, workdir, itemid, cpu_time, max_memory in c.fetchall():
             if args:
-                args = json.loads(args)
+                if isinstance(args, bytes):
+                    args = json.loads(args.decode("utf-8"))
+                else:
+                    args = json.loads(args)
             if retval:
                 retval = json.loads(retval)
             job = {"id": jobid, "step": step, "taskid": taskid, "type": t, "priority": priority,
                    "node": node, "worker": worker, "args": args, "tschange": tschange, "state": state,
                    "expire_time": expire_time, "module": module, "modulepath": modulepath, "retval": retval,
-                   "workdir": workdir, "itemid": itemid, "cpu": cpu_time, "mem": max_memory}
+                   "workdir": workdir, "itemid": itemid, "cpu": cpu_time, "mem": max_memory, "run": self._runid}
             if tsallocated:
                 job["runtime"] = time.time() - tsallocated
             jobs.append(job)
@@ -641,12 +732,58 @@ class JobDB(mysql):
             retval["cpu_time"] = row[3]
         return retval
 
+    def update_worker(self, workerid, modules, last_job):
+        SQL = "INSERT INTO worker (id, modules, last_job, last_seen) VALUES(%s, %s, %s, NOW()) ON DUPLICATE KEY UPDATE modules=%s, last_job=%s, last_seen=NOW()"
+        self._execute(SQL, [workerid, modules, last_job, modules, last_job])
+
+    def remove_worker(self, workerid):
+        self._execute("DELETE FROM worker WHERE id=%s", [workerid])
+
+    def get_admin_worker_nodes(self):
+        c = self._execute("SELECT DISTINCT(node) FROM jobs WHERE type=%s", [TYPE_ADMIN])
+        return [row[0] for row in c.fetchall()]
+
+    def get_worker_nodes(self, seen_since_sec=120, adminsOnly=False):
+        """
+        Return a list of all nodes that have workers
+        """
+        SQL = "SELECT id, last_seen FROM worker WHERE last_seen> NOW() - INTERVAL %d second" % seen_since_sec
+        c = self._execute(SQL)
+        res = []
+        for id, last_seen in c.fetchall():
+            t, n = id.split("-", 1)
+            n = n[:n.find("_")]
+            if adminsOnly and t != "AdminWorker":
+                continue
+            if n not in res:
+                res.append(n)
+        return res
+
+    def get_workers(self, modules):
+        """
+        Get a map of modules and workers. If no worker is available for a module, it will have a blank list
+        """
+
+        SQL = "SELECT id, modules, last_job, last_seen FROM worker WHERE last_seen> NOW() - INTERVAL 1 MINUTE"
+        c = self._execute(SQL)
+
+        retval = {}
+        for m in modules:
+            retval[m] = []
+        for id, modules, last_job, last_seen in c.fetchall():
+            for m in json.loads(modules):
+                if m in retval:
+                    retval[m].append(id)
+        return retval
+
 if __name__ == "__main__":
     try:
         print("Testing")
         db = JobDB("test1", "hello", 2)
+
+        print("WORKERS:", db.get_workers(["SAR_Processor", "KSAT_Report"]))
+
         import sys
-        print(len(sys.argv))
         if len(sys.argv) == 2:
             if sys.argv[1] == "summarize":
                 db.summarize_profiles()

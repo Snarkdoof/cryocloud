@@ -1,10 +1,15 @@
 import random
 import copy
+import queue
 
 
 class DefaultHandler:
     head = None
     metadata = {}
+
+    def __init__(self):
+        self.jobQueue = queue.Queue()
+        print("** JQ defined")
 
     def addMeta(self, metadata):
         key = random.randint(0, 9223372036854775806)
@@ -49,5 +54,15 @@ class DefaultHandler:
     def onStepCompleted(self, step):
         pass
 
+    def onCleanup(self):
+        pass
+
     def onStopped(self):
+        pass
+
+    def onCheckRestrictions(self, step_modules):
+        """
+        Step_modules is a list of tuples (stepnr, module name)
+        It should disable/enable steps according to any restrictions
+        """
         pass

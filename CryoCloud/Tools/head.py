@@ -6,6 +6,7 @@ import sys
 import time
 from argparse import ArgumentParser
 import threading
+import queue
 
 import inspect
 import os.path
@@ -14,7 +15,6 @@ try:
     import argcomplete
 except:
     print("Missing argcomplete, autocomplete not available")
-
 from CryoCore import API
 from CryoCloud.Common import jobdb
 import CryoCloud.Common
@@ -51,6 +51,7 @@ class HeadNode(threading.Thread):
         self.cfg = API.get_config(self.name, version=options.version)
         self.log = API.get_log(self.name)
         self.status = API.get_status(self.name)
+
         self.options = options
         self.neverfail = neverfail
         self.status["state"] = "Initializing"
@@ -85,6 +86,7 @@ class HeadNode(threading.Thread):
         self.TYPE_NORMAL = jobdb.TYPE_NORMAL
         self.TYPE_ADMIN = jobdb.TYPE_ADMIN
         self.TYPE_MANUAL = jobdb.TYPE_MANUAL
+        self.TYPE_GPU = jobdb.TYPE_GPU
 
         self.STATE_PENDING = jobdb.STATE_PENDING
         self.STATE_ALLOCATED = jobdb.STATE_ALLOCATED
@@ -92,11 +94,13 @@ class HeadNode(threading.Thread):
         self.STATE_FAILED = jobdb.STATE_FAILED
         self.STATE_TIMEOUT = jobdb.STATE_TIMEOUT
         self.STATE_CANCELLED = jobdb.STATE_CANCELLED
+        self.STATE_DISABLED = jobdb.STATE_DISABLED
 
         self.TASK_STRING_TO_NUM = {
             "admin": self.TYPE_ADMIN,
             "manual": self.TYPE_MANUAL,
-            "normal": self.TYPE_NORMAL
+            "normal": self.TYPE_NORMAL,
+            "gpu": self.TYPE_GPU
         }
 
         self.handler.head = self
@@ -120,7 +124,8 @@ class HeadNode(threading.Thread):
         except:
             pass
 
-    def makeDirectoryWatcher(self, directory, onAdd=None, onModify=None, onRemove=None, onError=None,
+    def makeDirectoryWatcher(self, directory, onAdd=None, onModify=None,
+                             onRemove=None, onError=None, onIdle=None,
                              stabilize=5, recursive=True):
             return CryoCloud.Common.DirectoryWatcher(self._jobdb._actual_runname,
                                                      directory,
@@ -128,6 +133,7 @@ class HeadNode(threading.Thread):
                                                      onModify=onModify,
                                                      onRemove=onRemove,
                                                      onError=onError,
+                                                     onIdle=onIdle,
                                                      stabilize=stabilize,
                                                      recursive=recursive)
 
@@ -143,6 +149,25 @@ class HeadNode(threading.Thread):
     def add_job(self, step, taskid, args, jobtype=jobdb.TYPE_NORMAL, priority=jobdb.PRI_NORMAL,
                 node=None, expire_time=None, module=None, modulepath=None, workdir=None, itemid=None,
                 isblocked=0):
+        if 0:
+            # FAKE COMPLETED IMMEDIATELY
+            job = {
+                "taskid": taskid,
+                "itemid": itemid,
+                "module": module,
+                "node": node,
+                "step": 0,
+                "worker": 0,
+                "priority": jobdb.PRI_NORMAL,
+                "retval": args,
+                "runtime": 0,
+                "mem": 0,
+                "cpu": 0
+            }
+            self.handler.onAllocated(job)
+            self.handler.onCompleted(job)
+            return
+
         if expire_time is None:
             expire_time = self.options.max_task_time
         tid = self._jobdb.add_job(step, taskid, args, expire_time=expire_time, module=module, node=node,
@@ -224,6 +249,18 @@ class HeadNode(threading.Thread):
                 last_run = 0
                 notified = False
                 while not API.api_stop_event.is_set():
+                    # Any queued new jobs we should deliver?
+                    for i in range(0, 50):
+                        try:
+                            caller, pebble, result = self.handler.jobQueue.get_nowait()
+                            # Should resolve a pebble (start an input job really)
+                            caller.on_completed(pebble, result)
+                            print("RESOLVED PEBBLE, result")
+                        except queue.Empty:
+
+                            self.handler.onCleanup()
+                            break
+
                     updates = self._jobdb.list_jobs(since=last_run, notstate=jobdb.STATE_PENDING)
                     for job in updates:
                         last_run = job["tschange"]  # Just in case, we seem to get some strange things here
@@ -236,12 +273,14 @@ class HeadNode(threading.Thread):
                         elif job["state"] == jobdb.STATE_FAILED:
                             if job["taskid"] in self._pending:
                                 self._pending.remove(job["taskid"])
+                                self.handler.onAllocated(job)  # Ensure that onAllocated was called
                             # self.status["progress"].set_value((job["step"] - 1, job["taskid"]), 2)
                             self.handler.onError(job)
 
                         elif job["state"] == jobdb.STATE_CANCELLED:
                             if job["taskid"] in self._pending:
                                 self._pending.remove(job["taskid"])
+                                self.handler.onAllocated(job)  # Ensure that onAllocated was called
                             self.handler.onCancelled(job)
 
                         elif job["state"] == jobdb.STATE_COMPLETED:
@@ -278,6 +317,10 @@ class HeadNode(threading.Thread):
                                 notified = True
                         else:
                             notified = False
+
+                    to_check = self._jobdb.list_steps()
+                    if len(to_check) > 0:
+                        self.handler.onCheckRestrictions(to_check)
 
                     if len(updates) == 0:
                         try:

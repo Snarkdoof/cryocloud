@@ -1,0 +1,31 @@
+{
+  "workflow": {
+    "options": {
+      "n": {"help": "Name of git repository"},
+      "url": {"help": "URL of repository"},
+      "branch": {"help": "Branch to check out"},
+      "dst": {"help": "Destination directory"},
+      "list": {"help": "List of tuples [(name, url, branch)] to update for multiple", "type": "json"}
+    },
+    "name": "CMDLineTest",
+    "description": "Testing command line options only",
+    "nodes": [
+    {
+      "module": "cmdline",
+      "name": "Start",
+      "downstreamOf": ["entry"]
+    }, {
+      "module": "git",
+      "ccnode": "all",
+      "downstreamOf": ["Start"],
+      "args": {
+        "name": {"option": "n"},
+        "src": {"option": "url"},
+        "branch": {"option": "branch"},
+        "dst": {"option": "dst"},
+        "list": {"option": "list"}
+      }
+    }
+  ]
+  }
+}

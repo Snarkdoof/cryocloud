@@ -6,9 +6,9 @@ import threading
 import queue
 import json
 import jsonschema
-import os.path
-import tempfile
 import uuid
+import os
+import mimetypes
 
 if 0:
     ccmodule = {
@@ -64,6 +64,27 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(message)
         # self.wfile.close()
 
+    def _send_file(self, path):
+        try:
+            with open(path, "rb") as f:
+                data = f.read()  # WARNING - DO NOT SEND LARGE FILES
+        except Exception as e:
+            print("Woops", e)
+            return self.send_error(404)
+
+        self.send_response(200)
+        self.send_header("Content-Type", mimetypes.guess_type(path))
+        self.send_header("Content-Length", len(data))
+        self.send_header("Content-Encoding", "utf-8")
+        if self.server.cors:
+            self.send_header("Access-Control-Allow-Origin", self.server.cors)
+            self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS, GET")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+
+        self.end_headers()
+        self.wfile.write(data)
+        # self.wfile.close()
+
     def do_OPTIONS(self):
         self.path = self.path.replace("//", "/")
         if self.path == "/task":
@@ -81,9 +102,27 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
                 info = self.server.handler.getStats(order)
                 info["ts"] = time.time()
                 return self._replyJSON(200, info)
-            except Exception as e:
-                print("BAD REQUEST FOR STATUS (%s): %s" % (order, e))
+            except:
+                # print("BAD REQUEST FOR STATUS (%s): %s" % (order, e))
                 return self.send_error(404, "No info for order %s" % order)
+
+        if self.path.startswith("/close/"):
+            order = self.path[7:]
+            try:
+                info = self.server.handler.closeOrder(order)
+                return self._replyJSON(200, info)
+            except:
+                return self.send_error(404, "No info for order %s" % order)
+
+        if self.path.startswith("/stub"):
+            p = self.path[1:]
+            if not os.path.exists(p):
+                for fn in os.listdir("."):
+                    if fn.startswith("stub") and fn.endswith(".py"):
+                        p = fn
+                        break
+            if os.path.exists(p):
+                return self._send_file(p)
 
         self.send_error(404, "Could not find: " + self.path)
 
@@ -95,7 +134,6 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
             if len(data) == 0:
                 return self.send_error(500, "Missing body")
             info = json.loads(data.decode("utf-8"))
-            print("GOT POST", info, self.server.schema)
             # Validate
             if self.server.schema:
                 try:
@@ -108,9 +146,29 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
             return self.send_error(500, "Bad JSON")
 
         info["_order"] = uuid.uuid4().hex
-        print("Adding info", info)
 
-        self.server.inQueue.put(("add", info))
+        # If periodic
+        if "periodic" in info:
+            periodic = info["periodic"]
+            try:
+                if "first_run" in periodic:
+                    first = float(periodic["first_run"])
+                    if first < 1000000000:
+                        # Relative start time
+                        first += time.time()
+                else:
+                    first = time.time()
+                interval = float(periodic["interval"])
+                if "num_repeats" in periodic:
+                    num_repeats = int(periodic["num_repeats"])
+                else:
+                    num_repeats = 0
+                self.server.watcher.add_periodic(info, first, interval, num_repeats)
+                self.server.log.debug("Added periodic %s, %s, %s" % (first, interval, num_repeats))
+            except:
+                raise self.send_error(400, "Bad periodic definition: '%s'" % periodic)
+        else:
+            self.server.inQueue.put(("add", info))
         ret = {"id": info["_order"]}
         return self._replyJSON(202, ret)
 
@@ -147,6 +205,12 @@ class NetWatcher(threading.Thread):
         self.server.schema = schema
         self.server.handler = handler
         self.server.cors = cors
+        self.server.watcher = self
+
+        # Periodicals
+        self.periodicals = []
+        self.next_periodic = None
+        self._periodic_condition = threading.Condition()
 
         t = threading.Thread(target=self._handle_requests)
         t.start()
@@ -186,6 +250,30 @@ class NetWatcher(threading.Thread):
     def onError(self, message):
         pass
 
+    def _update_periodical(self):
+        with self._periodic_condition:
+
+            # Sort the list of periodicals by next run
+            self.periodicals.sort(key=lambda p: p["next_run"])
+            # Wakeup if anyone is waiting? We poll for now
+
+    def add_periodic(self, what, first, interval, num_repeats):
+        with self._periodic_condition:
+            self.periodicals.append({"next_run": first, "interval": interval, "repeats_left": num_repeats, "info": what})
+        self._update_periodical()
+
+    def remove_periodic(self, what):
+        with self._periodic_condition:
+            found = None
+            for p in self.periodicals:
+                if p["info"] == what:
+                    found = p
+                    break
+            if not found:
+                raise Exception("Can't remove unknown periodical")
+            self.periodicals.remove(found)
+        self._update_periodical()
+
     def run(self):
         while not self._stop_event.isSet() and not API.api_stop_event.isSet():
             try:
@@ -198,6 +286,21 @@ class NetWatcher(threading.Thread):
                 except:
                     self.log.exception("Exception in callback")
             except queue.Empty:
+                # Periodic thing - we run this at most every second, less often if we're really busy
+                with self._periodic_condition:
+                    if len(self.periodicals) > 0:
+                        p = self.periodicals[0]
+                        if p["next_run"] <= time.time():  # Next run has passed
+                            self.log.debug("Reposting periodic ")
+                            self.onAdd(p["info"])
+
+                            # Re-queue it?
+                            if p["repeats_left"] <= 1:  # We count after this test
+                                self.periodicals.remove(p)
+                            else:
+                                p["next_run"] += p["interval"]
+                                p["repeats_left"] -= 1
+                                self.periodicals.sort(key=lambda p: p["next_run"])
                 continue
 
 if __name__ == "__main__":
@@ -230,7 +333,6 @@ if __name__ == "__main__":
     try:
         nw = NetWatcher(12345)
         nw.start()
-        import time
         while True:
             time.sleep(10)
     finally:

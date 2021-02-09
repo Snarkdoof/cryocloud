@@ -12,7 +12,7 @@ ccmodule = {
     "provides": [],
     "inputs": {
         "target": "Target docker to build",
-        "directory": "Directory to build it in",
+        "directory": "Directory to build it in"
     },
     "outputs": {},
     "defaults": {
@@ -20,6 +20,17 @@ ccmodule = {
         "run": "success"
     }
 }
+
+
+def canrun():
+    """
+    Check if we are allowed to run on this machine
+    """
+    try:
+        ret = subprocess.check_call(["docker", "container", "ls"], stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
+        return ret == 0
+    except:
+        return False
 
 
 def process_task(worker, task, cancel_event):

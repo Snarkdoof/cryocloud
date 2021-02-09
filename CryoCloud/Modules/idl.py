@@ -44,6 +44,17 @@ ccmodule = {
 }
 
 
+def canrun():
+    """
+    Check if we are allowed to run on this machine
+    """
+    try:
+        ret = subprocess.check_output(["idl", "-e", "print, 'success'"], stderr=subprocess.DEVNULL)
+        return ret == b'success\n'
+    except:
+        return False
+
+
 def process_task(worker, task, cancel_event=None):
     """
     worker.status and worker.log are ready here.
