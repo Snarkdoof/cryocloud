@@ -2,10 +2,10 @@ import time
 import sys
 
 try:
-    from cioppy import Cioppy as ciop 
+    import cioppy
 except:
-    import fakeciop as ciop
-
+    import fakeciop as cioppy
+ciop = cioppy.Cioppy()
 
 
 class StatusObject:

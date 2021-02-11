@@ -447,6 +447,13 @@ class JobDB(mysql):
             raise ex
         return []
 
+
+    def is_all_jobs_done(self):
+        """No pending or allocated jobs"""
+        SQL = "SELECT count(*) FROM jobs WHERE runid=%s AND state>=%s LIMIT 1"
+        c = self._execute(SQL, [self._runid, STATE_ALLOCATED])
+        return c.fetchone()[0] == 0 
+
     def list_jobs(self, step=None, state=None, notstate=None, since=None):
         jobs = []
         SQL = "SELECT jobid, step, taskid, type, priority, args, tschange, state, expiretime, module, modulepath, tsallocated, node, worker, retval, workdir, itemid, cpu_time, max_memory FROM jobs WHERE runid=%s"

@@ -25,6 +25,18 @@ except:
     print("Missing argcomplete, autocomplete not available")
 import threading
 
+if "CC_DIR" in os.environ:
+    CC_DIR = os.environ["CC_DIR"]
+else:
+    print(" *** CC_DIR not set, using", os.getcwd())
+    CC_DIR = os.getcwd()  # Allow ccdir to be an env variable?
+sys.path.append(CC_DIR)
+sys.path.append(os.path.join(CC_DIR, "CryoCloud/Modules/"))  # Add CC modules with full path
+sys.path.append("./CryoCloud/Modules/")  # Add CC modules with full path
+
+sys.path.append("./Modules/")  # Add module path for the working dir of the job
+sys.path.append("./modules/")  # Add module path for the working dir of the job
+
 from CryoCloud.Tools.head import HeadNode
 
 from CryoCore import API
@@ -32,15 +44,6 @@ from CryoCore.Core.Status.StatusDbReader import StatusDbReader
 import CryoCloud
 from CryoCloud.Common import jobdb, MicroService
 
-if "CC_DIR" in os.environ:
-    CC_DIR = os.environ["CC_DIR"]
-else:
-    CC_DIR = os.getcwd()  # Allow ccdir to be an env variable?
-sys.path.append(os.path.join(CC_DIR, "CryoCloud/Modules/"))  # Add CC modules with full path
-sys.path.append("./CryoCloud/Modules/")  # Add CC modules with full path
-
-sys.path.append("./Modules/")  # Add module path for the working dir of the job
-sys.path.append("./modules/")  # Add module path for the working dir of the job
 
 stubdir = os.path.join(tempfile.gettempdir(), "ccstubs")
 if not os.path.exists(stubdir):
@@ -1792,8 +1795,13 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         self._check_kubernetes(node, p)
 
         if workflow._is_single_run and workflow.entry.is_done(p):
-            print("Workflow is DONE - exiting")
-            API.shutdown()
+
+            # Also check that all jobs are done!
+            if not self._jobdb.is_all_jobs_done():
+                print("Thought I was done, but still jobs left, continuing")
+            else:
+                print("Workflow is DONE - exiting")
+                API.shutdown()
 
     def _check_kubernetes(self, node, pebble):
         if self.kube:
@@ -2250,7 +2258,7 @@ if __name__ == "__main__":
             raise SystemExit(0)
 
         if options.standalone:
-            print("Running STANDALONE. This will be slow.")
+            print("Running STANDALONE")
             from CryoCloud.Common.jobdb_queue import JobDB as jdb
             from CryoCloud.Tools.node import Worker
             serialjobdb = jdb("JobDB", None)

@@ -221,6 +221,15 @@ class JobDB:
                     "cpu": 0,
                     "mem": 0}
 
+    def is_all_jobs_done(self):
+        """No pending or allocated jobs"""
+
+        with self._lock:
+            for job in self._jobs:
+                if job[STATE] <= STATE_ALLOCATED:
+                    return False
+        return True
+
     def list_jobs(self, step=None, state=None, notstate=None, since=None):
         jobs = []
         with self._lock:

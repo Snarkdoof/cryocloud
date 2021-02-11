@@ -10,10 +10,11 @@ import sys
 import traceback
 
 try:
-    from cioppy import Cioppy as ciop 
+    import cioppy
 except:
     print("WARNING: ** Fake ciop **")
-    import fakeciop as ciop
+    import fakeciop as cioppy
+ciop = cioppy.Cioppy()
 
 from CryoCore.Core.Status import Status
 from CryoCore.Core.Config import Config
