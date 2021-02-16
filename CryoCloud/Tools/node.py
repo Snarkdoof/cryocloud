@@ -38,9 +38,9 @@ from CryoCloud.Common import jobdb, fileprep, MicroService
 import multiprocessing
 
 try:
-    import imp
-except:
     import importlib as imp
+except:
+    import imp
 
 DEBUG = False
 
