@@ -8,7 +8,7 @@ class Cioppy:
     def log(self, level, msg):
         print(level, ":", msg)
 
-    def copy(self, source, dst):
+    def copy(self, source, dst, extract=True, credentials=None):
         print("CIOP copying file")
         return os.path.join("/tmp", source)
 
