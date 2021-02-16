@@ -140,6 +140,7 @@ class Task:
         self.splitOn = None
         self.deferred = False
         self.merge = False
+        self.loop = None
         self.provides = []
         self.depends = []
         self.parents = []
@@ -490,6 +491,8 @@ class Workflow:
                 task.deferred = bool(child["deferred"])
             if "merge" in child:
                 task.merge = bool(child["merge"])
+            if "loop" in child:
+                task.loop = child["loop"]
             if "docker" in child:
                 task.docker = child["docker"]
             if "gpu" in child:
@@ -1428,7 +1431,10 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             args["__post__"] = p
         args["__ll__"] = API.log_level_str[self.options.loglevel.upper()]
         args["__pfx__"] = "pbl%s" % log_prefix
-        if n.serviceURL:
+        # loop?
+        if n.loop:
+            args["__loop__"] = n.loop
+        if n.serviceURL: 
             args["__surl__"] = n.serviceURL
         if n.pip:
             args["__pip__"] = n.pip
