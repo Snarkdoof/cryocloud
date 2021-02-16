@@ -2238,7 +2238,7 @@ if __name__ == "__main__":
     # Parse json arguments too
     for l in jsons:
         o = getattr(options, l)
-        if os.path.exist(o):
+        if os.path.isfile(o):
             # It's a file, read it
             with open(o, "r") as f:
                 setattr(options, l, json.load(f))
