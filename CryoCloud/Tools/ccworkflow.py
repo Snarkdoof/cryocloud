@@ -2238,9 +2238,12 @@ if __name__ == "__main__":
     # Parse json arguments too
     for l in jsons:
         o = getattr(options, l)
-        print("O", o)
-        if o:
-            setattr(options, l, json.loads(o))
+        if os.path.exist(o):
+            # It's a file, read it
+            with open(o, "r") as f:
+                setattr(options, l, json.load(f))
+        elif o:
+                setattr(options, l, json.loads(o))
 
     if options.debug:
         options.loglevel = "DEBUG"
