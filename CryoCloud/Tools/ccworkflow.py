@@ -1637,7 +1637,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
     def _unblock_step(self, node):
         unblock = None
-        n = workflow.nodes[node]
+        n = self.workflow.nodes[node]
         if n._mp_unblocked > 0:
             n._mp_unblocked -= 1
 
@@ -1698,7 +1698,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                 pebble.stats[node][i] = 0
 
         pebble.retval_dict[node] = task["retval"]
-        if workflow.nodes[node].merge:
+        if self.workflow.nodes[node].merge:
 
             self._jobdb.update_profile(pebble.gid,
                                        node,
@@ -1726,7 +1726,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
 
             # We merge BACK into the master
-            workflow.merge_split(master, workflow.nodes[node])
+            self.workflow.merge_split(master, self.workflow.nodes[node])
 
             retvals = {}
             deferred = master._deferred
@@ -1768,7 +1768,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             # pebble.retval_dict[node] = retvals
             pebble.stats[node].update(stats)  # This is not really all that good, have stats pr job on merge
         try:
-            workflow.nodes[node].on_completed(pebble, "success")
+            self.workflow.nodes[node].on_completed(pebble, "success")
         except:
             self.log.exception("Exception notifying success (node %s)" % node)
             self.log.error("Pebble was %s" % str(pebble))
@@ -1781,10 +1781,10 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                                    cpu=pebble.stats[node]["cpu_time"])
 
         p = pebble
-        if workflow.entry.is_done(pebble) and pebble.is_sub_pebble:
+        if self.workflow.entry.is_done(pebble) and pebble.is_sub_pebble:
             p = self._pebbles[p._master_task]
 
-        if workflow.entry.is_done(p):
+        if self.workflow.entry.is_done(p):
 
             self._perform_cleanup(p, node)
 
@@ -1800,7 +1800,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         # jobs running
         self._check_kubernetes(node, p)
 
-        if workflow._is_single_run and workflow.entry.is_done(p):
+        if self.workflow._is_single_run and self.workflow.entry.is_done(p):
 
             # Also check that all jobs are done!
             if not self._jobdb.is_all_jobs_done():
@@ -1877,7 +1877,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
     def _flag_cleanup_pebble(self, pebble):
 
-        if not workflow.entry.is_done(pebble, True, log=self.log):
+        if not self.workflow.entry.is_done(pebble, True, log=self.log):
             self.log.debug("Not all done for pebble %s" % pebble.gid)
             return
 
@@ -1958,17 +1958,17 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                                    cpu=pebble.stats[node]["cpu_time"])
 
         try:
-            workflow.nodes[node].on_completed(pebble, "error")
+            self.workflow.nodes[node].on_completed(pebble, "error")
         except:
             self.log.exception("Exception resolving bad pebble, possibly something failed "
                                "too miserably to return the proper return values. Ignoring.")
 
         # Do we have any global error handlers (and is THIS one of them?)
         try:
-            if not pebble.is_sub_pebble and not workflow.nodes[node].is_global:
-                for g in workflow.global_nodes:
+            if not pebble.is_sub_pebble and not self.workflow.nodes[node].is_global:
+                for g in self.workflow.global_nodes:
                     print("*** Error and not a sub-pebble, reporting as global error")
-                    g.resolve(pebble, "error", workflow.nodes[node])
+                    g.resolve(pebble, "error", self.workflow.nodes[node])
         except:
             self.log.exception("Error in global error handler, ignoring")
 
@@ -1979,10 +1979,10 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         self._check_kubernetes(node, pebble)
 
-        if workflow.entry.is_done(pebble):
+        if self.workflow.entry.is_done(pebble):
             self._perform_cleanup(pebble, node)
 
-            if workflow._is_single_run:
+            if self.workflow._is_single_run:
                 API.shutdown()
 
     def onCancelled(self, task):
@@ -2014,16 +2014,16 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             task["retval"]["error"] = "Cancelled, unknown reason"
         pebble.retval_dict[node] = task["retval"]
 
-        workflow.nodes[node].on_completed(pebble, "cancel")
+        self.workflow.nodes[node].on_completed(pebble, "cancel")
 
         if not pebble.nodename[task["taskid"]].startswith("_"):
             self.status["%s.processing" % pebble.nodename[task["taskid"]]].dec()
 
         # Do we have any global error handlers
         if not pebble.is_sub_pebble:
-            for g in workflow.global_nodes:
+            for g in self.workflow.global_nodes:
                 print("*** Cancelled and not a sub-pebble, reporting as global error", pebble)
-                g.resolve(pebble, "error", workflow.nodes[node])
+                g.resolve(pebble, "error", self.workflow.nodes[node])
 
         self._flag_cleanup_pebble(pebble)
 
@@ -2142,6 +2142,7 @@ def get_my_ip():
     except:
         print("Warning: Can't find my ip address, is netifaces installed?")
         return None
+
 
 if __name__ == "__main__":
 

@@ -643,6 +643,7 @@ class Worker(multiprocessing.Process):
                     for item in task["args"][loop]:
                         task_b = copy.deepcopy(task)
                         task_b["args"][loop] = item
+                        print(" *** **", item)
                         if canStop:
                             _progress, ret = self._module.process_task(self, task_b, cancel_event)
                         else:
@@ -654,6 +655,7 @@ class Worker(multiprocessing.Process):
                                 retval[k] = []
                             retval[k].append(ret[k])
 
+                    print(" /// Done looping")
                     # Done
                     ret = retval
                 else:
