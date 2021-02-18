@@ -1808,6 +1808,10 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             else:
                 print("Workflow is DONE - exiting")
                 API.shutdown()
+        elif self.workflow._is_single_run and self._jobdb.is_all_jobs_done():
+            self.log.debug("Single run and all jobs are done - that's it!")
+            API.shutdown()
+
 
     def _check_kubernetes(self, node, pebble):
         if self.kube:
