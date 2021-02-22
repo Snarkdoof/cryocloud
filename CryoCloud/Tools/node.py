@@ -374,9 +374,10 @@ class Worker(multiprocessing.Process):
         last_job_time = None
         jobs_executed = 0
         while not self._softstopevent.is_set() and not self._stop_event.is_set():
-            if self.options.maxruns and self.options.maxruns >= jobs_executed:
-                self._stop_event.set()
-                continue
+            if self.options:
+                if self.options.maxruns and self.options.maxruns >= jobs_executed:
+                    self._stop_event.set()
+                    continue
 
             try:
                 if self._type == jobdb.TYPE_ADMIN:
