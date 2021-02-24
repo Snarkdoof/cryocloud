@@ -10,8 +10,8 @@ import inspect
 import re
 import json
 import signal
+import copy
 
-import signal
 import datetime
 from urllib.parse import urlparse
 
@@ -406,11 +406,25 @@ class Worker(multiprocessing.Process):
                     last_job_time = datetime.datetime.utcnow()
                     self.status["current_job"] = job["id"]
                     self._job_in_progress = job
+                    print("Job is", job)
                     self._switchJob(job)
                     if not self._is_ready:
                         time.sleep(0.1)
                         continue
-                    self._process_task(job)
+
+                    if "__loop__" in job["args"]:
+                        loop = job["args"]["__loop__"]
+                        if loop not in job["args"]:
+                            raise Exception("Failed to loop on '%s', not an argument (%s)" % (loop, str(job["args"].keys())))
+                        if not isinstance(job["args"][loop], list):
+                            raise Exception("Loop on '%s' but it is not a list but a %s, continuing without loop" % (loop, job["args"][loop].__class__))
+                            loop = None
+                    else:
+                        loop = None
+                    
+                    self._process_task(job, loop)
+
+
             except Empty:
                 self.status["state"] = "Idle"
                 continue
@@ -476,7 +490,7 @@ class Worker(multiprocessing.Process):
             self.status["progress"] = progress
         return progress, None
 
-    def _process_task(self, task):
+    def _process_task(self, task, loop=None):
         # taskid = "%s.%s-%s_%d" % (task["runname"], self._worker_type, socket.gethostname(), self.workernum)
         # print(taskid, "Processing", task)
         # If the task specifies the log level, update that first, otherwise go for DEBUG for backwards compatibility
@@ -620,11 +634,36 @@ class Worker(multiprocessing.Process):
                 raise Exception("No module loaded, task was %s" % task)
                 progress, ret = self.process_task(task)
             else:
-                if canStop:
-                    progress, ret = self._module.process_task(self, task, cancel_event)
-                else:
-                    progress, ret = self._module.process_task(self, task)
 
+                if loop:
+                    print("*** LOOPING ON", loop, task["args"][loop])
+                    # We "loop" on a given argument, and re-create the ret val
+                    retval = {}
+                    progress = 100;
+
+                    for item in task["args"][loop]:
+                        task_b = copy.deepcopy(task)
+                        task_b["args"][loop] = item
+                        print(" *** **", item)
+                        if canStop:
+                            _progress, ret = self._module.process_task(self, task_b, cancel_event)
+                        else:
+                            _progress, ret = self._module.process_task(self, task_b)
+
+                        progress = min(progress, _progress)
+                        for k in ret:
+                            if not k in retval:
+                                retval[k] = []
+                            retval[k].append(ret[k])
+
+                    print(" /// Done looping")
+                    # Done
+                    ret = retval
+                else:
+                    if canStop:
+                        progress, ret = self._module.process_task(self, task, cancel_event)
+                    else:
+                        progress, ret = self._module.process_task(self, task)
             # Stop the monitor if it's running
             stop_monitor.set()
             if canStop and cancel_event.is_set():

@@ -3,6 +3,7 @@ import time
 import random
 import json
 import threading
+import copy
 from CryoCore import API
 
 PRI_HIGH = 100
@@ -103,9 +104,6 @@ class JobDB:
         if not module and not self._module:
             raise Exception("Missing module for job, and no default module!")
 
-        # if args is not None:
-        #    args = json.dumps(args)
-
         if taskid is None:
             taskid = self._taskid
             self._taskid += 1
@@ -114,7 +112,7 @@ class JobDB:
         with self._lock:
             self._jobs.append(
                       [self._jobid, self._runid, step, taskid, jobtype, priority,
-                       STATE_PENDING, time.time(), expire_time, node, args,
+                       STATE_PENDING, time.time(), expire_time, node, copy.deepcopy(args),
                        module, modulepath, workdir, itemid, isblocked,
                        0, 0, time.time(), 0])
         # print(" -> Added job", self._jobid)
@@ -193,7 +191,7 @@ class JobDB:
                     job[TSCHANGE] = time.time()
                     job[TSALLOCATED] = time.time()
                     job[STATE] = STATE_ALLOCATED
-                    # print(" <- Allocated job", job[JOBID])
+                    print(" <- Allocated job", job[JOBID])
 
                 if len(allocated) >= max_jobs:
                     break
