@@ -285,15 +285,15 @@ class StatusTest(unittest.TestCase):
         for i in range(0, 15):
             status["MyVal"] = i
             if i == 10:
-                self.assertTrue(event.isSet())
+                self.assertTrue(event.is_set())
                 event.clear()
             else:
-                self.assertFalse(event.isSet())
+                self.assertFalse(event.is_set())
 
         # Ensure that the once flag is honored
         for i in range(0, 15):
             status["MyVal"] = i
-            self.assertFalse(event.isSet())
+            self.assertFalse(event.is_set())
 
         status["MyVal"].remove_event_on_value(10, event)
         status["MyVal"].add_event_on_value(10, event, once=False)
@@ -301,10 +301,10 @@ class StatusTest(unittest.TestCase):
             for i in range(0, 15):
                 status["MyVal"] = i
                 if i == 10:
-                    self.assertTrue(event.isSet())
+                    self.assertTrue(event.is_set())
                     event.clear()
                 else:
-                    self.assertFalse(event.isSet())
+                    self.assertFalse(event.is_set())
         
 
     def test2D(self):

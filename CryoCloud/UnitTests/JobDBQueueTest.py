@@ -131,7 +131,7 @@ class JobDBTest(unittest.TestCase):
 
         def process(db, job):
             time.sleep(random.random() % 0.5)  # Pretend that it takes a bit of time
-            if stop_event.isSet():
+            if stop_event.is_set():
                 return
             db.update_job(job["id"], state=STATE_COMPLETED)
 
@@ -145,7 +145,7 @@ class JobDBTest(unittest.TestCase):
             self.db.add_job(1, i, {"jobnr": i}, module="noop", itemid=i * 10)
         last_run = 0
         force_stop = time.time() + numjobs
-        while not stop_event.isSet() and time.time() < force_stop:
+        while not stop_event.is_set() and time.time() < force_stop:
             updates = self.db.list_jobs(since=last_run, notstate=STATE_PENDING)
             for job in updates:
                 last_run = job["tschange"]  # Just in case, we seem to get some strange things here
@@ -169,7 +169,7 @@ class JobDBTest(unittest.TestCase):
 
         def process(db, job):
             time.sleep(random.random() % 0.5)  # Pretend that it takes a bit of time
-            if stop_event.isSet():
+            if stop_event.is_set():
                 return
             db.update_job(job["id"], state=STATE_COMPLETED)
 
@@ -191,7 +191,7 @@ class JobDBTest(unittest.TestCase):
 
         last_run = 0
         force_stop = time.time() + numjobs
-        while not stop_event.isSet() and time.time() < force_stop:
+        while not stop_event.is_set() and time.time() < force_stop:
             updates = self.db.list_jobs(since=last_run, notstate=STATE_PENDING)
             for job in updates:
                 last_run = max(last_run, job["tschange"])  # Just in case, we seem to get some strange things here
@@ -227,7 +227,7 @@ class JobDBTest(unittest.TestCase):
 
         last_run = 0
         force_stop = time.time() + numjobs / 3.
-        while not stop_event.isSet() and time.time() < force_stop:
+        while not stop_event.is_set() and time.time() < force_stop:
             updates = self.db.list_jobs(since=last_run, notstate=STATE_PENDING)
             for job in updates:
                 last_run = max(last_run, job["tschange"])  # Just in case, we seem to get some strange things here

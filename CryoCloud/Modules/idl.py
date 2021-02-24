@@ -144,9 +144,9 @@ def process_task(worker, task, cancel_event=None):
         # We run a timer to see that the process isn't idling too long,
         # that might indicate that it's frozen on some IO and should be killed
         last_working = time.time()
-        while not worker._stop_event.isSet():
+        while not worker._stop_event.is_set():
 
-            if cancel_event.isSet():
+            if cancel_event.is_set():
                 try:
                     worker.log.info("Terminating IDL after cancel event")
                     p.terminate()

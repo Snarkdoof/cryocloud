@@ -50,7 +50,7 @@ class Wrapper:
         self._t.start()
 
     def run(self):
-        while not self.stop_event.isSet():
+        while not self.stop_event.is_set():
             ready_fds = select.select([self.p.stdout, self.p.stderr], [], [], 1.0)[0]
             for fd in ready_fds:
                 data = fd.read()

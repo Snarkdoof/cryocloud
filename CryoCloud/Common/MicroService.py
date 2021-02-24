@@ -137,8 +137,8 @@ class Poster:
         if timeout:
             endtime = time.time() + timeout
 
-        while not CryoCore.API.api_stop_event.isSet():
-            if stop_event and stop_event.isSet():
+        while not CryoCore.API.api_stop_event.is_set():
+            if stop_event and stop_event.is_set():
                 raise Exception("Aborted due to stop event")
             try:
                 res = self.checkState()

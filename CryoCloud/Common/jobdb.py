@@ -78,7 +78,7 @@ class JobDB(mysql):
                     tsallocated DOUBLE DEFAULT NULL,
                     expiretime SMALLINT,
                     node VARCHAR(128) DEFAULT NULL,
-                    worker SMALLINT DEFAULT NULL,
+                    worker INT UNSIGNED DEFAULT NULL,
                     retval MEDIUMBLOB DEFAULT NULL,
                     module VARCHAR(256) DEFAULT NULL,
                     modulepath TEXT DEFAULT NULL,
@@ -208,7 +208,7 @@ class JobDB(mysql):
             pass
 
     def _cleanup_timer_run(self):
-        if API.api_stop_event.isSet():
+        if API.api_stop_event.is_set():
             return  # We're done
 
         self.cleanup()
@@ -348,6 +348,8 @@ class JobDB(mysql):
         effectively, so if load/unload is low, set the prefer level to zero.
 
         """
+        if workerid > 65000:
+            raise Exception("BAD WORKER ID")
 
         nonce = random.randint(0, 2147483647)
         args = [STATE_ALLOCATED, time.time(), node, workerid, nonce, type, STATE_PENDING]

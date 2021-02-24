@@ -507,7 +507,7 @@ if __name__ == "__main__":
 
     def handler(signum, frame):
         print("Head stopped by user signal")
-        if API.api_stop_event.isSet():
+        if API.api_stop_event.is_set():
             print("User Insists, killing myself badly")
             os.kill(os.getpid(), 3)
 
@@ -524,7 +524,7 @@ if __name__ == "__main__":
         headnode.status["state"].add_event_on_value("Done", stopevent)
 
         print("Running, press CTRL-C to end")
-        while not API.api_stop_event.is_set() and not stopevent.isSet():
+        while not API.api_stop_event.is_set() and not stopevent.is_set():
             time.sleep(1)
     except KeyboardInterrupt:
         pass

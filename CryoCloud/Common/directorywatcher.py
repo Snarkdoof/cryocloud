@@ -247,7 +247,7 @@ class DirectoryWatcher(threading.Thread):
 
     def run(self):
         next_check = 0
-        while not CryoCore.API.api_stop_event.isSet() and not self._stop_event.isSet():
+        while not CryoCore.API.api_stop_event.is_set() and not self._stop_event.is_set():
             if self.notifier.check_events(timeout=250):
                 self.notifier.read_events()
                 self.notifier.process_events()

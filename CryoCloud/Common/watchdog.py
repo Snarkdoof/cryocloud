@@ -354,7 +354,7 @@ class Watchdog:
         print("RUNNING")
         last_run = time.time()
 
-        while not API.api_stop_event.isSet():
+        while not API.api_stop_event.is_set():
             try:
                 message = self._make_report()
                 if len(message) > 0:
@@ -362,7 +362,7 @@ class Watchdog:
 
                 while time.time() - last_run < self.cfg["runeach"]:
                     # Idle loop - see if we should do any periodic reports
-                    if API.api_stop_event.isSet():
+                    if API.api_stop_event.is_set():
                         break
                     if self.debug:
                         logs = self.logreader.get_updates(since=self._logsince, filter=self._logfilter, max_lines=1)

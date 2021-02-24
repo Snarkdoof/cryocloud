@@ -99,7 +99,7 @@ def process_task(worker, task):
     # read buffers
     buf = {p.stdout: "", p.stderr: ""}
 
-    while not CryoCore.API.api_stop_event.isSet():
+    while not CryoCore.API.api_stop_event.is_set():
         ready_fds = select.select([p.stdout, p.stderr], [], [], 1.0)[0]
         for fd in ready_fds:
             data = fd.read()

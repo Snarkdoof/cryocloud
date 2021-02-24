@@ -278,7 +278,7 @@ class DashBoard:
         # self.screen.refresh()
 
     def _get_input(self):
-        while not API.api_stop_event.isSet():
+        while not API.api_stop_event.is_set():
             c = self.screen.getch()
             asc = -1
             try:
@@ -304,7 +304,7 @@ class DashBoard:
                 return True
             return False
 
-        while not API.api_stop_event.isSet():
+        while not API.api_stop_event.is_set():
             try:
                 # Refresh status
                 data = self.statusdb.get_updates([param.paramid for param in self.parameters], since=since)
@@ -328,7 +328,7 @@ class DashBoard:
 
                 # for parameter in self.parameters:
                 #    parameter.ts, parameter.value = self.statusdb.get_last_status_value_by_id(parameter.paramid)
-                while not API.api_stop_event.isSet():
+                while not API.api_stop_event.is_set():
                     timeleft = last_run + 1 - time.time()
                     if timeleft > 0:
                         time.sleep(min(1, timeleft))
@@ -348,7 +348,7 @@ class DashBoard:
         t2.start()
 
         last_run = time.time()
-        while not API.api_stop_event.isSet():
+        while not API.api_stop_event.is_set():
             try:
                 parameters = self.statusdb.get_channels_and_parameters()
                 # Resolve the status parameters and logs we're interested in
@@ -369,7 +369,7 @@ class DashBoard:
                                     self.parameters.append(p)
                             except:
                                 self.log.exception("Looking up %s %s" % (channel, self.cfg["%s.name" % name]))
-                while not API.api_stop_event.isSet():
+                while not API.api_stop_event.is_set():
                     time_left = last_run + 300 - last_run
                     if time_left < 0:
                         break

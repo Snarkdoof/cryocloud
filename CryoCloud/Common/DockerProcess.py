@@ -228,7 +228,7 @@ class DockerProcess():
         buf = {p.stdout: "", p.stderr: ""}
         terminated = 0
 
-        while not self.stop_event.isSet():
+        while not self.stop_event.is_set():
             ready = select.select([p.stdout, p.stderr], [], [], 1.0)[0]
             for fd in ready:
                 data = fd.read()
@@ -281,7 +281,7 @@ class DockerProcess():
             self._retval = p.poll()
             if self._retval is not None:
                 # Process exited
-                if self.cancel_event and self.cancel_event.isSet():
+                if self.cancel_event and self.cancel_event.is_set():
                     self.log.error("Docker process '%s' cancelled OK" % (self.cmd))
                     return
                 if self._retval == 0:
@@ -293,7 +293,7 @@ class DockerProcess():
                 return
 
             # Should we stop?  NOTE: THIS DOESN'T WORK
-            if self.cancel_event and self.cancel_event.isSet():
+            if self.cancel_event and self.cancel_event.is_set():
                 self.log.warning("Cancelling job due to remote command")
                 if terminated < 2:
                     p.terminate()

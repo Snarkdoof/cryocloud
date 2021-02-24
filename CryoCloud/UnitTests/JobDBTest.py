@@ -18,12 +18,13 @@ class FakeWorker(threading.Thread):
         self.workertype = workertype
         self.max_jobs = max_jobs
         self.isDaemon = True
+        self.workerid = random.randint(0, 65000)
 
     def run(self):
         db = JobDB("test", None)
         while not stop_event.is_set():
             # Allocate jobs
-            jobs = db.allocate_job(os.getpid(), type=self.workertype, max_jobs=self.max_jobs)
+            jobs = db.allocate_job(self.workerid, supportedmodules=["any"], type=self.workertype, max_jobs=self.max_jobs)
             if len(jobs) == 0:
                 time.sleep(0.5)
                 continue
@@ -46,11 +47,12 @@ class JobDBTest(unittest.TestCase):
         self.db.flush()
         stop_event.set()
         self.db.clear_jobs()
-        pass
+
+        time.sleep(10)
 
     def testBasic(self):
 
-        jobs = self.db.allocate_job(1, max_jobs=1)
+        jobs = self.db.allocate_job(1, supportedmodules=["any"], max_jobs=1)
         self.assertEqual(jobs, [])
 
         self.db.add_job(1, 1, {"one": 1}, module="noop", itemid=123)
@@ -61,7 +63,7 @@ class JobDBTest(unittest.TestCase):
         state = self.db.get_job_state(jobs[0]["id"])
         self.assertEqual(state, STATE_PENDING)
 
-        jobs = self.db.allocate_job(1, max_jobs=10)
+        jobs = self.db.allocate_job(1, supportedmodules=["any"], max_jobs=10)
         self.assertEqual(len(jobs), 1)
         time.sleep(0.6)
 
@@ -92,7 +94,7 @@ class JobDBTest(unittest.TestCase):
         jobs = self.db.list_jobs(state=STATE_COMPLETED)
         self.assertEqual(len(jobs), 1)
 
-        jobs = self.db.allocate_job(1)
+        jobs = self.db.allocate_job(1, supportedmodules=["any"],)
         self.assertEqual(jobs, [])
 
     def testMany(self):
@@ -107,7 +109,7 @@ class JobDBTest(unittest.TestCase):
         completed = 0
         while completed < numjobs:
             x = min(numjobs - completed, random.randint(1, 10))
-            jobs = self.db.allocate_job(1, max_jobs=x)
+            jobs = self.db.allocate_job(1, supportedmodules=["any"], max_jobs=x)
             self.assertEqual(len(jobs), x)
 
             pending = self.db.list_jobs(state=STATE_PENDING)
@@ -131,7 +133,7 @@ class JobDBTest(unittest.TestCase):
 
         def process(db, job):
             time.sleep(0.2 + random.random())  # Pretend that it takes a bit of time
-            if stop_event.isSet():
+            if stop_event.is_set():
                 return
             db.update_job(job["id"], state=STATE_COMPLETED)
 
@@ -146,7 +148,7 @@ class JobDBTest(unittest.TestCase):
 
         last_run = 0
         force_stop = time.time() + numjobs
-        while not stop_event.isSet() and time.time() < force_stop:
+        while not stop_event.is_set() and time.time() < force_stop:
             updates = self.db.list_jobs(since=last_run, notstate=STATE_PENDING)
             for job in updates:
                 last_run = job["tschange"]  # Just in case, we seem to get some strange things here
@@ -170,7 +172,7 @@ class JobDBTest(unittest.TestCase):
 
         def process(db, job):
             time.sleep(0.1 + random.random())  # Pretend that it takes a bit of time
-            if stop_event.isSet():
+            if stop_event.is_set():
                 return
             db.update_job(job["id"], state=STATE_COMPLETED)
 
@@ -192,7 +194,7 @@ class JobDBTest(unittest.TestCase):
 
         last_run = 0
         force_stop = time.time() + numjobs
-        while not stop_event.isSet() and time.time() < force_stop:
+        while not stop_event.is_set() and time.time() < force_stop:
             updates = self.db.list_jobs(since=last_run, notstate=STATE_PENDING)
             for job in updates:
                 last_run = job["tschange"]  # Just in case, we seem to get some strange things here
@@ -228,7 +230,7 @@ class JobDBTest(unittest.TestCase):
 
         last_run = 0
         force_stop = time.time() + numjobs / 3.
-        while not stop_event.isSet() and time.time() < force_stop:
+        while not stop_event.is_set() and time.time() < force_stop:
             updates = self.db.list_jobs(since=last_run, notstate=STATE_PENDING)
             for job in updates:
                 last_run = job["tschange"]  # Just in case, we seem to get some strange things here

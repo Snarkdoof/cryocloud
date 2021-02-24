@@ -88,7 +88,7 @@ class JobDB:
             pass
 
     def _cleanup_timer_run(self):
-        if API.api_stop_event.isSet():
+        if API.api_stop_event.is_set():
             return  # We're done
 
         self.cleanup()

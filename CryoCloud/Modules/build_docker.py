@@ -60,7 +60,7 @@ def process_task(worker, task, cancel_event):
     # read buffers
     buf = {p.stdout: "", p.stderr: ""}
 
-    while not CryoCore.API.api_stop_event.isSet():
+    while not CryoCore.API.api_stop_event.is_set():
         # check if the process is still running
         _retval = p.poll()
 
@@ -104,7 +104,7 @@ def process_task(worker, task, cancel_event):
             break
 
         # Should we stop?
-        if cancel_event.isSet():
+        if cancel_event.is_set():
             worker.log.warning("Cancelling job due to remote command")
             p.terminate()
 

@@ -1271,7 +1271,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             # We need to sleep a bit, until we get shared memory cryocore support
             # TODO: CHECK FOR SHARED MEM
             time.sleep(0.5)
-            while not API.api_stop_event.isSet():
+            while not API.api_stop_event.is_set():
                 disable = False
                 for restriction in node.restrictions:
                     try:
@@ -2284,7 +2284,7 @@ if __name__ == "__main__":
         headnode.status["state"].add_event_on_value("Done", stop_event)
         print(workflow)
         print("Running, press CTRL-C to end")
-        while not API.api_stop_event.is_set() and not stop_event.isSet():
+        while not API.api_stop_event.is_set() and not stop_event.is_set():
             time.sleep(1)
     except KeyboardInterrupt:
         pass
@@ -2300,7 +2300,7 @@ if __name__ == "__main__":
 
         API.shutdown()
         stop_event.set()
-        if (API.api_stop_event.isSet()):
+        if (API.api_stop_event.is_set()):
             API.api_stop_event.set()
             print("Jikes, stop event not set")
         while len(_started_threads) > 0:

@@ -213,7 +213,7 @@ class FilePrepare:
         # First we check if the files exists
         for url in urls:
             for i in range(0, 2):
-                if stop_event and stop_event.isSet():
+                if stop_event and stop_event.is_set():
                     raise Exception("Stopped")
                 try:
                     s = self._fix_url(url)

@@ -55,9 +55,9 @@ def process_task(handler, args, stop_event):
                                    onAdd, recursive=False, stabilize=stabilize, noDB=True)
     dir_monitor.start()
 
-    while not stop_event.isSet():
+    while not stop_event.is_set():
 
-        if completed.isSet():
+        if completed.is_set():
             break
         completed.wait(1)
 

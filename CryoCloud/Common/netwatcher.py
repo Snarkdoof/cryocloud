@@ -217,7 +217,7 @@ class NetWatcher(threading.Thread):
         self._handlethread = t
 
     def _handle_requests(self):
-        while not self._stop_event.isSet() and not API.api_stop_event.isSet():
+        while not self._stop_event.is_set() and not API.api_stop_event.is_set():
             try:
                 self.server.socket.settimeout(1.0)
                 self.server.handle_request()
@@ -275,7 +275,7 @@ class NetWatcher(threading.Thread):
         self._update_periodical()
 
     def run(self):
-        while not self._stop_event.isSet() and not API.api_stop_event.isSet():
+        while not self._stop_event.is_set() and not API.api_stop_event.is_set():
             try:
                 what, info = self.server.inQueue.get(block=True, timeout=1.0)
                 try:
