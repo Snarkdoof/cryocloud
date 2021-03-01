@@ -112,11 +112,11 @@ def process_task(worker, task, cancel_event=None):
             """
             Report a line if it should be reported as status or log
             """
-            m = re.match("\[(.+)\] (.+)", line)
+            m = re.match("\[(.+)\] ?(.+)", line)
             if m:
                 worker.status[m.groups()[0]] = m.groups()[1]
 
-            m = re.match("\<(\w+)\> (.+)", line)
+            m = re.match("\<(\w+)\> ?(.+)", line)
             if m:
                 level = m.groups()[0]
                 msg = m.groups()[1]
