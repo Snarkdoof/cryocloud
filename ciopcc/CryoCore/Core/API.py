@@ -30,9 +30,6 @@ api_stop_event = threading.Event()
 
 LOG_TO_FILE = True
 
-_log_level = "DEBUG"
-def set_log_level(level):
-    _log_level = level
 
 log_level_str = {"CRITICAL": logging.CRITICAL,
                  "FATAL": logging.FATAL,
@@ -47,6 +44,11 @@ log_level = {logging.CRITICAL: "CRITICAL",
              logging.WARNING: "WARNING",
              logging.INFO: "INFO",
              logging.DEBUG: "DEBUG"}
+
+_log_level = "DEBUG"
+def set_log_level(level):
+    _log_level = log_level[level.upper()]
+
 
 global CONFIGS
 CONFIGS = {}
@@ -70,20 +72,24 @@ class logger:
         if flog:
             flog.debug(msg)
     def info(self, msg):
-        ciop.log("INFO", msg)
+        if _log_level >= INFO:
+            ciop.log("INFO", msg)
         if flog:
             flog.info(msg)
     def warning(self, msg):
-        ciop.log("WARNING", msg)
+        if _log_level >= WARNING:
+            ciop.log("WARNING", msg)
         if flog:
             flog.warning(msg)
     def error(self, msg):
-        ciop.log("ERROR", msg)
+        if _log_level >= ERROR:
+            ciop.log("ERROR", msg)
         if flog:
             flog.error(msg)
     def exception(self, msg):
         fullmsg = msg + traceback.format_exc()
-        ciop.log("ERROR", fullmsg)
+        if _log_level >= ERROR:
+            ciop.log("ERROR", fullmsg)
         if flog:
             flog.exception(msg)
 
