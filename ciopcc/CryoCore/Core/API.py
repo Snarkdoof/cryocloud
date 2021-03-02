@@ -45,7 +45,7 @@ log_level = {logging.CRITICAL: "CRITICAL",
              logging.INFO: "INFO",
              logging.DEBUG: "DEBUG"}
 
-_log_level = "DEBUG"
+_log_level = logging.INFO
 def set_log_level(level):
     _log_level = log_level[level.upper()]
 
