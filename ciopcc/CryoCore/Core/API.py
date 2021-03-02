@@ -75,27 +75,28 @@ else:
 
 class logger:
     def debug(self, msg):
-        ciop.log("DEBUG", msg)
+        if _log_level <= logging.DEBUG:
+            ciop.log("DEBUG", msg)
         if flog:
             flog.debug(msg)
     def info(self, msg):
-        if _log_level >= logging.INFO:
+        if _log_level <= logging.INFO:
             ciop.log("INFO", msg)
         if flog:
             flog.info(msg)
     def warning(self, msg):
-        if _log_level >= logging.WARNING:
+        if _log_level <= logging.WARNING:
             ciop.log("WARNING", msg)
         if flog:
             flog.warning(msg)
     def error(self, msg):
-        if _log_level >= logging.ERROR:
+        if _log_level <= logging.ERROR:
             ciop.log("ERROR", msg)
         if flog:
             flog.error(msg)
     def exception(self, msg):
         fullmsg = msg + traceback.format_exc()
-        if _log_level >= logging.ERROR:
+        if _log_level <= logging.ERROR:
             ciop.log("ERROR", fullmsg)
         if flog:
             flog.exception(msg)
