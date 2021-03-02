@@ -54,15 +54,19 @@ global CONFIGS
 CONFIGS = {}
 
 if LOG_TO_FILE:
-    import logging.handlers
+    try:
+        import logging.handlers
 
-    flog = logging.getLogger("CryoCore")
-    hdlr = logging.handlers.RotatingFileHandler("/tmp/cryocore.log",
-                                                maxBytes=1024*1024*10)
-    formatter = logging.Formatter('%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s')
-    hdlr.setFormatter(formatter)
-    flog.addHandler(hdlr)
-    flog.setLevel(logging.DEBUG)
+        flog = logging.getLogger("CryoCore")
+        hdlr = logging.handlers.RotatingFileHandler("/tmp/cryocore.log",
+                                                    maxBytes=1024*1024*10)
+        formatter = logging.Formatter('%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s')
+        hdlr.setFormatter(formatter)
+        flog.addHandler(hdlr)
+        flog.setLevel(logging.DEBUG)
+    except Exception as e:
+        print("*** Can't log to file:", e)
+        flog = None
 else:
     flog = None
 
