@@ -1067,7 +1067,20 @@ class CryoCloudTask(Task):
                                     "ignoreerrors": True
                                 }
                                 self.workflow.nodes[cuptask.name] = cuptask
-                                p._cleanup_tasks.append((cuptask.name, p.gid, "success", self.name))
+
+                                # We don't do this as a 'cleanup task', we rather
+                                # just add it to the end of the graph
+                                # p._cleanup_tasks.append((cuptask.name, p.gid, "success", self.name))
+
+                                # Add task downstream of the whole graph
+                                def append_graph(node, task):
+                                    if (node._downstreams):
+                                        for node in node._downstreams:
+                                            append_graph(node, task)
+                                    else:
+                                        task.downstreamOf(node)
+                                append_graph(self, cuptask)
+
                                 # cuptask.downstreamOf(self)
 
                             a = "dir://" + p._tempdirs[_tempid] + " mkdir"
