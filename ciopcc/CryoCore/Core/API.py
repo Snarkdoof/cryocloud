@@ -74,7 +74,6 @@ else:
     flog = None
 
 
-_log_level = logging.INFO
 def set_log_level(level):
     if isinstance(level, str):
         _log_level = log_level[level.upper()]
@@ -83,6 +82,8 @@ def set_log_level(level):
 
     if flog:
         flog.setLevel(_log_level)
+
+set_log_level("INFO")
 
 class logger:
     def debug(self, msg):
