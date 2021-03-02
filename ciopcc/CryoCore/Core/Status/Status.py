@@ -1,7 +1,6 @@
 import time
 import sys
 
-from CryoCore import API
 
 try:
     import cioppy
@@ -56,7 +55,12 @@ class StatusObject:
             else:
                 self._last_reported_ts = time.time()
 
-        API.get_log("STATUS").debug(str(self))
+
+        try:
+            from CryoCore import API
+            API.get_log("STATUS").debug(str(self))
+        except:
+            ciop.log("DEBUG", str(self))
 
     def set_expire_time(self, arg):
         pass
