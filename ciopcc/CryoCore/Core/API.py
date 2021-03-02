@@ -76,7 +76,7 @@ else:
 
 def set_log_level(level):
     if isinstance(level, str):
-        _log_level = log_level[level.upper()]
+        _log_level = log_level_str[level.upper()]
     else:
         _log_level = level
 
