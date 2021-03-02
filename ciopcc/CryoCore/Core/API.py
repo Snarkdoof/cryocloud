@@ -5,6 +5,7 @@ CryoCore.Core API for all UAV based code
 
 """
 import threading
+import logging
 import logging.handlers
 import sys
 import traceback
@@ -27,6 +28,7 @@ class MissingConfigException(Exception):
 global api_stop_event
 api_stop_event = threading.Event()
 
+LOG_TO_FILE = True
 
 _log_level = "DEBUG"
 def set_log_level(level):
@@ -49,19 +51,41 @@ log_level = {logging.CRITICAL: "CRITICAL",
 global CONFIGS
 CONFIGS = {}
 
+if LOG_TO_FILE:
+    import logging.handlers
+
+    flog = logging.getLogger("CryoCore")
+    hdlr = logging.handlers.RotatingFileHandler("/tmp/cryocore.log",
+                                                maxBytes=1024*1024*10)
+    formatter = logging.Formatter('%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s')
+    hdlr.setFormatter(formatter)
+    flog.addHandler(hdlr)
+    flog.setLevel(logging.DEBUG)
+else:
+    flog = None
 
 class logger:
     def debug(self, msg):
         ciop.log("DEBUG", msg)
+        if flog:
+            flog.debug(msg)
     def info(self, msg):
         ciop.log("INFO", msg)
+        if flog:
+            flog.info(msg)
     def warning(self, msg):
         ciop.log("WARNING", msg)
+        if flog:
+            flog.warning(msg)
     def error(self, msg):
         ciop.log("ERROR", msg)
+        if flog:
+            flog.error(msg)
     def exception(self, msg):
         fullmsg = msg + traceback.format_exc()
         ciop.log("ERROR", fullmsg)
+        if flog:
+            flog.exception(msg)
 
 log = logger()
 
