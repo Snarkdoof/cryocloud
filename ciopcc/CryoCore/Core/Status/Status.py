@@ -25,6 +25,9 @@ class StatusObject:
             for event in self._events[value]:
                 event.set()
 
+    def get_value(self):
+        return self.value
+
     def inc(self, amount=1):
         self.set_value(self.value + amount)
 
