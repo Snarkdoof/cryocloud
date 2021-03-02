@@ -1659,6 +1659,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
     def onCompleted(self, task):
 
+        self.log.debug("Completed something '%s'" % str(task))
         if "itemid" not in task:
             self.log.error("Got task without itemid: %s" % task)
             return
@@ -2285,6 +2286,12 @@ if __name__ == "__main__":
             _started_threads.append(headnode)
 
             options.maxruns = 0
+            
+            worker = Worker(0, stop_event, type=jobdb.TYPE_ADMIN, softstopevent=stop_event, _jobdb=serialjobdb, options=options)
+            w = threading.Thread(target=worker.run)
+            w.start()
+            _started_threads.append(w)
+
             for i in range(int(options.threads)):
                 worker = Worker(0, stop_event, softstopevent=stop_event, _jobdb=serialjobdb, options=options)
                 w = threading.Thread(target=worker.run)
