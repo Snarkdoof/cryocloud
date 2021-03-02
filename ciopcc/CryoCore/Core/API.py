@@ -47,7 +47,10 @@ log_level = {logging.CRITICAL: "CRITICAL",
 
 _log_level = logging.INFO
 def set_log_level(level):
-    _log_level = log_level[level.upper()]
+    if isinstance(level, str):
+        _log_level = log_level[level.upper()]
+    else:
+        _log_level = level
 
 
 global CONFIGS
