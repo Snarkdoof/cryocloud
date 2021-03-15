@@ -11,7 +11,7 @@ from CryoCore import API
 try:
     from CryoCore import PrettyPrint
 except:
-    from CryoCore.Core import PrettyPrint as PrettyPrint
+    from CryoCloud.Common import PrettyPrint as PrettyPrint
 
 from argparse import ArgumentParser
 try:
