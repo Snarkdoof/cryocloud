@@ -7,7 +7,11 @@ import os
 import sys
 from datetime import datetime
 
-from CryoCore import API, PrettyPrint
+from CryoCore import API
+try:
+    from CryoCore import PrettyPrint
+except:
+    from CryoCore.Core import PrettyPrint as PrettyPrint
 
 from argparse import ArgumentParser
 try:
@@ -345,7 +349,7 @@ class CryoCache(db):
             print(self._execute("SELECT * FROM tmpcache").fetchall())
 
         # We now combine with modules
-        SQL = "SELECT module, size_b, count FROM cryocache GROUP BY module"
+        SQL = "SELECT module, size_b, COUNT(*) FROM cryocache GROUP BY module"
         c = self._execute(SQL)
 
         ret = []
@@ -376,7 +380,7 @@ class CryoCache(db):
         if module:
             c = self._execute("SELECT SUM(size_b) FROM cryocache WHERE module=%s GROUP BY module", [module])
         else:
-            c = self._execute("SELECT size_b FROM cryocache")
+            c = self._execute("SELECT SUM(size_b) FROM cryocache")
 
         if 0:
             if module:
@@ -403,7 +407,7 @@ class CryoCache(db):
                 self.log.debug("Cache already within limits for module %s (%s vs %s)" %
                                (module, PrettyPrint.bytes_to_string(total_b), PrettyPrint.bytes_to_string(max_size)))
             else:
-                self.log.debug("Cache already within limits %s (%s vs %s)" %
+                self.log.debug("Cache already within limits (%s vs %s)" %
                                (PrettyPrint.bytes_to_string(total_b), PrettyPrint.bytes_to_string(max_size)))
 
             return 0, 0
@@ -420,11 +424,15 @@ class CryoCache(db):
                   "cryocache.internalid=cryocachefiles.internalid " +\
                   "ORDER BY priority DESC, updated"
             c = self._execute(SQL)
+        print(SQL, module)
 
         removed_bytes = 0
         removed_files = 0
         while reduce_b > 0:
-            cid, fpath, size = c.fetchone()
+            row = c.fetchone()
+            if not row:
+                break
+            cid, fpath, size = row
             if self._remove_path(fpath):
                 self.log.info("Removed %s due to trim %s" % (fpath, module))
                 reduce_b -= size
@@ -456,6 +464,7 @@ class CryoCache(db):
             SQL = "SELECT cryocachefiles.internalid, SUM(cryocachefiles.size_b) FROM " + \
                   " cryocachefiles JOIN cryocache USING(internalid) WHERE " + \
                   " GROUP BY cryocachefiles.internalid"
+            print(SQL)
             c = self._execute(SQL)
 
         res = list(c.fetchall())  # [(id, size) for id, size = c.fetchall()]
