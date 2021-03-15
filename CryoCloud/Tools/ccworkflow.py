@@ -18,6 +18,7 @@ import uuid
 import random
 import tempfile
 
+
 from argparse import ArgumentParser
 try:
     import argcomplete
@@ -160,6 +161,7 @@ class Task:
         self.restrictions = []
         self.pip = None
         self.serviceURL = None
+        self.cache = False
 
     def __str__(self):
         return "[%s (%s), %s, %s]: priority %d, args: %s\n" %\
@@ -442,6 +444,9 @@ class Workflow:
                     task.type = mod.ccmodule["defaults"]["type"]
                 if "input_type" in mod.ccmodule and mod.ccmodule["input_type"] == "permanent":
                     wf._is_single_run = False
+                if "cache" in mod.ccmodule["defaults"]:
+                    # Defaults
+                    task.cache = mod.ccmodule["defaults"]["cache"]
 
             if "pip" in mod.ccmodule:
                 task.pip = mod.ccmodule["pip"]
@@ -507,6 +512,8 @@ class Workflow:
                 task.runOnHead = bool(child["runOnHead"])
             if "serviceURL" in child:
                 task.serviceURL = child["serviceURL"]
+            if "cache" in child:
+                task.cache = child["cache"]
             if "volumes" in child:
                 task.volumes = child["volumes"]
                 if not isinstance(task.volumes, list):
@@ -1361,12 +1368,12 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             print("Removed order", order)
         else:
             print("Close of unknown order", order, self.orders.keys())
-
-
+            
     def _addJob(self, n, lvl, taskid, args, module, jobtype,
                 itemid, workdir, priority, node, parent=None, log_prefix=None):
 
         self.log.debug("_addJob %s, prefix: %s" % (json.dumps(args), log_prefix))
+
         if n.docker:
             module = "docker"
             t = copy.deepcopy(args)
@@ -1438,6 +1445,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             args["__surl__"] = n.serviceURL
         if n.pip:
             args["__pip__"] = n.pip
+        if n.cache:
+            args["__c__"] = n.cache
 
         return self.head.add_job(lvl, taskid, args, module=module, jobtype=jobtype,
                                  itemid=itemid, workdir=workdir,
@@ -1767,6 +1776,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
             # pebble.retval_dict[node] = retvals
             pebble.stats[node].update(stats)  # This is not really all that good, have stats pr job on merge
+
         try:
             self.workflow.nodes[node].on_completed(pebble, "success")
         except:

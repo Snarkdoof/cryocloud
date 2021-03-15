@@ -218,7 +218,10 @@ class JobDB(mysql):
 
     def add_job(self, step, taskid, args, jobtype=TYPE_NORMAL, priority=PRI_NORMAL, node=None,
                 expire_time=3600, module=None, modulepath=None, workdir=None, itemid=None,
-                multiple=True, isblocked=False):
+                multiple=True, isblocked=False, retval=None):
+        """
+        If retval is given, we assume it was cached and therefore completed
+        """
 
         if not module and not self._module:
             raise Exception("Missing module for job, and no default module!")
@@ -239,8 +242,18 @@ class JobDB(mysql):
                     self._addtimer.start()
             return taskid
 
-        self._execute("INSERT INTO jobs (runid, step, taskid, type, priority, state, tsadded, expiretime, node, args, module, modulepath, workdir, itemid, is_blocked) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                      [self._runid, step, taskid, jobtype, priority, STATE_PENDING, time.time(), expire_time, node, args, module, modulepath, workdir, itemid, isblocked])
+        now = time.time()
+        if retval:
+            state = STATE_COMPLETED
+            isblocked = False  # Can't block it when it's already done
+            tsalloc = now
+        else:
+            state = STATE_PENDING
+            retval = None
+            tsalloc = None
+
+        self._execute("INSERT INTO jobs (runid, step, taskid, type, priority, state, tsadded, tsallocated, expiretime, node, args, module, modulepath, workdir, itemid, is_blocked, retval) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                      [self._runid, step, taskid, jobtype, priority, state, now, tsalloc, expire_time, node, args, module, modulepath, workdir, itemid, isblocked, retval])
         return taskid
 
     def unblock_jobid(self, jobid):

@@ -66,6 +66,7 @@ def start(handler, args, stop_event):
 
     if schema and not os.path.exists(schema):
         raise Exception("Can't find schema '%s'" % schema)
+    elif schema:
         schema = json.loads(open(args["schema"], "r").read())
 
     nw = CryoCloud.Common.NetWatcher(int(args["port"]),

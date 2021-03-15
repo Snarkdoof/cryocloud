@@ -34,6 +34,7 @@ except:
 
 from CryoCore import API
 from CryoCloud.Common import jobdb, fileprep, MicroService
+from CryoCloud.Common.cache import CryoCache
 
 import multiprocessing
 
@@ -228,6 +229,7 @@ class Worker(multiprocessing.Process):
         self._modules = modules
         self._module_paths = module_paths
         self.options = options
+        self._cache = CryoCache()
 
         self._worker_type = jobdb.TASK_TYPE[type]
         if name is None:
@@ -251,6 +253,50 @@ class Worker(multiprocessing.Process):
         else:
             self._modules = detect_modules(self._module_paths, testload=options.test_modules)
         self.log.debug("Supported modules:" + str(self._modules))
+
+    def _get_cache_args(self, task):
+        if task.get("__c__", None):
+            if not "args" in task["__c__"]:
+                self.log.error("Cache misses required 'args' argument, disabled")
+                return None
+            try:
+                _cacheargs = {x:task[x] for x in task["__c__"]["args"]}
+            except:
+                self.log.error("Cache args given as '%s' but not all keys are present (%s)"
+                               % (str(task["__c__"]["args"]), task.keys()))
+                return None
+            return _cacheargs
+        return None  
+
+    def _check_cache(self, task):
+        args = self._get_cache_args(task["args"])
+        if not args:
+            return None
+        return self._cache.lookup(task["module"], "__auto__", args)
+
+    def _update_cache(self, task, retval):
+        args = self._get_cache_args(task["args"])
+        if not args:
+            return None
+
+        c = task["args"]["__c__"]
+        if "expires" in c:
+            expires = c["expires"]
+        else:
+            expires = None
+
+        filelist = None
+        if "files" in c:
+            # Files should refer to return value keys
+            try:
+                filelist = [retval[x] for x in c["files"]]
+            except:
+                self.log.error("Cache files were given as %s, but those are not return values %s" %
+                                (c["files"], retval.keys()))
+
+        self._cache.update(task["module"], "__auto__", args, retval=retval,
+                           expires=expires, filelist=filelist)
+
 
     def _switchJob(self, job):
 
@@ -501,6 +547,18 @@ class Worker(multiprocessing.Process):
         except Exception as e:
             self.log.warning("CryoCore is old, please update it: %s" % e)
 
+        if "__c__" in task["args"]:
+            r = self._check_cache(task)
+            if r:
+                self.status["progress"] = 100
+                self.status["last_processing_time"] = 0
+                self._jobdb.update_job(task["id"], jobdb.STATE_COMPLETED,
+                                       retval=r["retval"], cpu=0, memory=0)
+                task["state"] = "Stopped"
+                task["processing_time"] = 0
+                return
+
+
         if "__pip__" in task["args"]:
             def safe_check(cmd):
                 for i in ";?&":
@@ -645,10 +703,20 @@ class Worker(multiprocessing.Process):
                         task_b = copy.deepcopy(task)
                         task_b["args"][loop] = item
                         print(" *** **", item)
-                        if canStop:
-                            _progress, ret = self._module.process_task(self, task_b, cancel_event)
+
+                        if "__c__" in task["args"]:
+                            r = self._check_cache(task)
+                            if r:
+                                _progress = 100
+                                ret = r["retval"]
                         else:
-                            _progress, ret = self._module.process_task(self, task_b)
+                            if canStop:
+                                _progress, ret = self._module.process_task(self, task_b, cancel_event)
+                            else:
+                                _progress, ret = self._module.process_task(self, task_b)
+
+                        if "__cc__" in task["args"] and _process == 100:
+                            self._update_cache(task, ret)
 
                         progress = min(progress, _progress)
                         for k in ret:
@@ -708,6 +776,7 @@ class Worker(multiprocessing.Process):
         task["processing_time"] = time.time() - start_time
 
         # Update to indicate we're done
+        self._update_cache(task, ret)
         self._jobdb.update_job(task["id"], new_state, retval=ret, cpu=my_cpu_time, memory=self.max_memory)
 
         # Clean up thread
