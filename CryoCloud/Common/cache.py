@@ -144,7 +144,7 @@ class CryoCache(db):
         if replace:
             SQL = "REPLACE "
         else:
-            SQL = "INSERT IGNORE "
+            SQL = "INSERT "
 
         SQL += "INTO cryocache (id,args_hash,args,module,size_b,priority,"
         args = [hash_id, hash_args, json.dumps(args), module, total_size, priority]
@@ -160,6 +160,10 @@ class CryoCache(db):
         # If we have file lists, we can maintain a different table too I think
         # We wait with that for now
         SQL = SQL[:-1] + ") VALUES (" + ("%s," * len(args))[:-1] + ")"
+
+        if not replace:
+            SQL += " ON DUPLICATE KEY UPDATE updated=NOW()"
+
         c = self._execute(SQL, args)
 
         internalid = c.lastrowid
