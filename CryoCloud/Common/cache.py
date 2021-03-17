@@ -282,11 +282,14 @@ class CryoCache(db):
                         pass
                     if isinstance(updated, str):  # If sqlite
                         updated = datetime.strptime(updated, "%Y-%m-%d %H:%M:%S")
+                    self.log.debug("CACHE HIT module %s" % module)
                     return {"retval": retval, "updated": updated.timestamp(), "size": size_b, "expires": expires}
             if not blocking:
+                self.log.debug("CACHE MISS module %s" % module)
                 return None
 
             if now > stop_time:
+                self.log.debug("CACHE MISS module %s, timeout" % module)
                 return None
 
             time.sleep(max(1, stop_time - now))
