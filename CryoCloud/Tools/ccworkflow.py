@@ -1401,7 +1401,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                 if "args" not in n.cache:
                     self.log.error("Bad cache definition, missing 'args'")
                 else:
-                    self.log.error("Cache error - couldn't calculate args", n.cache["args"])
+                    self.log.error("Cache error - couldn't calculate args %s" % str(n.cache["args"]))
             n.cache["hash"] = hash_args
 
         if n.docker:
