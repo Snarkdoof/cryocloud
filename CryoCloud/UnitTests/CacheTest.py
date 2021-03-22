@@ -2,9 +2,11 @@ import time
 import unittest
 import os
 import tempfile
+import hashlib
+import json
 
 from CryoCore import API
-from CryoCloud.Common.cache import CryoCache
+from CryoCloud.Common.cache import CryoCache, sort_dict
 
 cache = CryoCache()
 
@@ -93,6 +95,41 @@ class CacheTest(unittest.TestCase):
 
         r = cache.lookup(self.module, key, args)
         self.assertEqual(r, None, "Cache lookup returns even if args are bad")
+
+    def testHashArgs(self):
+
+        args = {"test": True, "x": 1234, "a": {"y": 4123, "b": False}}
+        key = "testArgs"
+
+        hash_args = hashlib.sha1(json.dumps(sort_dict(args)).encode("utf8")).hexdigest()
+
+        r = cache.peek(self.module, key, hash_args=hash_args)
+        self.assertEqual(r, [], "Peek is confused")
+
+        r = cache.lookup(self.module, key, hash_args=hash_args)
+        self.assertEqual(r, None, "Cache lookup returns when empty")
+
+        r = cache.peek(self.module, key, hash_args=hash_args)
+        self.assertNotEqual(r, [], "Peek of no-value hash args failed")
+
+        r = cache.peek(self.module, key, args=args)
+        self.assertNotEqual(r, [], "Peek of no-value args failed")
+
+        retval = {"f00": "84r", "after": "birth"}
+        cache.update(self.module, key, hash_args=hash_args, retval=retval)
+
+        r = cache.lookup(self.module, key, hash_args=hash_args)
+        self.assertNotEqual(r, None, "Cache lookup hash_args seems to have failed")
+
+        r = cache.lookup(self.module, key, args=args)
+        self.assertNotEqual(r, None, "Args and hash_args don't agree")
+
+        r = cache.peek(self.module, key, hash_args=hash_args)
+        self.assertNotEqual(r, None, "Peek of value hash args failed")
+
+        r = cache.peek(self.module, key, args=args)
+        self.assertNotEqual(r, None, "Peek of value args failed")
+
 
     def testExpires(self):
 
@@ -245,7 +282,6 @@ class CacheTest(unittest.TestCase):
 
         # We try to delete a file and check if the cache now invalidates it
         os.remove(filelist[-1])
-        print("Deleted", filelist[-1])
 
         chk = cache.cfg["file_size_check"]
         cache.cfg["file_size_check"] = True

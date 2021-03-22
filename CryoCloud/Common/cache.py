@@ -112,11 +112,13 @@ class CryoCache(db):
         self._init_sqls(statements)
 
 
-    def update(self, module, key, args, expires=None, retval=None, filelist=None, priority=100):
+    def update(self, module, key, args=None, hash_args=None,
+               expires=None, retval=None, filelist=None, priority=100):
 
         # hash the module + key
         hash_id = hashlib.sha1(module.encode("utf8") + key.encode("utf8")).hexdigest()
-        hash_args = hashlib.sha1(json.dumps(sort_dict(args)).encode("utf8")).hexdigest()
+        if not hash_args and args:
+            hash_args = hashlib.sha1(json.dumps(sort_dict(args)).encode("utf8")).hexdigest()
 
         self._do_update(module, hash_id, hash_args, args, expires, retval, filelist, replace=True)
 
@@ -227,7 +229,7 @@ class CryoCache(db):
                     print("Delete of {} failed:".format(fpath), e)
         self._execute("DELETE FROM cryocachefiles WHERE internalid=%s", [internalid])
 
-    def lookup(self, module, key, args, expires=None,
+    def lookup(self, module, key, args=None, hash_args=None, expires=None,
                blocking=False, timeout=3600, allow_expired=False):
         """
         Look up an item in the cache - if it exists and is done, return the return value, 
@@ -242,7 +244,8 @@ class CryoCache(db):
 
         # hash the module + key
         hash_id = hashlib.sha1(module.encode("utf8") + key.encode("utf8")).hexdigest()
-        hash_args = hashlib.sha1(json.dumps(sort_dict(args)).encode("utf8")).hexdigest()
+        if not hash_args and args:
+            hash_args = hashlib.sha1(json.dumps(sort_dict(args)).encode("utf8")).hexdigest()
 
         # We first check if it is there already - we do this by inserting if it doesn't exist
         # from before
@@ -294,22 +297,25 @@ class CryoCache(db):
 
             time.sleep(max(1, stop_time - now))
 
-    def peek(self, module, key, allow_expired=False):
+    def peek(self, module, key, args=None, hash_args=None, allow_expired=False):
         # hash the module + key
         hash_id = hashlib.sha1(module.encode("utf8") + key.encode("utf8")).hexdigest()
-
         now = time.time()
-
         SQL = "SELECT args, expires,retval,size_b,updated,priority FROM " + \
               "cryocache WHERE cryocache.id=%s"
+        params = [hash_id]
 
-        args = [hash_id]
+        if args or hash_args:
+            if not hash_args:
+                hash_args = hashlib.sha1(json.dumps(sort_dict(args)).encode("utf8")).hexdigest()
+            SQL += " AND args_hash=%s"
+            params.append(hash_args)
 
         if not allow_expired:
             SQL += " AND (expires IS NULL OR expires>%s)"
-            args.append(now)
+            params.append(now)
 
-        c = self._execute(SQL, args)
+        c = self._execute(SQL, params)
         ret = []
         for args, expires, retval, size_b, updated, priority in c.fetchall():
 
