@@ -1298,7 +1298,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                                 disable = True
                                 break
                     except Exception as e:
-                        self.log.exception("Bad restriction for node %s: %s (%s)" % (modulename, restriction, str(e)))
+                        self.log.exception("Bad restriction for node %s: %s (%s)" % (name, restriction, str(e)))
                 if not disable:
                     if restricted:
                         print(time.ctime(), "Restrictions resolved, continue")
@@ -1370,19 +1370,14 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         else:
             print("Close of unknown order", order, self.orders.keys())
   
-    def _get_cache_args(self, task):
-        if task.get("__c__", None):
-            if not "args" in task["__c__"]:
-                self.log.error("Cache misses required 'args' argument, disabled")
-                return None
-            try:
-                _cacheargs = {x:task["arguments"][x] for x in task["__c__"]["args"]}
-            except:
-                self.log.warning("Cache args given as '%s' but not all keys are present (%s)"
-                                 % (str(task["__c__"]["args"]), task.keys()))
-                return None
-            return _cacheargs
-        return None  
+    def _get_cache_args(self, args, task):
+        try:
+            _cacheargs = {x:task["arguments"][x] for x in args}
+        except:
+            self.log.warning("Cache args given as '%s' but not all keys are present (%s)"
+                             % (str(args), task.keys()))
+            return None
+        return _cacheargs
 
     def _addJob(self, n, lvl, taskid, args, module, jobtype,
                 itemid, workdir, priority, node, parent=None, log_prefix=None):
