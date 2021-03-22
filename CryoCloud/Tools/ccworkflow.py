@@ -54,6 +54,13 @@ sys.path.append(stubdir)
 DEBUG = False
 
 
+def sort_dict(item: dict):
+    """
+    Sort nested dict
+    """
+    return {k: sort_dict(v) if isinstance(v, dict) else v for k, v in sorted(item.items())}
+
+
 def load_ccmodule(path):
     try:
         with open(path, "r") as f:
