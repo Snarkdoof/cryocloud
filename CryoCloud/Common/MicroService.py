@@ -59,7 +59,7 @@ class Poster:
 
         response = conn.getresponse()
         if response.code != 200:
-            raise Exception("Failed to get stub: %s" + response.read())
+            raise Exception("Failed to get stub: %s" + response.read().decode("utf-8"))
 
         t, tempfilename = tempfile.mkstemp(dir=destination)
         os.write(t, response.read())
