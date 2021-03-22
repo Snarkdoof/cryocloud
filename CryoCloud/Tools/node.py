@@ -254,32 +254,65 @@ class Worker(multiprocessing.Process):
             self._modules = detect_modules(self._module_paths, testload=options.test_modules)
         self.log.debug("Supported modules:" + str(self._modules))
 
-    def _get_cache_args(self, task):
+    def _get_cache_args(self, task, module):
+
+        # If this is a docker module, args are hidden like heck, find them
+        if module == "docker":
+            print("KEYS", task["arguments"])
+            if "-f" in task["arguments"]:
+                a = task["arguments"][task["arguments"].index("-f") + 1]
+                self.log.info("File A: %s" % a)
+                if os.path.exists(a):
+                    with open(a, "r") as f:
+                        task = json.load(f)
+                else:
+                    self.log.error("Options file '%s' does not exist!" % a)
+            elif "-t" in task["arguments"]:
+                a = task["arguments"][task["arguments"].index("-t") + 1]
+                self.log.info("JSON A: %s" % a)
+                task = json.loads(a)
+            else:
+                self.log.error("MISSING arguments for docker module - cache will fail")
+                return None
+            self.log.info("task is now %s" % str(task))
+
         if task.get("__c__", None):
             if not "args" in task["__c__"]:
                 self.log.error("Cache misses required 'args' argument, disabled")
                 return None
             try:
-                _cacheargs = {x:task[x] for x in task["__c__"]["args"]}
+                _cacheargs = {x:task["arguments"][x] for x in task["__c__"]["args"]}
             except:
-                self.log.error("Cache args given as '%s' but not all keys are present (%s)"
-                               % (str(task["__c__"]["args"]), task.keys()))
+                self.log.warning("Cache args given as '%s' but not all keys are present (%s)"
+                                 % (str(task["__c__"]["args"]), task.keys()))
                 return None
             return _cacheargs
         return None  
 
     def _check_cache(self, task):
-        args = self._get_cache_args(task["args"])
-        if not args:
+
+        #args = self._get_cache_args(task["args"], task["module"])
+        #if not args:
+        #    return None
+        # If 'lookup' is specified as option, we only check for results, we don't
+        # do the processing ourselves. E.g. a "head" module checks the cache but allows
+        # some later module to actually create the output
+        hash_args = task["args"]["__c__"]["ha"]
+        if "lookup" in task["args"]["__c__"]:
+            r = self._cache.peek(task["module"], "__auto__", hash_args=hash_args)
+            if r:
+                return r[0]  # Can be only one
             return None
-        return self._cache.lookup(task["module"], "__auto__", args)
+
+        return self._cache.lookup(task["module"], "__auto__", hash_args=hash_args)
 
     def _update_cache(self, task, retval):
-        args = self._get_cache_args(task["args"])
-        if not args:
-            return None
+        # args = self._get_cache_args(task["args"], task["module"])
+        #if not args:
+        #    return None
 
         c = task["args"]["__c__"]
+        hash_args = c["ha"]
         if "expires" in c:
             expires = c["expires"]
         else:
@@ -294,7 +327,7 @@ class Worker(multiprocessing.Process):
                 self.log.error("Cache files were given as %s, but those are not return values %s" %
                                 (c["files"], retval.keys()))
 
-        self._cache.update(task["module"], "__auto__", args, retval=retval,
+        self._cache.update(task["module"], "__auto__", hash_args=hash_args, retval=retval,
                            expires=expires, filelist=filelist)
 
 

@@ -1369,11 +1369,38 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             print("Removed order", order)
         else:
             print("Close of unknown order", order, self.orders.keys())
-            
+  
+    def _get_cache_args(self, task):
+        if task.get("__c__", None):
+            if not "args" in task["__c__"]:
+                self.log.error("Cache misses required 'args' argument, disabled")
+                return None
+            try:
+                _cacheargs = {x:task["arguments"][x] for x in task["__c__"]["args"]}
+            except:
+                self.log.warning("Cache args given as '%s' but not all keys are present (%s)"
+                                 % (str(task["__c__"]["args"]), task.keys()))
+                return None
+            return _cacheargs
+        return None  
+
     def _addJob(self, n, lvl, taskid, args, module, jobtype,
                 itemid, workdir, priority, node, parent=None, log_prefix=None):
 
         self.log.debug("_addJob %s, prefix: %s" % (json.dumps(args), log_prefix))
+
+        # If we should cache, calculate the args hash and send it along
+        hash_args = None
+        if n.cache:
+            try:
+                a = self._get_cache_args(n.cache["args"], args)
+                hash_args = hashlib.sha1(json.dumps(sort_dict(a)).encode("utf8")).hexdigest()
+            except:
+                if "args" not in n.cache:
+                    self.log.error("Bad cache definition, missing 'args'")
+                else:
+                    self.log.error("Cache error - couldn't calculate args", n.cache["args"])
+            n.cache["hash"] = hash_args
 
         if n.docker:
             module = "docker"
