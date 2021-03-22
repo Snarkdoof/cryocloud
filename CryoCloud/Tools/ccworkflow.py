@@ -1378,8 +1378,9 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             print("Close of unknown order", order, self.orders.keys())
   
     def _get_cache_args(self, args, task):
+        self.log.info("ARGS '%s', task '%s'" % (str(args), str(task)))
         try:
-            _cacheargs = {x:task["arguments"][x] for x in args}
+            _cacheargs = {x:task[x] for x in args}
         except:
             self.log.warning("Cache args given as '%s' but not all keys are present (%s)"
                              % (str(args), task.keys()))
@@ -1396,6 +1397,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         if n.cache:
             try:
                 a = self._get_cache_args(n.cache["args"], args)
+                self.log.info("Got cache args %s" % str(a))
                 hash_args = hashlib.sha1(json.dumps(sort_dict(a)).encode("utf8")).hexdigest()
             except:
                 if "args" not in n.cache:

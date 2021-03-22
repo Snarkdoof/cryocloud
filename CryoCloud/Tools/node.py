@@ -297,7 +297,7 @@ class Worker(multiprocessing.Process):
         # If 'lookup' is specified as option, we only check for results, we don't
         # do the processing ourselves. E.g. a "head" module checks the cache but allows
         # some later module to actually create the output
-        hash_args = task["args"]["__c__"]["ha"]
+        hash_args = task["args"]["__c__"]["hash"]
         if "lookup" in task["args"]["__c__"]:
             r = self._cache.peek(task["module"], "__auto__", hash_args=hash_args)
             if r:
@@ -307,12 +307,18 @@ class Worker(multiprocessing.Process):
         return self._cache.lookup(task["module"], "__auto__", hash_args=hash_args)
 
     def _update_cache(self, task, retval):
+
+        if "__c__" not in task["args"]:
+            return
+
+        self.log.info("UPDATE CACHE %s, %s" % (str(task), str(retval)))
+
         # args = self._get_cache_args(task["args"], task["module"])
         #if not args:
         #    return None
 
         c = task["args"]["__c__"]
-        hash_args = c["ha"]
+        hash_args = c["hash"]
         if "expires" in c:
             expires = c["expires"]
         else:
@@ -748,7 +754,7 @@ class Worker(multiprocessing.Process):
                             else:
                                 _progress, ret = self._module.process_task(self, task_b)
 
-                        if "__cc__" in task["args"] and _process == 100:
+                        if "__c__" in task["args"] and _process == 100:
                             self._update_cache(task, ret)
 
                         progress = min(progress, _progress)
