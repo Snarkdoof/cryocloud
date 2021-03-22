@@ -17,7 +17,7 @@ import re
 import uuid
 import random
 import tempfile
-
+import hashlib
 
 from argparse import ArgumentParser
 try:
