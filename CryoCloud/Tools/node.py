@@ -304,6 +304,8 @@ class Worker(multiprocessing.Process):
                 return r[0]  # Can be only one
             return None
 
+        # Do we have more config?
+
         return self._cache.lookup(task["module"], "__auto__", hash_args=hash_args)
 
     def _update_cache(self, task, retval):
@@ -754,7 +756,7 @@ class Worker(multiprocessing.Process):
                             else:
                                 _progress, ret = self._module.process_task(self, task_b)
 
-                        if "__c__" in task["args"] and _process == 100:
+                        if "__c__" in task["args"] and _progress == 100:
                             self._update_cache(task, ret)
 
                         progress = min(progress, _progress)
