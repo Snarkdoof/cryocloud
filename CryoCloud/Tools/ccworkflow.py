@@ -1379,12 +1379,16 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
   
     def _get_cache_args(self, args, task):
         self.log.info("ARGS '%s', task '%s'" % (str(args), str(task)))
-        try:
-            _cacheargs = {x:task[x] for x in args}
-        except:
+        _cacheargs = {}
+        missing = []
+        for x in args:
+            if not x in task:
+                missing.append(x)
+            else:
+                _cacheargs[x] = task[x]
+        if len(missing) > 0:
             self.log.warning("Cache args given as '%s' but not all keys are present (%s)"
                              % (str(args), task.keys()))
-            return None
         return _cacheargs
 
     def _addJob(self, n, lvl, taskid, args, module, jobtype,
