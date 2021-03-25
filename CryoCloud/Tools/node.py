@@ -261,7 +261,6 @@ class Worker(multiprocessing.Process):
             print("KEYS", task["arguments"])
             if "-f" in task["arguments"]:
                 a = task["arguments"][task["arguments"].index("-f") + 1]
-                self.log.info("File A: %s" % a)
                 if os.path.exists(a):
                     with open(a, "r") as f:
                         task = json.load(f)
@@ -269,12 +268,10 @@ class Worker(multiprocessing.Process):
                     self.log.error("Options file '%s' does not exist!" % a)
             elif "-t" in task["arguments"]:
                 a = task["arguments"][task["arguments"].index("-t") + 1]
-                self.log.info("JSON A: %s" % a)
                 task = json.loads(a)
             else:
                 self.log.error("MISSING arguments for docker module - cache will fail")
                 return None
-            self.log.info("task is now %s" % str(task))
 
         if task.get("__c__", None):
             if not "args" in task["__c__"]:
@@ -306,14 +303,13 @@ class Worker(multiprocessing.Process):
 
         # Do we have more config?
 
-        return self._cache.lookup(task["module"], "__auto__", hash_args=hash_args)
+        return self._cache.lookup(task["module"], "__auto__", hash_args=hash_args,
+                                  blocking=True, timeout=300)
 
     def _update_cache(self, task, retval):
 
         if "__c__" not in task["args"]:
             return
-
-        self.log.info("UPDATE CACHE %s, %s" % (str(task), str(retval)))
 
         # args = self._get_cache_args(task["args"], task["module"])
         #if not args:
@@ -341,6 +337,12 @@ class Worker(multiprocessing.Process):
 
     def _switchJob(self, job):
 
+        # If this is a docker job, we must load that instead
+        if "__docker__" in job:
+            module_name = "docker"
+        else:
+            module_name = job["module"]
+
         if "__surl__" in job["args"]:
             dst = os.path.join(self.cfg["tempdir"], "ccstubs")
             # if not dst in sys.path:
@@ -359,7 +361,7 @@ class Worker(multiprocessing.Process):
                 st_mtime = os.stat(os.path.abspath(self._module.__file__)).st_mtime
             except Exception as e:
                 raise Exception("Exception checking '%s': %s" % (self._module, e))
-        if self._current_job == (job["module"], st_mtime):
+        if self._current_job == (module_name, st_mtime):
             return  # Same module, not changed on disk
 
         # UNLOAD?
@@ -387,7 +389,7 @@ class Worker(multiprocessing.Process):
             path = None
             if modulepath:
                 path = [modulepath]
-            self._module = job["module"]
+            self._module = module_name
             self.log.debug("Loading module %s (%s)" % (self._module, path))
             self._module = load(self._module, path)
 
@@ -500,10 +502,14 @@ class Worker(multiprocessing.Process):
                         continue
 
                     if "__loop__" in job["args"]:
+
+                        # TODO: MUST HANDLE DOCKERS TOO :-/ 
+                        # TODO: Check if we can move the docker-rewrite to node.py from ccrowkflow?
+
                         loop = job["args"]["__loop__"]
                         if loop not in job["args"]:
                             raise Exception("Failed to loop on '%s', not an argument (%s)" % (loop, str(job["args"].keys())))
-                        if not isinstance(job["args"][loop], list):
+                        if not isinstance(job["args"][loop], list) and not isinstance(job["args"][loop], tuple):
                             raise Exception("Loop on '%s' but it is not a list but a %s, continuing without loop" % (loop, job["args"][loop].__class__))
                             loop = None
                     else:
@@ -647,7 +653,7 @@ class Worker(multiprocessing.Process):
                 else:
                     task["args"][arg] = prep(fprep, task["args"][arg])
 
-        if task["module"] == "docker":  # TODO: Use 'prep' above to avoid multiple copies of code?
+        if 0 and task["module"] == "docker":  # TODO: Use 'prep' above to avoid multiple copies of code?
             a = task["args"]["arguments"]
             if a.count("-t") == 1:
                 import json
@@ -673,6 +679,31 @@ class Worker(multiprocessing.Process):
                 a[a.index("-t") + 1] = json.dumps(subargs)
 
                 self.log.debug("Converted to %s" % str(a))
+
+        # If docker, make the docker command now
+        if "__docker__" in task:
+            self.log.debug("IS A DOCKER TASK")
+            module = "docker"
+            t = copy.deepcopy(args)
+            args = {}
+            args["target"] = task["__docker__"]
+            args["arguments"] = ["cctestrun", "--indocker"]
+            if n.dir:
+                d = n._map(n.dir, None, None)
+                os.chdir(d)
+                info = imp.find_module(n.module)  # , [d])
+            else:
+                info = imp.find_module(n.module)
+            if not info:
+                raise Exception("Can't find module %s" % n.module)
+            path = os.path.abspath(info[1])
+            args["arguments"].extend(["-m", path])
+            a = {"args": t}
+            if workdir:
+                args["arguments"].extend(["--workdir", workdir])
+            args["arguments"].extend(["-t", json.dumps(a)])
+            args["dirs"] = n.volumes
+            self.log.debug("Transformed to %s" % str(args))
 
         if fprep:
             task["prepare_time"] = time.time() - start_time
@@ -738,19 +769,21 @@ class Worker(multiprocessing.Process):
                     print("*** LOOPING ON", loop, task["args"][loop])
                     # We "loop" on a given argument, and re-create the ret val
                     retval = {}
-                    progress = 100;
+                    progress = 100
 
                     for item in task["args"][loop]:
                         task_b = copy.deepcopy(task)
                         task_b["args"][loop] = item
                         print(" *** **", item)
 
+                        _progress = 0
+                        ret = None
                         if "__c__" in task["args"]:
                             r = self._check_cache(task)
                             if r:
                                 _progress = 100
                                 ret = r["retval"]
-                        else:
+                        if not ret:
                             if canStop:
                                 _progress, ret = self._module.process_task(self, task_b, cancel_event)
                             else:
