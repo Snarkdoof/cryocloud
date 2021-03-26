@@ -33,9 +33,30 @@ def sort_dict(item: dict):
     return {k: sort_dict(v) if isinstance(v, dict) else v for k, v in sorted(item.items())}
 
 
+def _find_path(data):
+    """
+    If 'data' is a path, return it, if it's a list or map, search
+    it and see if there are any files. Returns the first one.
+    """
+    if isinstance(data, dict):
+        for x in data:
+            if os.path.exists(data[x]):
+                return data[x]
+                data = data[x]
+
+    if isinstance(data, list):
+        for x in data:
+            if os.path.exists(x):
+                return x
+    return None
+
 def get_size(full_path, level=0):
     size = 0
     max_atime = 0
+
+    full_path = _find_path(full_path)
+    if not full_path:
+        return 0, 0
 
     # full_path can be a zip file that is unzipped - if so, we should handle it too
     f, e  = os.path.splitext(full_path)
@@ -131,12 +152,15 @@ class CryoCache(db):
         stats = {}
         if filelist:
             for file in filelist:
+
+                path = _find_path(file)
+
                 try:
-                    size, max_atime = get_size(file)
+                    size, max_atime = get_size(path)
                     total_size += size
-                    stats[file] = (size, max_atime)
+                    stats[path] = (size, max_atime)
                 except:
-                    stats[file] = (None, None)
+                    stats[path] = (None, None)
                     self.log.exception("Critical - filelist contains '%s' but it's not present" % file)
 
         # If expires is smaller than 100000000, we assume it's relative
@@ -174,15 +198,23 @@ class CryoCache(db):
             internalid = self._execute("SELECT internalid FROM cryocache WHERE id=%s AND args_hash=%s", [hash_id, hash_args]).fetchone()[0]
 
         if filelist:
+            # Check which are ACTUALLY files?
+            files = []
+            for f in filelist:
+                _f = _find_path(f)
+                if _f:
+                    files.append(_f)
+
             SQL = "INSERT INTO cryocachefiles (internalid, fpath, size_b) VALUES " + \
-                  ("(%s,%s,%s)," * len(filelist))[:-1]
+                  ("(%s,%s,%s)," * len(files))[:-1]
             fileargs = []
-            for file in filelist:
+            for file in files:
                 fileargs.append(internalid)
                 fileargs.append(file)
                 size, max_atime = stats[file]
                 fileargs.append(size)
-            self._execute(SQL, fileargs)
+            if len(fileargs) > 0:
+                self._execute(SQL, fileargs)
 
         return c.rowcount
 
@@ -291,7 +323,8 @@ class CryoCache(db):
                 self.log.debug("CACHE MISS module %s" % module)
                 return None
 
-            if now > stop_time:
+            # if now > stop_time:
+            if now < updated.timestamp() + timeout:
                 self.log.debug("CACHE MISS module %s, timeout" % module)
                 return None
 
