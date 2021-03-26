@@ -144,7 +144,7 @@ class Poster:
                 res = self.checkState()
 
                 if "completed" in res:
-                    # print("COMPLETED", res)
+                    print("COMPLETED", res)
                     self.close()
 
                     if module and module in res["retval_full"]:
