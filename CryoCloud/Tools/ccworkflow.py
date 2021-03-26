@@ -8,7 +8,7 @@ lines.
 
 import time
 import json
-import imp
+import importlib
 import os
 import struct
 import sys
@@ -52,6 +52,9 @@ if not os.path.exists(stubdir):
 sys.path.append(stubdir)
 
 DEBUG = False
+
+global global_disable_cache
+global_disable_cache = False
 
 
 def sort_dict(item: dict):
@@ -436,8 +439,9 @@ class Workflow:
 
             # Load defaults from module!
             if task.module not in loaded_modules:
-                info = imp.find_module(task.module)
-                mod = imp.load_module(task.module, info[0], info[1], info[2])
+                # info = imp.find_module(task.module)
+                # mod = imp.load_module(task.module, info[0], info[1], info[2])
+                mod = importlib.import_module(task.module)
                 loaded_modules[task.module] = mod
             else:
                 mod = loaded_modules[task.module]
@@ -1411,6 +1415,13 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             n.cache["hash"] = hash_args
 
         if n.docker:
+            args["__docker__"] = n.docker
+            args["__vol__"] = n.volumes
+            args["gpu"] = n.gpu
+            if self.options.debug:
+                args["debug"] = True
+
+        if 0:
             module = "docker"
             t = copy.deepcopy(args)
             args = {}  # copy.deepcopy(args)
@@ -1481,7 +1492,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             args["__surl__"] = n.serviceURL
         if n.pip:
             args["__pip__"] = n.pip
-        if n.cache:
+        if n.cache and not global_disable_cache:
             args["__c__"] = n.cache
 
         return self.head.add_job(lvl, taskid, args, module=module, jobtype=jobtype,
@@ -2250,6 +2261,9 @@ if __name__ == "__main__":
     parser.add_argument("--debug", action="store_true", dest="debug",
                         default=False,
                         help="Debug if possible")
+    parser.add_argument("--nocache", action="store_true", dest="nocache",
+                        default=False,
+                        help="Disable CryoCache")
     def d(n, o):
         if n in o:
             return o[n]
@@ -2306,6 +2320,9 @@ if __name__ == "__main__":
 
     if options.debug:
         options.loglevel = "DEBUG"
+
+    if options.nocache:
+        global_disable_cache = True
 
     # Create handler
     # DEBUG

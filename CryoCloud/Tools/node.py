@@ -38,10 +38,7 @@ from CryoCloud.Common.cache import CryoCache
 
 import multiprocessing
 
-try:
-    import importlib as imp
-except:
-    import imp
+import importlib
 
 DEBUG = False
 
@@ -100,36 +97,23 @@ def load(modulename, path=None):
     if 1 or modulename not in modules:  # Seems for python3, reload is deprecated. Check for python 2
 
         global orig_sys_path
+        if path and path.__class__ != list:
+            path = [path, os.path.join(path, "modules"), os.path.join("path", "Modules")]
+        if not path:
+            path = get_default_paths()
+        sys.path = orig_sys_path[:]
+        for p in path:
+            if p not in sys.path:
+                sys.path.append(p)
+        modules[modulename] = importlib.import_module(modulename)
+        # info = imp.find_module(modulename, path)
+        # modules[modulename] = imp.load_module(modulename, info[0], info[1], info[2])
         try:
-            if path and path.__class__ != list:
-                path = [path, os.path.join(path, "modules"), os.path.join("path", "Modules")]
-            if not path:
-                path = get_default_paths()
-            sys.path = orig_sys_path[:]
-            for p in path:
-                if p not in sys.path:
-                    sys.path.append(p)
-            info = imp.find_module(modulename, path)
-            modules[modulename] = imp.load_module(modulename, info[0], info[1], info[2])
-            try:
-                info[0].close()
-            except Exception as e:
-                pass
-        except ImportError as e:
-            try:
-                # print("Trying importlib", e)
-                import importlib
-                modules[modulename] = importlib.import_module(modulename)
-                return
-            except Exception as e2:
-                print("Exception using importlib too", e2)
-                pass
-            raise e
+            info[0].close()
         except Exception as e:
-            print("imp load failed", e)
-            modules[modulename] = imp.import_module(modulename)
+            pass
     else:
-        imp.reload(modules[modulename])
+        importlib.reload(modules[modulename])
     return modules[modulename]
 
 
@@ -338,7 +322,7 @@ class Worker(multiprocessing.Process):
     def _switchJob(self, job):
 
         # If this is a docker job, we must load that instead
-        if "__docker__" in job:
+        if "__docker__" in job["args"]:
             module_name = "docker"
         else:
             module_name = job["module"]
@@ -656,7 +640,6 @@ class Worker(multiprocessing.Process):
         if 0 and task["module"] == "docker":  # TODO: Use 'prep' above to avoid multiple copies of code?
             a = task["args"]["arguments"]
             if a.count("-t") == 1:
-                import json
                 subargs = json.loads(a[a.index("-t") + 1])
                 for arg in subargs["args"]:
                     if isinstance(subargs["args"][arg], list):
@@ -681,29 +664,30 @@ class Worker(multiprocessing.Process):
                 self.log.debug("Converted to %s" % str(a))
 
         # If docker, make the docker command now
-        if "__docker__" in task:
+        if "__docker__" in task["args"]:
             self.log.debug("IS A DOCKER TASK")
             module = "docker"
-            t = copy.deepcopy(args)
+            t = copy.deepcopy(task["args"])
             args = {}
-            args["target"] = task["__docker__"]
+            args["target"] = task["args"]["__docker__"]
             args["arguments"] = ["cctestrun", "--indocker"]
-            if n.dir:
-                d = n._map(n.dir, None, None)
-                os.chdir(d)
-                info = imp.find_module(n.module)  # , [d])
+            workdir = task.get("workdir", None)
+            if workdir:
+                os.chdir(workdir)
+                spec = importlib.util.find_spec(task["module"])
+                if spec:
+                    path = spec.origin
             else:
-                info = imp.find_module(n.module)
-            if not info:
-                raise Exception("Can't find module %s" % n.module)
-            path = os.path.abspath(info[1])
+                self.log.warning("Can't find module %s, just trying to pass it on" % task["module"])
+                path = task["module"]
             args["arguments"].extend(["-m", path])
             a = {"args": t}
             if workdir:
                 args["arguments"].extend(["--workdir", workdir])
             args["arguments"].extend(["-t", json.dumps(a)])
-            args["dirs"] = n.volumes
+            args["dirs"] = task["args"].get("__vol__", None)
             self.log.debug("Transformed to %s" % str(args))
+            task["args"] = args
 
         if fprep:
             task["prepare_time"] = time.time() - start_time
