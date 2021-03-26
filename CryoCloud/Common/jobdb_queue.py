@@ -128,7 +128,10 @@ class JobDB:
                     job[ISBLOCKED] = False
         return retval
 
-    def unblock_step(self, step, amount=1):
+    def unblock_step(self, step, amount=1, max_parallel=None):
+        if max_parallel:
+            amount = max_parallel
+
         retval = 0
         with self._lock:
             for job in self._jobs:
