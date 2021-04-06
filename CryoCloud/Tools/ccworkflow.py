@@ -1382,7 +1382,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             print("Close of unknown order", order, self.orders.keys())
   
     def _get_cache_args(self, args, task):
-        self.log.info("ARGS '%s', task '%s'" % (str(args), str(task)))
         _cacheargs = {}
         missing = []
         for x in args:
@@ -1405,7 +1404,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         if n.cache:
             try:
                 a = self._get_cache_args(n.cache["args"], args)
-                self.log.info("Got cache args %s" % str(a))
+                self.log.debug("Got cache args %s" % str(a))
                 hash_args = hashlib.sha1(json.dumps(sort_dict(a)).encode("utf8")).hexdigest()
             except:
                 if "args" not in n.cache:
@@ -1420,34 +1419,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             args["gpu"] = n.gpu
             if self.options.debug:
                 args["debug"] = True
-
-        if 0:
-            module = "docker"
-            t = copy.deepcopy(args)
-            args = {}  # copy.deepcopy(args)
-            args["target"] = n.docker
-            if "arguments" not in args:
-                args["arguments"] = []
-            args["gpu"] = n.gpu
-            if self.options.debug:
-                args["debug"] = True
-            args["arguments"].extend(["cctestrun", "--indocker"])
-
-            if n.dir:
-                d = n._map(n.dir, None, None)
-                os.chdir(d)
-                info = imp.find_module(n.module)  # , [d])
-            else:
-                info = imp.find_module(n.module)
-            if not info:
-                raise Exception("Can't find module %s" % n.module)
-            path = os.path.abspath(info[1])
-            args["arguments"].extend(["-m", path])
-            a = {"args": t}
-            if workdir:
-                args["arguments"].extend(["--workdir", workdir])
-            args["arguments"].extend(["-t", json.dumps(a)])
-            args["dirs"] = n.volumes
 
         blocked = 0
         if n.max_parallel:

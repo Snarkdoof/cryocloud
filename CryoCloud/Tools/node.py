@@ -479,17 +479,12 @@ class Worker(multiprocessing.Process):
                     last_job_time = datetime.datetime.utcnow()
                     self.status["current_job"] = job["id"]
                     self._job_in_progress = job
-                    print("Job is", job)
                     self._switchJob(job)
                     if not self._is_ready:
                         time.sleep(0.1)
                         continue
 
                     if "__loop__" in job["args"]:
-
-                        # TODO: MUST HANDLE DOCKERS TOO :-/ 
-                        # TODO: Check if we can move the docker-rewrite to node.py from ccrowkflow?
-
                         loop = job["args"]["__loop__"]
                         if loop not in job["args"]:
                             raise Exception("Failed to loop on '%s', not an argument (%s)" % (loop, str(job["args"].keys())))
@@ -664,30 +659,34 @@ class Worker(multiprocessing.Process):
                 self.log.debug("Converted to %s" % str(a))
 
         # If docker, make the docker command now
-        if "__docker__" in task["args"]:
-            self.log.debug("IS A DOCKER TASK")
-            module = "docker"
-            t = copy.deepcopy(task["args"])
-            args = {}
-            args["target"] = task["args"]["__docker__"]
-            args["arguments"] = ["cctestrun", "--indocker"]
-            workdir = task.get("workdir", None)
-            if workdir:
-                os.chdir(workdir)
-                spec = importlib.util.find_spec(task["module"])
-                if spec:
-                    path = spec.origin
-            else:
-                self.log.warning("Can't find module %s, just trying to pass it on" % task["module"])
-                path = task["module"]
-            args["arguments"].extend(["-m", path])
-            a = {"args": t}
-            if workdir:
-                args["arguments"].extend(["--workdir", workdir])
-            args["arguments"].extend(["-t", json.dumps(a)])
-            args["dirs"] = task["args"].get("__vol__", None)
-            self.log.debug("Transformed to %s" % str(args))
-            task["args"] = args
+        def toDocker(task):
+            # Returns docker-edition of this task
+            if "__docker__" in task["args"]:
+                self.log.debug("is a docker task")
+                self.log.debug("args %s" % str(task["args"].keys()))
+                module = "docker"
+                t = copy.deepcopy(task["args"])
+                args = {}
+                args["target"] = task["args"]["__docker__"]
+                args["arguments"] = ["cctestrun", "--indocker"]
+                workdir = task.get("workdir", None)
+                if workdir:
+                    os.chdir(workdir)
+                    spec = importlib.util.find_spec(task["module"])
+                    if spec:
+                        path = spec.origin
+                else:
+                    self.log.warning("Can't find module %s, just trying to pass it on" % task["module"])
+                    path = task["module"]
+                args["arguments"].extend(["-m", path])
+                a = {"args": t}
+                if workdir:
+                    args["arguments"].extend(["--workdir", workdir])
+                args["arguments"].extend(["-t", json.dumps(a)])
+                args["dirs"] = task["args"].get("__vol__", None)
+                self.log.debug("Transformed to %s" % str(args))
+                task["args"] = args
+            return task
 
         if fprep:
             task["prepare_time"] = time.time() - start_time
@@ -759,7 +758,7 @@ class Worker(multiprocessing.Process):
                         task_b = copy.deepcopy(task)
                         task_b["args"][loop] = item
                         print(" *** **", item)
-
+                        task_b = toDocker(task_b)
                         _progress = 0
                         ret = None
                         if "__c__" in task["args"]:
@@ -786,6 +785,7 @@ class Worker(multiprocessing.Process):
                     # Done
                     ret = retval
                 else:
+                    task = toDocker(task)
                     if canStop:
                         progress, ret = self._module.process_task(self, task, cancel_event)
                     else:
