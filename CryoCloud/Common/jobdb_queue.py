@@ -194,7 +194,6 @@ class JobDB:
                     job[TSCHANGE] = time.time()
                     job[TSALLOCATED] = time.time()
                     job[STATE] = STATE_ALLOCATED
-                    print(" <- Allocated job", job[JOBID])
 
                 if len(allocated) >= max_jobs:
                     break
