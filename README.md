@@ -131,6 +131,8 @@ The following workflow is a simple demonstration of
 
   **image**: *docker image* - Docker image that can be executed to handle jobs for this module. Particularly useful for Kubernetes integration.
 
+  **loop**: *parameter name* - Loop over a single parameter. This is similar to splitOn, but loop doesn't split it into multiple jobs running in parallel, but will make a worker loop over a list of parameters sequentially. It's basically a way to handle a list of items without having a loop internally in the module. Doesn't need merging, end result is merged into a list, order is preserved.
+
   **max_parallel**: *number* - Limit the amount of jobs that is allowed to run in parallel. Useful for example to limit jobs for external services (e.g. downloads). 
 
   **merge**: *true* - On completion, this module will merge split jobs. Return values are transformed into lists. The lists are ordered just like the split input parameter. E.g. inputs ["in1", "in2", "in3"] will give return ["ret1", "ret2", "ret3"].
