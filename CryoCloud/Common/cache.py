@@ -436,7 +436,10 @@ class CryoCache(db):
             else:
                 SQL = "SELECT SUM(size_b) FROM cryocachefiles"
                 c = self._execute(SQL)
-        total_b = int(c.fetchone()[0])
+        row = c.fetchone()
+        total_b = None
+        if row:
+            total_b = int(row[0])
         if total_b is None:
             if module:
                 # No such module
