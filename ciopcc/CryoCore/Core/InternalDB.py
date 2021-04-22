@@ -2,4 +2,5 @@
 # Dummy
 
 class mysql:
-    pass
+   def __init__(self, *args):
+      pass
