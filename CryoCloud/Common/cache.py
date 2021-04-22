@@ -83,6 +83,40 @@ def get_size(full_path, level=0):
     return size, max_atime
 
 
+class DummyCryoCache():
+
+    def __init__(self, name="CryoCache"):
+        self.log = API.get_log(name)
+        self.log.warning("Using dummy CryoCache - no caching will be done")
+
+    def peek(self, *args, **args2):
+        return []
+
+    def lookup(self, *args, **args2):
+        return None
+
+    def update(self, *args, **args2):
+        pass
+
+    def get_report(self, *args, **args2):
+        return []
+
+    def trim(self, *args, **args2):
+        return 0, 0
+
+    def trim_all(self, *args, **args2):
+        return self.trim()
+
+    def update_sizes(self, *args, **args2):
+        pass
+
+    def clear_module(self, *args, **args2):
+        pass
+
+    def verify(self):
+        pass
+
+
 class CryoCache(db):
 
     def __init__(self, name="CryoCache"):
@@ -91,7 +125,24 @@ class CryoCache(db):
 
         self.cfg = API.get_config(name)
         self.log = API.get_log(name)
-        db.__init__(self, name, self.cfg)
+        try:
+            raise Exception("test")
+            db.__init__(self, name, self.cfg)
+        except:
+            # DB is bad
+            self.log.exception("Database is broken, using dummy cryocache")
+            d = DummyCryoCache(name)
+
+            self.peek = d.peek
+            self.lookup = d.lookup
+            self.update = d.update
+            self.get_report = d.get_report
+            self.trim = d.trim
+            self.trim_all = d.trim_all
+            self.update_sizes = d.update_sizes
+            self.clear_module = d.clear_module
+            self.verify = d.verify
+            return
 
         self.cfg.set_default("max_size_gb", 500)
         self.cfg.set_default("auto_clean", True)
