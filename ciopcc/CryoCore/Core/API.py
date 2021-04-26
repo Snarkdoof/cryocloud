@@ -5,6 +5,7 @@ CryoCore.Core API for all UAV based code
 
 """
 import threading
+import logging
 import logging.handlers
 import sys
 import traceback
@@ -27,10 +28,8 @@ class MissingConfigException(Exception):
 global api_stop_event
 api_stop_event = threading.Event()
 
+LOG_TO_FILE = True
 
-_log_level = "DEBUG"
-def set_log_level(level):
-    _log_level = level
 
 log_level_str = {"CRITICAL": logging.CRITICAL,
                  "FATAL": logging.FATAL,
@@ -46,22 +45,73 @@ log_level = {logging.CRITICAL: "CRITICAL",
              logging.INFO: "INFO",
              logging.DEBUG: "DEBUG"}
 
+_log_level = logging.INFO
+def set_log_level(level):
+    if isinstance(level, str):
+        _log_level = log_level[level.upper()]
+    else:
+        _log_level = level
+
+
 global CONFIGS
 CONFIGS = {}
 
+if LOG_TO_FILE:
+    try:
+        import logging.handlers
+
+        flog = logging.getLogger("CryoCore")
+        hdlr = logging.handlers.RotatingFileHandler("/tmp/cryocore.log",
+                                                    maxBytes=1024*1024*10)
+        formatter = logging.Formatter('%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s')
+        hdlr.setFormatter(formatter)
+        flog.addHandler(hdlr)
+        flog.setLevel(logging.DEBUG)
+    except Exception as e:
+        print("*** Can't log to file:", e)
+        flog = None
+else:
+    flog = None
+
+
+def set_log_level(level):
+    if isinstance(level, str):
+        _log_level = log_level_str[level.upper()]
+    else:
+        _log_level = level
+
+    if flog:
+        flog.setLevel(_log_level)
+
+set_log_level("INFO")
 
 class logger:
     def debug(self, msg):
-        ciop.log("DEBUG", msg)
+        if _log_level <= logging.DEBUG:
+            ciop.log("DEBUG", msg)
+        if flog:
+            flog.debug(msg)
     def info(self, msg):
-        ciop.log("INFO", msg)
+        if _log_level <= logging.INFO:
+            ciop.log("INFO", msg)
+        if flog:
+            flog.info(msg)
     def warning(self, msg):
-        ciop.log("WARNING", msg)
+        if _log_level <= logging.WARNING:
+            ciop.log("WARNING", msg)
+        if flog:
+            flog.warning(msg)
     def error(self, msg):
-        ciop.log("ERROR", msg)
+        if _log_level <= logging.ERROR:
+            ciop.log("ERROR", msg)
+        if flog:
+            flog.error(msg)
     def exception(self, msg):
         fullmsg = msg + traceback.format_exc()
-        ciop.log("ERROR", fullmsg)
+        if _log_level <= logging.ERROR:
+            ciop.log("ERROR", fullmsg)
+        if flog:
+            flog.exception(msg)
 
 log = logger()
 
