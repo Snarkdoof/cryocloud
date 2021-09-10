@@ -1834,7 +1834,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
             # Also check that all jobs are done!
             if not self._jobdb.is_all_jobs_done():
-                print("Thought I was done, but still jobs left, continuing")
+                print("Thought I was done, but still jobs left, continuing", p)
             else:
                 print("Workflow is DONE - exiting")
                 API.shutdown()
