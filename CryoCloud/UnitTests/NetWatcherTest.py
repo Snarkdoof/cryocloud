@@ -4,6 +4,7 @@ import unittest
 import threading
 import http.client
 import time
+import copy
 
 from CryoCore import API
 from CryoCloud.Common.netwatcher import *
@@ -15,6 +16,9 @@ class Listener:
         self.error = []
 
     def onAdd(self, info):
+        # We strip off "_order" to make asserting equal more efficient
+        info = copy.copy(info)
+        del info["_order"]
         self.added.append(info)
         # self.added.sort()
 
@@ -39,6 +43,7 @@ class Poster:
             conn.request("POST", "/task", json.dumps(data))
         else:
             conn.request("POST", "/task", data)
+
         # print(dir(conn))
         response = conn.getresponse()
         if (response.code != 202):
@@ -67,17 +72,20 @@ class NetWatcherTest(unittest.TestCase):
 
     def testBasic(self):
         # Post a task
-        self.poster.post("simple string")
+        self.poster.post({"string": "simple string"})
         time.sleep(0.1)
-        self.assertEqual(["simple string"], self.listener.added)
+        self.assertEqual(self.listener.added[0]["string"], "simple string")
 
-        self.poster.post("simple string2")
+        self.poster.post({"string": "simple string2"})
         time.sleep(0.1)
-        self.assertEqual(["simple string", "simple string2"], self.listener.added)
+        self.assertEqual(self.listener.added[0]["string"], "simple string")
+        self.assertEqual(self.listener.added[1]["string"], "simple string2")
 
-        self.poster.post("simple string3")
+        self.poster.post({"string": "simple string3"})
         time.sleep(0.1)
-        self.assertEqual(["simple string", "simple string2", "simple string3"], self.listener.added)
+        self.assertEqual(self.listener.added[0]["string"], "simple string")
+        self.assertEqual(self.listener.added[1]["string"], "simple string2")
+        self.assertEqual(self.listener.added[2]["string"], "simple string3")
 
     def testInvalid(self):
         try:
@@ -90,16 +98,16 @@ class NetWatcherTest(unittest.TestCase):
         time.sleep(0.1)
         self.assertEqual([], self.listener.added)
 
-        self.poster.post("simple string2")
+        self.poster.post({"string": "simple string2"})
         time.sleep(0.1)
-        self.assertEqual(["simple string2"], self.listener.added)
+        self.assertEqual(self.listener.added[0]["string"], "simple string2")
 
     def testAdvancedJSON(self):
         # Post a task
 
         expected = []
         for item in [
-            [1, 2, "3"],
+            {"list": [1, 2, "3"]},
             {"what": "complicated", "two": 2, "float": 0.123, "bool": True},
             {"what": "verycomplicated", "map": {"inner": "value", "int": 1}, "list": [1, 2, "3"]}
         ]:
@@ -148,8 +156,8 @@ class NetWatcherTest(unittest.TestCase):
             self.poster.post("simple string")
             self.fail("Should get an error here")
         except PostException as e:
-            # Expected error code 400
-            self.assertEqual(e.code, 400)
+            # Expected error code 500
+            self.assertEqual(e.code, 500)
 
         time.sleep(0.1)
         self.assertEqual([], self.listener.added)

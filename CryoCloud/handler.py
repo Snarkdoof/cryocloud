@@ -9,7 +9,6 @@ class DefaultHandler:
 
     def __init__(self):
         self.jobQueue = queue.Queue()
-        print("** JQ defined")
 
     def addMeta(self, metadata):
         key = random.randint(0, 9223372036854775806)

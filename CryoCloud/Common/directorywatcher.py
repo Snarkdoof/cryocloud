@@ -40,7 +40,7 @@ class Dispatcher(pyinotify.ProcessEvent):
     def onError(self, info):
         pass
 
-    def onIdle(self, info):
+    def onIdle(self):
         pass
 
     def _make_info(self, event, is_delete=False):

@@ -49,7 +49,7 @@ def _find_path(data):
         for x in data:
             if os.path.exists(x):
                 return x
-    return None
+    return data
 
 def get_size(full_path, level=0):
     size = 0
@@ -126,10 +126,11 @@ class CryoCache(db):
         self.cfg = API.get_config(name)
         self.log = API.get_log(name)
         try:
-            raise Exception("test")
+            # raise Exception("test")
             db.__init__(self, name, self.cfg)
         except:
             # DB is bad
+            print("BAD database, using dummy cache")
             self.log.exception("Database is broken, using dummy cryocache")
             d = DummyCryoCache(name)
 
@@ -375,8 +376,7 @@ class CryoCache(db):
                 self.log.debug("CACHE MISS module %s" % module)
                 return None
 
-            # if now > stop_time:
-            if now < updated.timestamp() + timeout:
+            if now > updated.timestamp() + timeout:
                 self.log.debug("CACHE MISS module %s, timeout" % module)
                 return None
 
@@ -525,7 +525,6 @@ class CryoCache(db):
                   "cryocache.internalid=cryocachefiles.internalid " +\
                   "ORDER BY priority DESC, updated"
             c = self._execute(SQL)
-        print(SQL, module)
 
         removed_bytes = 0
         removed_files = 0

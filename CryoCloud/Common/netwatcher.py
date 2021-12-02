@@ -133,7 +133,13 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
             data = self.rfile.read(int(self.headers["Content-Length"]))
             if len(data) == 0:
                 return self.send_error(500, "Missing body")
+
             info = json.loads(data.decode("utf-8"))
+
+            # If info is not a dict, the request is BAD
+            if not isinstance(info, dict):
+                self.server.log.error("Bad request, not a map '%s'" % info)
+                return self.send_error(500, "Bad request 1ba24")
             # Validate
             if self.server.schema:
                 try:
