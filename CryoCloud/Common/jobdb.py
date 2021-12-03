@@ -465,7 +465,7 @@ class JobDB(mysql):
 
     def is_all_jobs_done(self):
         """No pending or allocated jobs"""
-        SQL = "SELECT count(*) FROM jobs WHERE runid=%s AND state>=%s LIMIT 1"
+        SQL = "SELECT count(*) FROM jobs WHERE runid=%s AND state<=%s LIMIT 1"
         c = self._execute(SQL, [self._runid, STATE_ALLOCATED])
         return c.fetchone()[0] == 0 
 
