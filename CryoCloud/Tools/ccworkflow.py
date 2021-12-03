@@ -2352,7 +2352,7 @@ if __name__ == "__main__":
 
         API.shutdown()
         stop_event.set()
-        if (API.api_stop_event.is_set()):
+        if (not API.api_stop_event.is_set()):
             API.api_stop_event.set()
             print("Jikes, stop event not set")
         while len(_started_threads) > 0:
