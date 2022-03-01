@@ -60,6 +60,7 @@ class FilePrepare:
         according to arguments
         """
         self.root = root
+
         self.s3root = s3root
         self.timeout = timeout
         if s3root:
@@ -70,6 +71,10 @@ class FilePrepare:
         self._s3_servers = {}
 
         self.log = API.get_log("FilePrepare")
+
+        if root is None:
+            self.root = "/"
+            self.log.warning("Warning, root is given as None, using '/'")
 
     @staticmethod
     def _is_compressed(filename):
@@ -222,10 +227,10 @@ class FilePrepare:
                 except Exception as e:
                     last_error = str(e)
                     s = None
-                    self.log.warning("Failed to fix url, retrying: %s" % str(e))
+                    self.log.exception("Failed to fix url, retrying: %s" % str(e))
                     time.sleep(random.random() * 2)
             if not s:
-                self.log.error("Failed to fix url %s" % url)
+                self.log.exception("Failed to fix url %s" % url)
                 raise Exception("Failed to fix url %s: %s" % (url, last_error))
             fileList.extend(s["fileList"])
             total_size += s["size"]
