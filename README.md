@@ -213,6 +213,8 @@ described below. It is also possible to tell the cache that return values are
 files, in which case the cache will verify that the files are still present
 before returning the cached values.
 
+Notice that "cache" can both be provided in the ccmodule description in the module or it can be specified in the workflow JSON file. The workflow definition will override the ccmodule definition.
+
 For more advanced caching, modules can use the CryoCache class (example in cryonite/microservices/geocode/mod_geocode.py)
 
 **cache**: *{args: [], expires: int, files: []}*
