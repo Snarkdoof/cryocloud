@@ -111,6 +111,9 @@ The following workflow is a simple demonstration of
 ### Module definition:
    **args**: *{argument definition}* - How to resolve input arguments for this module (see below)
 
+
+  **cache**: Specify that this module should be cached. Look at the cache specification further down. 
+
   **ccnode**: If given, run on the given CryoCloud processing node - or use runtime stats (stat) or config, typically {"stat": "parent.node"}
 
   **children**: *[module definitions]* - Inline definition of children - same as giving this module a name and set "downstreamOf" to this modules name
@@ -195,6 +198,31 @@ The following workflow is a simple demonstration of
 
      In this the "copy" is default true, proto is default "ssh" and unzip is default false 
      The output "/tempdisk/foo/bar" would in this case be rewritten to "http://[ip of node that executed the parent]/tempdisk/foo/bar"
+
+
+### Cache definition
+
+Built in caching is designed to be quite simple but is also somewhat basic.
+Also note that a cron-job must be configured (for now) to asynchronously
+clean the cache. 
+
+The basic mechanism is to remember the return values, then return these values
+immediately if the same arguments were provided. In order to define which
+input arguments define the uniqueness of the task, these must be listed as
+described below. It is also possible to tell the cache that return values are
+files, in which case the cache will verify that the files are still present
+before returning the cached values.
+
+For more advanced caching, modules can use the CryoCache class (example in cryonite/microservices/geocode/mod_geocode.py)
+
+**cache**: *{args: [], expires: int, files: []}*
+
+  * args is a list of arguments that together need to be unique for a cache hit. As an example, let's say your module takes in "area" and "zoom" as arguments. If you specify "cache": ["area"], zoom level is disregarded when checking the cache, and therefore data from a wrong zoom level will be returned. "cache": ["area", "zoom"] will ensure that both area and zoom must be identical to a previous request for the cached data to be returned.
+
+  * expires: Number of seconds a result is kept. This should reflect how long your input data is valid. If left blank, old cache data will be purged when more space is needed.
+
+  * files provide a list of return values that are files. This means that the cache will validate that the files are actually present before returning them. Note that if these files are temporary, they will likely have been removed, and therfore the results will be re-processed. If the return values are not in the "files" list, they are assumed to be data values, and thus returned. 
+
 
 
 ## Writing a CryoCloud module
