@@ -215,7 +215,7 @@ before returning the cached values.
 
 Notice that "cache" can both be provided in the ccmodule description in the module or it can be specified in the workflow JSON file. The workflow definition will override the ccmodule definition.
 
-For more advanced caching, modules can use the CryoCache class (example in cryonite/microservices/geocode/mod_geocode.py)
+For more advanced caching, modules can use the CryoCache class (example in cryonite/microservices/geocode/mod_geocode.py or inspiration can be found in the cache unittest).
 
 **cache**: *{args: [], expires: int, files: []}*
 
