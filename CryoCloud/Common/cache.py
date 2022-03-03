@@ -1,4 +1,4 @@
-#!/bin/env python3
+#!/usr/bin/env python3
 
 import uuid
 import hashlib
@@ -126,7 +126,7 @@ class CryoCache(db):
         self.cfg = API.get_config(name)
         self.log = API.get_log(name)
         try:
-            raise Exception("test")
+            #raise Exception("test")
             db.__init__(self, name, self.cfg)
         except:
             # DB is bad
@@ -447,7 +447,7 @@ class CryoCache(db):
             print(self._execute("SELECT * FROM tmpcache").fetchall())
 
         # We now combine with modules
-        SQL = "SELECT module, size_b, COUNT(*) FROM cryocache GROUP BY module"
+        SQL = "SELECT module, sum(size_b), COUNT(*) FROM cryocache GROUP BY module"
         c = self._execute(SQL)
 
         ret = []
