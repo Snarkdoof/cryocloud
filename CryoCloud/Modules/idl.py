@@ -85,6 +85,7 @@ def process_task(worker, task, cancel_event=None):
     if "max_memory" in task["args"]:
         max_memory = int(task["args"]["max_memory"])
 
+    status_done = 0
     orig_dir = os.getcwd()
     try:
         if "dir" in task["args"]:
@@ -172,6 +173,9 @@ def process_task(worker, task, cancel_event=None):
                         retval[r[0]] = r[1]
                 elif r:
                     retval["result"] += ". " + r
+                if line == '[progress] 100':
+                    status_done = 100
+                
 
             # Check for output on stderr - set error message
             while buf[p.stderr].find("\n") > -1:
@@ -222,7 +226,8 @@ def process_task(worker, task, cancel_event=None):
             except:
                 pass
 
-        return worker.status["progress"].get_value(), retval
+        progval = 100 if status_done == 100 else worker.status["progress"].get_value()
+        return progval, retval
     finally:
         if "dir" in task["args"]:
             os.chdir(orig_dir)
