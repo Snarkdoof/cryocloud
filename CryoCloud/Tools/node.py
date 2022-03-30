@@ -1002,10 +1002,19 @@ class NodeController(threading.Thread):
 
     def stop(self):
         if self._soft_stop_event.is_set():
-            print("STOPPING EVERYTHING")
-            API.shutdown()
-            t = threading.Timer(5, lambda: os.kill(os.getpid(), 9))
+            print("KILLING EVERYTHING")
+
+            def killall():
+                for worker in self._worker_pool:
+                    os.kill(worker.pid, signal.SIGKILL)
+
+                os.kill(os.getpid(), signal.SIGKILL)
+
+            t = threading.Timer(3, killall)
             t.start()
+
+            API.shutdown()
+
 
         self._soft_stop_event.set()
 
