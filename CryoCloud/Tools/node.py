@@ -191,8 +191,11 @@ class Worker(multiprocessing.Process):
     def __init__(self, workernum, stopevent, type=jobdb.TYPE_NORMAL, module_paths=[], modules=[], name=None,
                  options=None, softstopevent=None, _jobdb=None):
         super(Worker, self).__init__(daemon=True)
-        API.reset()
-        API.api_auto_init = False  # Faster startup
+        try:
+            API.reset()
+            API.api_auto_init = False  # Faster startup
+        except:
+            print("**** Possibly too old cryocore, check for updates")
 
         # self._stop_event = stopevent
         self._stop_event = multiprocessing.Event()
@@ -474,8 +477,6 @@ class Worker(multiprocessing.Process):
                                                 supportedmodules=self._modules, max_jobs=max_jobs,
                                                 type=self._type, prefermodule=prefermodule)
                 if len(jobs) == 0:
-                    if self._type != jobdb.TYPE_ADMIN:
-                        print("NO JOB")
                     self._jobdb.update_worker(self.wid, json.dumps(self._modules), last_job_time)
 
                     time.sleep(1)
@@ -524,7 +525,6 @@ class Worker(multiprocessing.Process):
                 except:
                     self.log.exception("Failed to update job after import error")
             except Exception as e:
-                print("No job", e)
                 self.log.exception("Failed to get job")
                 self.status["state"] = "Error (DB?)"
                 ret = {"error": "Unexpected exception: %s" % str(e)}
