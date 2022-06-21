@@ -65,6 +65,7 @@ for path in get_default_paths():
 orig_sys_path = sys.path[:]
 
 API.cc_default_expire_time = 24 * 86400  # Default log & status only 7 days
+API.api_auto_init = False  # Faster startup
 
 
 def load_ccmodule(path):
@@ -189,7 +190,6 @@ class Worker(multiprocessing.Process):
     def __init__(self, workernum, stopevent, type=jobdb.TYPE_NORMAL, module_paths=[], modules=[], name=None,
                  options=None, softstopevent=None, _jobdb=None):
         super(Worker, self).__init__(daemon=True)
-        API.api_auto_init = False  # Faster startup
 
         # self._stop_event = stopevent
         self._stop_event = multiprocessing.Event()
@@ -213,7 +213,7 @@ class Worker(multiprocessing.Process):
         self._modules = modules
         self._module_paths = module_paths
         self.options = options
-        self._cache = CryoCache()
+        self._cache = None 
 
         self._worker_type = jobdb.TASK_TYPE[type]
         if name is None:
@@ -434,7 +434,13 @@ class Worker(multiprocessing.Process):
         except:
             pass  # Signal not supported here, hope we're running as standalone and not on Windows
 
+        # API.reset()  # In case a FORK has left us with shit state
+
+        self._cache = CryoCache()
+
         self.log = API.get_log(self.wid)
+        API.set_log_level("DEBUG")  # FOR NOW
+
         self.status = API.get_status(self.wid)
         if not self._jobdb:
             self._jobdb = jobdb.JobDB(None, None)
@@ -442,6 +448,8 @@ class Worker(multiprocessing.Process):
         self.cfg = API.get_config("CryoCloud.Worker")
         self.cfg.set_default("datadir", "/")
         self.cfg.set_default("tempdir", "/tmp")
+
+        self.status["state"] = "Ready"
 
         last_reported = 0  # We force periodic updates of state as we might be idle for a long time
         last_job_time = None
@@ -466,7 +474,7 @@ class Worker(multiprocessing.Process):
                 if len(jobs) == 0:
                     self._jobdb.update_worker(self.wid, json.dumps(self._modules), last_job_time)
 
-                    time.sleep(2.5)
+                    time.sleep(1)
                     if last_reported + 300 > time.time():
                         self.status["state"] = "Idle"
                     else:
@@ -994,8 +1002,19 @@ class NodeController(threading.Thread):
 
     def stop(self):
         if self._soft_stop_event.is_set():
-            print("STOPPING EVERYTHING")
+            print("KILLING EVERYTHING")
+
+            def killall():
+                for worker in self._worker_pool:
+                    os.kill(worker.pid, signal.SIGKILL)
+
+                os.kill(os.getpid(), signal.SIGKILL)
+
+            t = threading.Timer(3, killall)
+            t.start()
+
             API.shutdown()
+
 
         self._soft_stop_event.set()
 
