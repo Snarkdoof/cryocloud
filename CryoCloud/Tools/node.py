@@ -40,7 +40,7 @@ import multiprocessing
 
 import importlib
 
-DEBUG = False
+DEBUG = True
 
 modules = {}
 
@@ -89,7 +89,7 @@ def load_ccmodule(path):
 
 
 def load(modulename, path=None):
-    # print("LOADING MODULE", modulename, "workdir", os.getcwd())
+    print("LOADING MODULE", modulename, "workdir", os.getcwd())
     # TODO: Also allow getmodulename here to allow modulename to be a .py file
     if modulename.endswith(".py"):
         import inspect
@@ -115,6 +115,7 @@ def load(modulename, path=None):
             pass
     else:
         importlib.reload(modules[modulename])
+    print("MODULE", modulename, "LOADED")
     return modules[modulename]
 
 
@@ -190,6 +191,8 @@ class Worker(multiprocessing.Process):
     def __init__(self, workernum, stopevent, type=jobdb.TYPE_NORMAL, module_paths=[], modules=[], name=None,
                  options=None, softstopevent=None, _jobdb=None):
         super(Worker, self).__init__(daemon=True)
+        API.reset()
+        API.api_auto_init = False  # Faster startup
 
         # self._stop_event = stopevent
         self._stop_event = multiprocessing.Event()
@@ -448,9 +451,8 @@ class Worker(multiprocessing.Process):
         self.cfg = API.get_config("CryoCloud.Worker")
         self.cfg.set_default("datadir", "/")
         self.cfg.set_default("tempdir", "/tmp")
-
         self.status["state"] = "Ready"
-
+        self.cfg.set_default("cctestrun", "cctestrun")
         last_reported = 0  # We force periodic updates of state as we might be idle for a long time
         last_job_time = None
         jobs_executed = 0
@@ -472,6 +474,8 @@ class Worker(multiprocessing.Process):
                                                 supportedmodules=self._modules, max_jobs=max_jobs,
                                                 type=self._type, prefermodule=prefermodule)
                 if len(jobs) == 0:
+                    if self._type != jobdb.TYPE_ADMIN:
+                        print("NO JOB")
                     self._jobdb.update_worker(self.wid, json.dumps(self._modules), last_job_time)
 
                     time.sleep(1)
@@ -483,6 +487,8 @@ class Worker(multiprocessing.Process):
                     continue
                 jobs_executed += len(jobs)
                 self.log.debug("Got %d jobs" % len(jobs))
+                self.log.info("Got %d jobs" % len(jobs))
+
                 for job in jobs:
                     last_job_time = datetime.datetime.utcnow()
                     self.status["current_job"] = job["id"]
@@ -573,6 +579,10 @@ class Worker(multiprocessing.Process):
     def _process_task(self, task, loop=None):
         # taskid = "%s.%s-%s_%d" % (task["runname"], self._worker_type, socket.gethostname(), self.workernum)
         # print(taskid, "Processing", task)
+
+        if DEBUG:
+            self.log.debug("_process_task called")
+
         # If the task specifies the log level, update that first, otherwise go for DEBUG for backwards compatibility
         if "__ll__" not in task["args"]:
             task["args"]["__ll__"] = API.log_level_str["DEBUG"]
@@ -676,7 +686,7 @@ class Worker(multiprocessing.Process):
                 t = copy.deepcopy(task["args"])
                 args = {}
                 args["target"] = task["args"]["__docker__"]
-                args["arguments"] = ["cctestrun", "--indocker"]
+                args["arguments"] = [self.cfg["cctestrun"], "--indocker"]
                 workdir = task.get("workdir", None)
                 if workdir:
                     os.chdir(workdir)
