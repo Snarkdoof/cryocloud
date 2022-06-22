@@ -33,8 +33,11 @@ except:
 
 
 from CryoCore import API
-from CryoCloud.Common import jobdb, fileprep, MicroService
-from CryoCloud.Common.cache import CryoCache
+try:
+    from CryoCloud.Common import jobdb, fileprep, MicroService
+    from CryoCloud.Common.cache import CryoCache
+except Exception as e:
+    print(" *** Can't load jobdb and other bits and pieces, things might not work *** ", e)
 
 import multiprocessing
 
