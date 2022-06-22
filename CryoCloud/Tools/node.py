@@ -191,7 +191,8 @@ def detect_modules(paths=[], modules=None, exceptmodules=[], testload=True):
 
 class Worker(multiprocessing.Process):
 
-    def __init__(self, workernum, stopevent, type=jobdb.TYPE_NORMAL, module_paths=[], modules=[], name=None,
+    # Type 1 is "normal", but we might not have access to jobdb.TYPE_NORMAL
+    def __init__(self, workernum, stopevent, type=1, module_paths=[], modules=[], name=None,
                  options=None, softstopevent=None, _jobdb=None):
         super(Worker, self).__init__(daemon=True)
         try:
@@ -224,7 +225,11 @@ class Worker(multiprocessing.Process):
         self.options = options
         self._cache = None 
 
-        self._worker_type = jobdb.TASK_TYPE[type]
+        try:
+            self._worker_type = jobdb.TASK_TYPE[type]
+        except:
+            self._worker_type = "Worker"
+
         if name is None:
             name = socket.gethostname()
         self.wid = "%s-%s_%d" % (self._worker_type, name, self.workernum)
