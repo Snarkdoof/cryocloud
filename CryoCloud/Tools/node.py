@@ -702,6 +702,7 @@ class Worker(multiprocessing.Process):
                     args["arguments"].extend(["--workdir", workdir])
                 args["arguments"].extend(["-t", json.dumps(a)])
                 args["dirs"] = task["args"].get("__vol__", None)
+                args["gpu"] = task["args"].get("gpu", False)
                 self.log.debug("Transformed to %s" % str(args))
                 task["args"] = args
             return task
