@@ -19,6 +19,7 @@ ccmodule = {
         "vcopy": "Copy video track",
         "copy": "Copy both audio and video track",
         "noaudio": "Drop the audio track",
+        "mono": "Convert to mono",
         "container": "Specify the container, 'auto' will guess one, blank will let ffmpeg handle it"
     },
     "outputs": {
@@ -66,6 +67,8 @@ def process_task(worker, task):
         cmd.extend(["-c:a", "copy", "-c:v", "copy"])
     if "noaudio" in args:
         cmd.extend(["-na"])
+    if "mono" in args:
+        cmd.extend(["-ac", "1"])
 
     if "container" in args:
         if args["container"] == "auto":
