@@ -33,14 +33,17 @@ except:
 
 
 from CryoCore import API
-from CryoCloud.Common import jobdb, fileprep, MicroService
-from CryoCloud.Common.cache import CryoCache
+try:
+    from CryoCloud.Common import jobdb, fileprep, MicroService
+    from CryoCloud.Common.cache import CryoCache
+except Exception as e:
+    print(" *** Can't load jobdb and other bits and pieces, things might not work *** ", e)
 
 import multiprocessing
 
 import importlib
 
-DEBUG = False
+DEBUG = True
 
 modules = {}
 
@@ -89,7 +92,7 @@ def load_ccmodule(path):
 
 
 def load(modulename, path=None):
-    # print("LOADING MODULE", modulename, "workdir", os.getcwd())
+    print("LOADING MODULE", modulename, "workdir", os.getcwd())
     # TODO: Also allow getmodulename here to allow modulename to be a .py file
     if modulename.endswith(".py"):
         import inspect
@@ -115,6 +118,7 @@ def load(modulename, path=None):
             pass
     else:
         importlib.reload(modules[modulename])
+    print("MODULE", modulename, "LOADED")
     return modules[modulename]
 
 
@@ -187,9 +191,15 @@ def detect_modules(paths=[], modules=None, exceptmodules=[], testload=True):
 
 class Worker(multiprocessing.Process):
 
-    def __init__(self, workernum, stopevent, type=jobdb.TYPE_NORMAL, module_paths=[], modules=[], name=None,
+    # Type 1 is "normal", but we might not have access to jobdb.TYPE_NORMAL
+    def __init__(self, workernum, stopevent, type=1, module_paths=[], modules=[], name=None,
                  options=None, softstopevent=None, _jobdb=None):
         super(Worker, self).__init__(daemon=True)
+        try:
+            API.reset()
+            API.api_auto_init = False  # Faster startup
+        except:
+            print("**** Possibly too old cryocore, check for updates")
 
         # self._stop_event = stopevent
         self._stop_event = multiprocessing.Event()
@@ -215,7 +225,11 @@ class Worker(multiprocessing.Process):
         self.options = options
         self._cache = None 
 
-        self._worker_type = jobdb.TASK_TYPE[type]
+        try:
+            self._worker_type = jobdb.TASK_TYPE[type]
+        except:
+            self._worker_type = "Worker"
+
         if name is None:
             name = socket.gethostname()
         self.wid = "%s-%s_%d" % (self._worker_type, name, self.workernum)
@@ -448,9 +462,8 @@ class Worker(multiprocessing.Process):
         self.cfg = API.get_config("CryoCloud.Worker")
         self.cfg.set_default("datadir", "/")
         self.cfg.set_default("tempdir", "/tmp")
-
         self.status["state"] = "Ready"
-
+        self.cfg.set_default("cctestrun", "cctestrun")
         last_reported = 0  # We force periodic updates of state as we might be idle for a long time
         last_job_time = None
         jobs_executed = 0
@@ -483,6 +496,8 @@ class Worker(multiprocessing.Process):
                     continue
                 jobs_executed += len(jobs)
                 self.log.debug("Got %d jobs" % len(jobs))
+                self.log.info("Got %d jobs" % len(jobs))
+
                 for job in jobs:
                     last_job_time = datetime.datetime.utcnow()
                     self.status["current_job"] = job["id"]
@@ -518,7 +533,6 @@ class Worker(multiprocessing.Process):
                 except:
                     self.log.exception("Failed to update job after import error")
             except Exception as e:
-                print("No job", e)
                 self.log.exception("Failed to get job")
                 self.status["state"] = "Error (DB?)"
                 ret = {"error": "Unexpected exception: %s" % str(e)}
@@ -573,6 +587,10 @@ class Worker(multiprocessing.Process):
     def _process_task(self, task, loop=None):
         # taskid = "%s.%s-%s_%d" % (task["runname"], self._worker_type, socket.gethostname(), self.workernum)
         # print(taskid, "Processing", task)
+
+        if DEBUG:
+            self.log.debug("_process_task called")
+
         # If the task specifies the log level, update that first, otherwise go for DEBUG for backwards compatibility
         if "__ll__" not in task["args"]:
             task["args"]["__ll__"] = API.log_level_str["DEBUG"]
@@ -676,7 +694,7 @@ class Worker(multiprocessing.Process):
                 t = copy.deepcopy(task["args"])
                 args = {}
                 args["target"] = task["args"]["__docker__"]
-                args["arguments"] = ["cctestrun", "--indocker"]
+                args["arguments"] = [self.cfg["cctestrun"], "--indocker"]
                 workdir = task.get("workdir", None)
                 if workdir:
                     os.chdir(workdir)
@@ -692,6 +710,7 @@ class Worker(multiprocessing.Process):
                     args["arguments"].extend(["--workdir", workdir])
                 args["arguments"].extend(["-t", json.dumps(a)])
                 args["dirs"] = task["args"].get("__vol__", None)
+                args["gpu"] = task["args"].get("gpu", False)
                 self.log.debug("Transformed to %s" % str(args))
                 task["args"] = args
             return task

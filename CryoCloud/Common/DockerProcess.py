@@ -140,7 +140,7 @@ class DockerProcess():
 
     def run(self):
         docker = "docker"
-        cmd = [docker, "run"]
+        cmd = [docker, "run", "--rm"]
         self.log.debug("USE GPU: %s" % self.gpu)
 
         if self.gpu:
