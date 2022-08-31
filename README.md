@@ -46,9 +46,9 @@ In short, the modules should normally only work on local files, not download thi
 ### Kubernetes and Docker integration
 CryoCloud has two ways to use dockers. In both cases logs and status messages are handled as normal, and can be accessed using the normal CryoCore tools (cclog, ccstatus etc).
 
-    1. Run fully contained dockers, typically through Kubernetes on a cluster or cloud solution. This is done by specifying *image* in the workflow and starting ccworkflow with --kubernetes. The image must have everything onboard, and S3 is suggested as transfer of data in and out of the container. Use "s3://server/bucket/key" as paths for input data, *post* definition for return data. The docker must have CryoCloud installed.
+1. Run fully contained dockers, typically through Kubernetes on a cluster or cloud solution. This is done by specifying *image* in the workflow and starting ccworkflow with --kubernetes. The image must have everything onboard, and S3 is suggested as transfer of data in and out of the container. Use "s3://server/bucket/key" as paths for input data, *post* definition for return data. The docker must have CryoCloud installed.
 
-    2. Run local code in a docker environment. Typically useful for testing, where a docker is *not* fully contained but can provide the runtime environment for the module. The module as well as any input paths are mapped as volumes automatically. For proper deployments of finalized code, running as self contained dockers is likely better. the docker must have CryoCloud/dockercc installed.
+2. Run local code in a docker environment. Typically useful for testing, where a docker is *not* fully contained but can provide the runtime environment for the module. The module as well as any input paths are mapped as volumes automatically. For proper deployments of finalized code, running as self contained dockers is likely better. the docker must have CryoCloud/dockercc installed.
 
 As CryoCloud has a running overview of capabilities of workers, it will create Kubernetes deployments for all missing modules. These will currently be started to process **only** the particular module, even if the image supports multiple modules.
 
