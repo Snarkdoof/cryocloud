@@ -20,6 +20,7 @@ ccmodule = {
         "copy": "Copy both audio and video track",
         "noaudio": "Drop the audio track",
         "mono": "Convert to mono",
+        "audio_hz": "Rate - default keep, use 16000 for 16khz",
         "container": "Specify the container, 'auto' will guess one, blank will let ffmpeg handle it"
     },
     "outputs": {
@@ -69,6 +70,8 @@ def process_task(worker, task):
         cmd.extend(["-na"])
     if "mono" in args:
         cmd.extend(["-ac", "1"])
+    if "audio_hz" in args:
+        cmd.extend(["-ar", args["audio_h"]])
 
     if "container" in args:
         if args["container"] == "auto":
