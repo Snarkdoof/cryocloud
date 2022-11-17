@@ -30,6 +30,8 @@ class DockerProcess():
                 self.partitions.append(part.mountpoint)
         self.partitions.sort(key=lambda k: -len(k))
         self.debug = debug
+        self.cfg = API.get_config("CryoCloud.DockerProcess")
+        self.cfg.set_default("gpus", "all")
 
         def lookup(path):
             if not isinstance(path, str):
@@ -144,7 +146,8 @@ class DockerProcess():
         self.log.debug("USE GPU: %s" % self.gpu)
 
         if self.gpu:
-            cmd.extend(["--gpus", "all"])  # TODO: Check that gpus can in fact be run?
+
+            cmd.extend(["--gpus", self.cfg["gpus"]])  # TODO: Check that gpus can in fact be run?
             # try:
             #    retval = subprocess.call(["docker", "run", "--gpus", "all"])
             #    if retval == 1:
@@ -155,6 +158,7 @@ class DockerProcess():
             # except Exception as e:
             #        self.log.warning("GPU Docker requested but not available, not using GPU (%s)" % str(e))
 
+            self.log.debug("Using GPUS %s" % self.cfg["gpus"])
         for d in self.dirs:
             if len(d) == 3:
                 source, destination, mode = d
