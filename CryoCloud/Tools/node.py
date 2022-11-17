@@ -98,7 +98,7 @@ def load(modulename, path=None):
         import inspect
         modulename = inspect.getmodulename(modulename)
 
-    if 1 or modulename not in modules:  # Seems for python3, reload is deprecated. Check for python 2
+    if modulename not in modules:
 
         global orig_sys_path
         if path and path.__class__ != list:
