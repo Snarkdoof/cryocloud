@@ -387,9 +387,9 @@ class Worker(multiprocessing.Process):
             path = None
             if modulepath:
                 path = [modulepath]
-            self._module = module_name
-            self.log.debug("Loading module %s (%s)" % (self._module, path))
-            self._module = load(self._module, path)
+            # self._module = module_name
+            self.log.debug("Loading module %s (%s)" % (module_name, path))
+            self._module = load(module_name, path)
 
             st_mtime = os.stat(os.path.abspath(self._module.__file__)).st_mtime
             self._current_job = (job["module"], st_mtime)
