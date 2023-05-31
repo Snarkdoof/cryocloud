@@ -407,6 +407,7 @@ class Workflow:
     global_nodes = []
     handler = None
     description = None
+    config = None
     options = []
     messages = {}
     message_callbacks = {}
