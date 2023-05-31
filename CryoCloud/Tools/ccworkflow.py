@@ -582,6 +582,9 @@ class Workflow:
             wf.description = workflow["description"]
         if "options" in workflow:
             wf.options = workflow["options"]
+        if "config" in workflow:
+            wf.config = API.get_config(workflow["config"])
+
 
         wf.handler = handler
         wf.entry = EntryTask(wf)
@@ -754,8 +757,11 @@ class Workflow:
                                                    (param, name, node.module, node.name)))
                     if "config" in val:
                         if node.config is None:
-                            raise Exception("Config parameter needed but no config defined (%s of %s %s)" %
-                                            (arg, node.name, node.module))
+                            if self.config:
+                                node.config = self.config
+                            else:
+                                raise Exception("Config parameter needed but no config defined (%s of %s %s)" %
+                                                (arg, node.name, node.module))
 
                     if "stat" in val:
                         name, param = val["stat"].split(".")
@@ -1830,6 +1836,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         # jobs running
         self._check_kubernetes(node, p)
 
+        # TODO: Fix this - it's not sexy in the least!
         if self.workflow._is_single_run and self.workflow.entry.is_done(p):
 
             # Also check that all jobs are done!
@@ -1847,7 +1854,14 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                 print("Workflow is DONE - exiting")
                 API.shutdown()
         elif self.workflow._is_single_run and self._jobdb.is_all_jobs_done():
-            self.log.debug("Single run and all jobs are done - that's it!")
+            # We set a timer to check if it's just lag
+            def check():
+                self.log.debug("Single run and all jobs are done - that's it!")
+                if self._jobdb.is_all_jobs_done():
+                    API.shutdown()
+            t = threading.Timer(5, check)
+            t.start()
+
             API.shutdown()
 
 
