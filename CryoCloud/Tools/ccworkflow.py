@@ -1472,7 +1472,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         if n.cache and not global_disable_cache:
             args["__c__"] = n.cache
         if global_disable_cache:
-            args["__nocache__"] = true
+            args["__nocache__"] = True
 
         return self.head.add_job(lvl, taskid, args, module=module, jobtype=jobtype,
                                  itemid=itemid, workdir=workdir,
