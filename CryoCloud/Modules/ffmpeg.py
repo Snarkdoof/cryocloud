@@ -71,7 +71,7 @@ def process_task(worker, task):
     if "mono" in args:
         cmd.extend(["-ac", "1"])
     if "audio_hz" in args:
-        cmd.extend(["-ar", str(args["audio_h"])])
+        cmd.extend(["-ar", str(args["audio_hz"])])
 
     if "container" in args:
         if args["container"] == "auto":
