@@ -57,7 +57,7 @@ def process_task(worker, task, cancel_event=None):
 
     # If there is a GPU specified to use in the environment, use that!
     if "CUDA_VISIBLE_DEVICES" in os.environ:
-        gpu = os.environ["CUDA_VISIBLE_DEVICES" is not None
+        gpu = os.environ["CUDA_VISIBLE_DEVICES"]
 
     dp = DockerProcess(target, worker.status, worker.log, API.api_stop_event,
                        dirs=dirs, env=env, gpu=gpu, args=args, log_all=log_all,
