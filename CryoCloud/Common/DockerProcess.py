@@ -148,7 +148,7 @@ class DockerProcess():
 
         if self.gpu:
 
-            cmd.extend(["--gpus", self.gpus])  # TODO: Check that gpus can in fact be run?
+            cmd.extend(["--gpus", '"%s"' % self.gpus])  # TODO: Check that gpus can in fact be run?
             # try:
             #    retval = subprocess.call(["docker", "run", "--gpus", "all"])
             #    if retval == 1:
