@@ -49,12 +49,15 @@ def process_task(worker, task, cancel_event=None):
     if len(target) == 0:
         raise Exception("Require parameter 'target'")
 
-    env = dict(os.environ)
-    env.update(a.get("env", {}))
+    env = a.get("env", {})
     dirs = a.get("dirs", [])
     args = a.get("arguments", [])
     log_all = a.get("log_all", False)
     debug = a.get("debug", False)
+
+    # If there is a GPU specified to use in the environment, use that!
+    if "CUDA_VISIBLE_DEVICES" in os.environ:
+        gpu = os.environ["CUDA_VISIBLE_DEVICES" is not None
 
     dp = DockerProcess(target, worker.status, worker.log, API.api_stop_event,
                        dirs=dirs, env=env, gpu=gpu, args=args, log_all=log_all,
