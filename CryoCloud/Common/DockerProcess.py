@@ -20,7 +20,7 @@ class DockerProcess():
     def __init__(self, cmd, status, log, stop_event,
                  env={}, dirs=[], gpu=False,
                  userid=None, groupid=None, log_all=True,
-                 args=[], cancel_event=None, debug=False):
+                 args=[], cancel_event=None, debug=False, gpus="all"):
 
         # Read in all partitions on this machine, used to identify volumes
         # TODO: Might not work with automounts, is this an issue?
@@ -69,6 +69,7 @@ class DockerProcess():
         self.dirs = dirs
         self.env = env
         self.gpu = gpu
+        self.gpus = gpus
         if userid:
             self.userid = userid
         else:
@@ -147,7 +148,7 @@ class DockerProcess():
 
         if self.gpu:
 
-            cmd.extend(["--gpus", self.cfg["gpus"]])  # TODO: Check that gpus can in fact be run?
+            cmd.extend(["--gpus", self.gpus])  # TODO: Check that gpus can in fact be run?
             # try:
             #    retval = subprocess.call(["docker", "run", "--gpus", "all"])
             #    if retval == 1:
@@ -158,7 +159,7 @@ class DockerProcess():
             # except Exception as e:
             #        self.log.warning("GPU Docker requested but not available, not using GPU (%s)" % str(e))
 
-            self.log.debug("Using GPUS %s" % self.cfg["gpus"])
+            self.log.debug("Using GPUS %s" % self.gpus)
         for d in self.dirs:
             if len(d) == 3:
                 source, destination, mode = d
