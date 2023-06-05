@@ -1,5 +1,6 @@
 from CryoCore import API
 from CryoCloud.Common.DockerProcess import DockerProcess
+import os
 
 
 ccmodule = {
@@ -33,7 +34,6 @@ def process_task(worker, task, cancel_event=None):
     """
 
     gpu = False
-    env = {}
     dirs = []
     args = []
 
@@ -49,7 +49,8 @@ def process_task(worker, task, cancel_event=None):
     if len(target) == 0:
         raise Exception("Require parameter 'target'")
 
-    env = a.get("env", {})
+    env = dict(os.environ)
+    env.update(a.get("env", {}))
     dirs = a.get("dirs", [])
     args = a.get("arguments", [])
     log_all = a.get("log_all", False)
