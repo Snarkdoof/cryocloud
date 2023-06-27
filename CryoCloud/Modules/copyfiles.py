@@ -1,6 +1,8 @@
 import os
 import os.path
 import shutil
+import requests
+
 
 ccmodule = {
     "description": "Copy files or directories",
@@ -48,7 +50,6 @@ def process_task(self, task):
     else:
         ext = None
 
-        
     done = 0
     errors = ""
     self.status["progress"] = 0
@@ -64,14 +65,27 @@ def process_task(self, task):
                 d = os.path.join(dst, os.path.split(s)[1])
             else:
                 d = dst
-            self.log.debug("Copying file '%s' to %s" % (s, d))
-            shutil.copyfile(s, d)
-            if ext is not None:
-                scur = s+ext
-                if os.path.exists(scur):
-                    shutil.copyfile(scur, d+ext)
 
-            done += 1
+            if s.startswith("http"):
+                # It's an HTTP URL, download
+                r = requests.get(s)
+                if r.status_code >= 400:
+                    self.log.error("Error downloading '%s', code %s" % (s, r.status_code))
+                    errors += "Error downloading '%s', %s\n" % (s, r.status_code)
+                    continue
+                else:
+                    with open(dst, "wb") as f:
+                        f.write(r.read())
+                    done += 1
+            else:
+                self.log.debug("Copying file '%s' to %s" % (s, d))
+                shutil.copyfile(s, d)
+                if ext is not None:
+                    scur = s+ext
+                    if os.path.exists(scur):
+                        shutil.copyfile(scur, d+ext)
+
+                done += 1
             self.status["progress"] = 100 * done / float(len(src))
         except Exception as e:
             if "dontstop" in task["args"] and task["args"]["dontstop"]:

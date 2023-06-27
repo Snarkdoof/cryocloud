@@ -117,6 +117,8 @@ def load(modulename, path=None):
         except Exception as e:
             pass
     else:
+        if modules[modulename].__spec__ is None:
+            modules[modulename].__spec__ = importlib.util.spec_from_loader(modulename, importlib.machinery.SourceFileLoader(modulename, modules[modulename].__file__))
         importlib.reload(modules[modulename])
     print("MODULE", modulename, "LOADED")
     return modules[modulename]

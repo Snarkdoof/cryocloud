@@ -763,7 +763,6 @@ class Workflow:
                             else:
                                 raise Exception("Config parameter needed but no config defined (%s of %s %s)" %
                                                 (arg, node.name, node.module))
-
                     if "stat" in val:
                         name, param = val["stat"].split(".")
                         if name != "parent" and name not in self.nodes:
@@ -785,6 +784,7 @@ class Workflow:
                 if isinstance(node.ccnode, dict):
                     if "config" in node.ccnode:
                         if not node.config:
+                            node.config = API.get_config(node.workflow.name)
                             raise Exception("ccnode is defined as config, but no config defined (%s %s)" %
                                             (node.module, node.name))
 
@@ -939,6 +939,8 @@ class CryoCloudTask(Task):
 
             if "config" in thing:
                 if not self.config:
+                    self.config = API.get_config(self.workflow.name)
+
                     raise Exception("Failed to build runtime config - config is required but config root "
                                     "defined for %s (%s)" % (self.module, self.name))
                 v = self.config[thing["config"]]
@@ -1466,7 +1468,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         # loop?
         if n.loop:
             args["__loop__"] = n.loop
-        if n.serviceURL: 
+        if n.serviceURL:
             args["__surl__"] = n.serviceURL
         if n.pip:
             args["__pip__"] = n.pip
