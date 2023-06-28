@@ -55,7 +55,9 @@ async def isidle(ctx):
             state = "Idle"
         else:
             state = "Busy"
-        reply = "System is {}\n{}".format(state, json.dumps(vals))
+
+        report = [".".join(key) + "is" +vals[key][1] + "(%s)" % time.ctime(vals[key][0]) for key in vals]
+        reply = "System is {}\n{}".format(state, " ".join(report))
     except Exception as e:
         log.exception("Checking if idle")
         reply = "Woops, I got into trouble: {}".format(e)
