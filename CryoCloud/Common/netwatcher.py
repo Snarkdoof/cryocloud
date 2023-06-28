@@ -126,14 +126,34 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
 
         self.send_error(404, "Could not find: " + self.path)
 
+
+    def _get_status_multi(self, orders):
+
+        ret = {}
+
+        for order in orders:
+            try:
+                info = self.server.handler.getStats(order)
+                info["ts"] = time.time()
+                ret[order] = info
+            except:
+                # print("BAD REQUEST FOR STATUS (%s): %s" % (order, e))
+                ret[order] = "Unknown job"
+
+        return self._replyJSON(200, ret)
+
+
     def do_POST(self):
         self.path = self.path.replace("//", "/")
-
         try:
             data = self.rfile.read(int(self.headers["Content-Length"]))
             if len(data) == 0:
                 return self.send_error(500, "Missing body")
             info = json.loads(data.decode("utf-8"))
+
+            if self.path.startswith("/status"):
+                return self._get_status_multi(info)
+
             # Validate
             if self.server.schema:
                 try:
@@ -165,8 +185,9 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
                     num_repeats = 0
                 self.server.watcher.add_periodic(info, first, interval, num_repeats)
                 self.server.log.debug("Added periodic %s, %s, %s" % (first, interval, num_repeats))
-            except:
-                raise self.send_error(400, "Bad periodic definition: '%s'" % periodic)
+            except Exception as e:
+                self.send_error(400, "Bad periodic definition: '%s'" % periodic)
+                raise e
         else:
             self.server.inQueue.put(("add", info))
         ret = {"id": info["_order"]}
@@ -193,6 +214,7 @@ class NetWatcher(threading.Thread):
         if onError:
             self.onError = onError
 
+        self.callbacks = []
         self.handler = handler
         self.webHandler = RequestHandler
         self.webHandler.server = self
