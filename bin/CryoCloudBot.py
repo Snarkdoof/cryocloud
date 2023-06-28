@@ -51,7 +51,11 @@ async def isidle(ctx):
     # Get the last status information
     try:
         is_idle, vals = _isidle()
-        reply = "System is {}\n{}".format("Idle" if is_idle else "Working", json.dumps(vals))
+        if is_idle:
+            state = "Idle"
+        else:
+            state = "Busy"
+        reply = "System is {}\n{}".format(state, json.dumps(vals))
     except Exception as e:
         log.exception("Checking if idle")
         reply = "Woops, I got into trouble: {}".format(e)
