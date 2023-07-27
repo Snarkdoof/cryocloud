@@ -185,7 +185,7 @@ async def my_background_task():
     channel = bot.get_channel(cfg["chanid"])
 
     job_stats = _update_job_info()
-    stats = _get_job_overview(job_stats)
+    # stats = _get_job_overview(job_stats)
     running = _get_run_details(job_stats)
     report = ""
     is_idle = True
@@ -200,7 +200,7 @@ async def my_background_task():
         reported_idle = False
         await channel.send(report)
     
-    if idle and not reported_idle:
+    if is_idle and not reported_idle:
         reported_idle = True
         await stats(channel)
 
