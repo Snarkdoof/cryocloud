@@ -5,6 +5,7 @@ from CryoCore import API
 
 #from CryoCore.Core.Status import StatusListener
 from CryoCore.Core.Status import StatusDbReader
+from CryoCore.Core.PrettyPrint import *
 
 import discord
 from discord.ext import commands
@@ -14,6 +15,142 @@ log = API.get_log("Services.CryoCloudBot")
 status = API.get_status("Services.CryoCloudBot")
 
 db = StatusDbReader.StatusDbReader()
+
+
+pebbles = {}
+
+from CryoCore.Core.Status import StatusDbReader
+from CryoCloud.Common import jobdb
+import json
+
+db = StatusDbReader.StatusDbReader()
+
+STATE_STRING =  {
+    jobdb.STATE_PENDING: "pending",
+    jobdb.STATE_ALLOCATED: "allocated",
+    jobdb.STATE_COMPLETED: "completed",
+    jobdb.STATE_FAILED: "failed",
+    jobdb.STATE_TIMEOUT: "timed out",
+    jobdb.STATE_CANCELLED: "cancelled",
+    jobdb.STATE_DISABLED: "disabled"
+}
+
+pebbles = {}
+reported = []
+
+def _update_job_info():
+    """
+    Gather some job information. Also try to detect if there are any new
+    pebbles, then update the statistics.
+    """
+
+    c = db._execute("SELECT module, tsadded, tsallocated, state, args FROM jobs")  #  WHERE state<%s", [jobdb.STATE_COMPLETED])
+
+    current_jobs = []
+
+    for module, tsadded, tsallocated, state, args in c.fetchall():
+        a = json.loads(args)
+        pbl = a["__pfx__"]
+        current_jobs.append(pbl)
+
+        if pbl not in pebbles:
+            pebbles[pbl] = {"reported": False, "module": "not started", "modules": {}, "pebble": pbl, "reportstate": -1}
+            print("New pebble", pbl)
+
+        # Store module info
+        pebbles[pbl]["modules"][module] = {
+            "tsadded": int(tsadded),
+            "tsallocated": int(tsallocated),
+            "state": STATE_STRING[state],
+            "stateint": state,
+            "args": a
+        }
+
+        if state < 3:
+            pebbles[pbl]["module"] = module
+
+    # Summarize state
+    for p in pebbles:
+        state = max([pebbles[p]["modules"][module]["stateint"] for module in pebbles[p]["modules"]])
+
+        if pebbles[p]["reportstate"] != state:
+            pebbles[p]["reported"] = False
+            pebbles[p]["reportstate"] = state
+
+        pebbles[p]["state"] = STATE_STRING[state]
+        pebbles[p]["stateint"] = state
+
+        # If reported pebbles are completed, we remove them
+
+    # Clean up reported
+    for p in pebbles:
+        if pebbles[p]["reported"] and not p in current_jobs:
+            del pebbles[p]
+
+    return pebbles
+
+
+def print_jobs(jobs):
+    for p in jobs:
+        print(p, jobs[p]["state"])
+        for module in jobs[p]["modules"]:
+            print("  ", module, jobs[p]["modules"][module]["state"])
+
+
+def _get_job_overview(job_stats):
+    """
+    Summarize job statistics into a high level overview.
+    Returns a map {"state": numpebbles}
+    """
+
+    stats = {}
+
+    for p in pebbles:
+        if pebbles[p]["state"] not in stats:
+            stats[pebbles[p]["state"]] = 1
+        else:
+            stats[pebbles[p]["state"]] += 1
+    return stats
+
+def _get_run_details(job_stats):
+    """
+    Returns running jobs
+    """
+
+    running = {}
+    for p in job_stats:
+        if job_stats[p]["stateint"] < 3: # Completed or errors
+            running[p] = job_stats[p]
+
+    return running
+
+def make_report(pebble):
+    """
+    Create a report for the given pebble
+    """
+    print("Create report for pebble")
+
+    report = {
+        "pebble": pebble["pebble"],
+        "state": pebble["state"]
+    }
+
+    # Calculate total wait time
+    wait_time = 0
+    for m in pebble["modules"]:
+        module = pebble["modules"][m]
+        if module["tsallocated"]:
+            wait_time += module["tsallocated"] - module["tsadded"]
+    report["wait_time"] = wait_time
+
+    pebble["reported"] = True
+
+    # Convert to text
+    text = "Pebble {} is {}, wait time {}".format(report["pebble"][3:], report["state"], time_to_string(report["wait_time"]))
+    return text
+
+
+
 
 def _isidle():
 
@@ -38,13 +175,56 @@ def _isidle():
 intents = discord.Intents.default() # enable all intents
 bot = commands.Bot(command_prefix='!', intents=intents)
 
+from discord.ext import commands, tasks
+
+@tasks.loop(seconds=60)  # runs every minute
+async def my_background_task():
+    channel = bot.get_channel(cfg["chanid"])
+
+    job_stats = _update_job_info()
+    stats = _get_job_overview(job_stats)
+    running = _get_run_details(job_stats)
+    report = ""
+    for job in job_stats:
+        if not job_stats[job]["reported"]:
+            report += make_report(job_stats[job]) + "\n"
+
+    print("REPORT", report)
+    if report:
+        await channel.send(report)
+
+@my_background_task.before_loop
+async def before_my_task():
+    await bot.wait_until_ready()  # wait until the bot logs in
+
 @bot.event
 async def on_ready():
     print(f'We have logged in as {bot.user}')
+    my_background_task.start()  # start the task inside the on_ready event
+
 
 @bot.command()
 async def ping(ctx):
     await ctx.send('Pong!')
+
+@bot.command()
+async def stats(ctx):
+    print("Getting job stats2")
+    job_stats = _update_job_info()
+    stats = _get_job_overview(job_stats)
+    print("Stats", stats)
+    await ctx.send("Job statistics: {}".format(json.dumps(stats)))
+
+@bot.command()
+async def running(ctx):
+    job_stats = _update_job_info()
+    running = _get_run_details(job_stats)
+    print("Running:", running)
+    if not running:
+        await ctx.send("Nothing is running")
+        return
+    await ctx.send("Running: {}".format(json.dumps(running)))
+
 
 @bot.command()
 async def isidle(ctx):
@@ -67,7 +247,15 @@ async def isidle(ctx):
         log.exception("Checking if idle")
         reply = "Woops, I got into trouble: {}".format(e)
 
+    if reply != "System is Idle":
+            job_stats = _update_job_info()
+            running = _get_run_details(job_stats)
+            reply += "\nRun info: {}".format(json.dumps(running))
+
     await ctx.send(reply)
+
+
+cfg.set_default("chanid", 1123618068464144387)
 
 try:
     bot.run(cfg["token"])
