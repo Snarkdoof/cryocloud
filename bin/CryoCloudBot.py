@@ -183,7 +183,7 @@ from discord.ext import commands, tasks
 @tasks.loop(seconds=60)  # runs every minute
 async def my_background_task():
     channel = bot.get_channel(cfg["chanid"])
-
+    global reported_idle
     job_stats = _update_job_info()
     # stats = _get_job_overview(job_stats)
     running = _get_run_details(job_stats)
