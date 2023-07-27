@@ -59,8 +59,8 @@ def _update_job_info():
 
         # Store module info
         pebbles[pbl]["modules"][module] = {
-            "tsadded": int(tsadded),
-            "tsallocated": int(tsallocated),
+            "tsadded": tsadded,
+            "tsallocated": tsallocated,
             "state": STATE_STRING[state],
             "stateint": state,
             "args": a
