@@ -224,7 +224,7 @@ async def running(ctx):
     if not running:
         await ctx.send("Nothing is running")
         return
-    await ctx.send("Running: {}".format(json.dumps(running)))
+    await ctx.send("Running: {}".format(print_jobs(running)))
 
 
 @bot.command()
