@@ -182,27 +182,32 @@ from discord.ext import commands, tasks
 
 @tasks.loop(seconds=60)  # runs every minute
 async def my_background_task():
-    channel = bot.get_channel(cfg["chanid"])
-    global reported_idle
-    job_stats = _update_job_info()
-    # stats = _get_job_overview(job_stats)
-    running = _get_run_details(job_stats)
-    report = ""
-    is_idle = True
-    for job in job_stats:
-        if job_stats[job]["stateint"] < 3:
-            is_idle = False
-        if not job_stats[job]["reported"]:
-            report += make_report(job_stats[job]) + "\n"
+    try:
+        channel = bot.get_channel(cfg["chanid"])
+        global reported_idle
+        job_stats = _update_job_info()
+        # stats = _get_job_overview(job_stats)
+        running = _get_run_details(job_stats)
+        report = ""
+        is_idle = True
+        for job in job_stats:
+            if job_stats[job]["stateint"] < 3:
+                is_idle = False
+            if not job_stats[job]["reported"]:
+                report += make_report(job_stats[job]) + "\n"
 
-    print("REPORT", report)
-    if report:
-        reported_idle = False
-        await channel.send(report)
-    
-    if is_idle and not reported_idle:
-        reported_idle = True
-        await stats(channel)
+        print("REPORT", report)
+        if report:
+            reported_idle = False
+            await channel.send(report)
+        
+        if is_idle and not reported_idle:
+            reported_idle = True
+            await stats(channel)
+    except Exception as e:
+        print("Woops in backgrond job:", e)
+        import traceback
+        traceback.print_exc()
 
 @my_background_task.before_loop
 async def before_my_task():
