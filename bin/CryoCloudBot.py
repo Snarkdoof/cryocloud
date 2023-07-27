@@ -188,7 +188,10 @@ async def my_background_task():
     stats = _get_job_overview(job_stats)
     running = _get_run_details(job_stats)
     report = ""
+    is_idle = True
     for job in job_stats:
+        if job_stats[job]["stateint"] < 3:
+            is_idle = False
         if not job_stats[job]["reported"]:
             report += make_report(job_stats[job]) + "\n"
 
@@ -196,7 +199,8 @@ async def my_background_task():
     if report:
         reported_idle = False
         await channel.send(report)
-    elif not reported_idle:
+    
+    if idle and not reported_idle:
         reported_idle = True
         await stats(channel)
 
