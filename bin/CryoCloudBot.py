@@ -143,7 +143,7 @@ def make_report(pebble):
 
     # Calculate total times
     wait_time = 0
-    start_time = 0
+    start_time = time.time()
     end_time = 0
     for m in pebble["modules"]:
         module = pebble["modules"][m]
