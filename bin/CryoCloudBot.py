@@ -156,7 +156,7 @@ def make_report(pebble):
     pebble["reported"] = True
 
     # Convert to text
-    text = "Pebble {}: {} is {}, wait time {}, run time {}".format(report["pebble"][3:],
+    text = "Pebble {}: {} is {},\n   wait time {}, run time {}".format(report["pebble"][3:],
         pebble["module"], report["state"], 
         time_to_string(report["wait_time"]),
         time_to_string(report["run_time"]))
