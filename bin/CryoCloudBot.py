@@ -55,7 +55,7 @@ def _update_job_info():
         current_jobs.append(pbl)
 
         if pbl not in pebbles:
-            pebbles[pbl] = {"reported": False, "module": "not started", "modules": {}, "pebble": pbl, "reportstate": -1}
+            pebbles[pbl] = {"reported": False, "module": "", "modules": {}, "pebble": pbl, "reportstate": -1}
             print("New pebble", pbl)
 
         # Store module info
