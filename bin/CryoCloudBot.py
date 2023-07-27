@@ -176,6 +176,8 @@ def _isidle():
 intents = discord.Intents.default() # enable all intents
 bot = commands.Bot(command_prefix='!', intents=intents)
 
+reported_idle = False
+
 from discord.ext import commands, tasks
 
 @tasks.loop(seconds=60)  # runs every minute
@@ -192,7 +194,11 @@ async def my_background_task():
 
     print("REPORT", report)
     if report:
+        reported_idle = False
         await channel.send(report)
+    elif not reported_idle:
+        reported_idle = True
+        await stats(channel)
 
 @my_background_task.before_loop
 async def before_my_task():
