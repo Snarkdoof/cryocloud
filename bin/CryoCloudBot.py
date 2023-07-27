@@ -91,11 +91,12 @@ def _update_job_info():
 
 
 def print_jobs(jobs):
+    txt = ""
     for p in jobs:
-        print(p, jobs[p]["state"])
+        txt += "{}: {}\n".format(p, jobs[p]["state"])
         for module in jobs[p]["modules"]:
-            print("  ", module, jobs[p]["modules"][module]["state"])
-
+            txt += "   {}: {}\n".format(module, jobs[p]["modules"][module]["state"])
+    return txt
 
 def _get_job_overview(job_stats):
     """
