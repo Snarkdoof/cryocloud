@@ -36,6 +36,7 @@ STATE_STRING =  {
 }
 
 pebbles = {}
+reported_idle = False
 reported = []
 
 def _update_job_info():
@@ -176,7 +177,6 @@ def _isidle():
 intents = discord.Intents.default() # enable all intents
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-reported_idle = False
 
 from discord.ext import commands, tasks
 
