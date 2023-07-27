@@ -40,6 +40,15 @@ PRI_STRING = {
     PRI_BULK: "bulk"
 }
 
+STATE_STRING =  {
+    STATE_PENDING: "pending",
+    STATE_ALLOCATED: "allocated",
+    STATE_COMPLETED: "completed",
+    STATE_FAILED: "failed",
+    STATE_TIMEOUT: "timed out",
+    STATE_CANCELLED: "cancelled",
+    STATE_DISABLED: "disabled"
+}
 
 class JobDB(mysql):
 
