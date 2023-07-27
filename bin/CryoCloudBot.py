@@ -251,7 +251,7 @@ async def isidle(ctx):
     if reply != "System is Idle":
             job_stats = _update_job_info()
             running = _get_run_details(job_stats)
-            reply += "\nRun info: {}".format(json.dumps(running))
+            reply += "\nRun info: {}".format(print_jobs(running))
 
     await ctx.send(reply)
 
