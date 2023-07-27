@@ -45,11 +45,11 @@ def _update_job_info():
     pebbles, then update the statistics.
     """
 
-    c = db._execute("SELECT module, tsadded, tsallocated, state, args, tschanged FROM jobs")  #  WHERE state<%s", [jobdb.STATE_COMPLETED])
+    c = db._execute("SELECT module, tsadded, tsallocated, state, args, tschange FROM jobs")  #  WHERE state<%s", [jobdb.STATE_COMPLETED])
 
     current_jobs = []
 
-    for module, tsadded, tsallocated, state, args, tschanged in c.fetchall():
+    for module, tsadded, tsallocated, state, args, tschange in c.fetchall():
         a = json.loads(args)
         pbl = a["__pfx__"]
         current_jobs.append(pbl)
@@ -61,7 +61,7 @@ def _update_job_info():
         # Store module info
         pebbles[pbl]["modules"][module] = {
             "tsadded": tsadded,
-            "tschanged": tschanged.timestamp(),
+            "tschange": tschange.timestamp(),
             "tsallocated": tsallocated,
             "state": STATE_STRING[state],
             "stateint": state,
@@ -148,7 +148,7 @@ def make_report(pebble):
     for m in pebble["modules"]:
         module = pebble["modules"][m]
         start_time = min(start_time, module["tsadded"])
-        end_time = max(end_time, module["tschanged"])
+        end_time = max(end_time, module["tschange"])
         if module["tsallocated"]:
             wait_time += module["tsallocated"] - module["tsadded"]
     report["wait_time"] = wait_time
