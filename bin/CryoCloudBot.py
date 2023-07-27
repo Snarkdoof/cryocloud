@@ -71,7 +71,7 @@ def _update_job_info():
 
     # Summarize state
     for p in pebbles:
-        state = max([pebbles[p]["modules"][module]["stateint"] for module in pebbles[p]["modules"]])
+        state = min([pebbles[p]["modules"][module]["stateint"] for module in pebbles[p]["modules"]])
 
         if pebbles[p]["reportstate"] != state:
             pebbles[p]["reported"] = False
