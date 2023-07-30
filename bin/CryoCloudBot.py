@@ -87,10 +87,10 @@ def _update_job_info():
 
         # If reported pebbles are completed, we remove them
 
-    # Clean up reported
-    for p in pebbles:
-        if pebbles[p]["reported"] and not p in current_jobs:
-            del pebbles[p]
+    # Clean up reported - We keep them in memory, will grow slowly, so worth it for now
+    # for p in pebbles:
+    #     if pebbles[p]["reported"] and not p in current_jobs:
+    #        del pebbles[p]
 
     return pebbles
 
