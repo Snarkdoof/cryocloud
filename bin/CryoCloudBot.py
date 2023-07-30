@@ -211,8 +211,9 @@ async def my_background_task():
             if job_stats[job]["stateint"] < 3:
                 is_idle = False
             if not job_stats[job]["reported"]:
-                if pebble["state"] == "completed" and pebble["module"] == "mod_whisper":
-                    report += make_report(job_stats[job]) + "\n"
+                r = make_report(job_stats[job])
+                if r:
+                    report += r + "\n"
 
         print("REPORT", report)
         if report:
