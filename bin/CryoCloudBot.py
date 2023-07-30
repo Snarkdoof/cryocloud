@@ -258,7 +258,7 @@ async def running(ctx):
     if not running:
         await ctx.send("Nothing is running")
         return
-    await ctx.send("Running: {}".format(print_jobs(running)))
+    await ctx.send("Running: {}".format(print_jobs(running))[:3000])
 
 
 @bot.command()
@@ -287,7 +287,7 @@ async def isidle(ctx):
             running = _get_run_details(job_stats)
             reply += "\nRun info: {}".format(print_jobs(running))
 
-    await ctx.send(reply)
+    await ctx.send(reply[:3800])
 
 
 cfg.set_default("chanid", 1123618068464144387)
