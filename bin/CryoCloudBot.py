@@ -218,10 +218,11 @@ async def my_background_task():
         if report:
             reported_idle = False
             await channel.send(report)
-        
-        if is_idle and not reported_idle:
-            reported_idle = True
             await stats(channel)
+        
+        #if is_idle and not reported_idle:
+        #    reported_idle = True
+        #    await stats(channel)
     except Exception as e:
         print("Woops in backgrond job:", e)
         import traceback
