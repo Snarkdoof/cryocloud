@@ -141,6 +141,9 @@ def make_report(pebble):
         "state": pebble["state"]
     }
 
+    if pebble["state"] != "completed" or pebble["module"] != "mod_whisper":
+        return ""
+
     # Calculate total times
     wait_time = 0
     start_time = time.time()
@@ -152,14 +155,17 @@ def make_report(pebble):
         if module["tsallocated"]:
             wait_time += module["tsallocated"] - module["tsadded"]
     report["wait_time"] = wait_time
-    report["run_time"] = end_time - start_time
+    report["run_time"] = (end_time - start_time) - wait_time
     pebble["reported"] = True
 
     # Convert to text
-    text = "Pebble {}:\n  {} is {},\n    wait time {},\n    run time {}".format(report["pebble"][3:],
-        pebble["module"], report["state"], 
-        time_to_string(report["wait_time"]),
-        time_to_string(report["run_time"]))
+    text = "P{}:\n  {} is {}".format(report["pebble"][3:],
+        pebble["module"], report["state"])
+
+    if report["state"] == "completed":
+        text += ",\n    wait time {},\n    run time {}".format( 
+            time_to_string(report["wait_time"]),
+            time_to_string(report["run_time"]))
     return text
 
 
