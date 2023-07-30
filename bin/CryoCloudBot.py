@@ -158,6 +158,11 @@ def make_report(pebble):
     report["run_time"] = (end_time - start_time) - wait_time
     pebble["reported"] = True
 
+    text = "P{}: {}/{}".format(report["pebble"][3:],
+            time_to_string(report["wait_time"]),
+            time_to_string(report["run_time"]))
+    return text
+
     # Convert to text
     text = "P{}:\n  {} is {}".format(report["pebble"][3:],
         pebble["module"], report["state"])
