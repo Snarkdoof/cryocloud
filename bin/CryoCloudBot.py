@@ -254,7 +254,7 @@ async def stats(ctx):
     job_stats = _update_job_info()
     stats = _get_job_overview(job_stats)
     print("Stats", stats)
-    await ctx.send("Job statistics: {}".format(json.dumps(stats)))
+    await ctx.send("{}".format(json.dumps(stats)))
 
 @bot.command()
 async def running(ctx):
