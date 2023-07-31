@@ -85,12 +85,21 @@ def _update_job_info():
         pebbles[p]["state"] = STATE_STRING[state]
         pebbles[p]["stateint"] = state
 
+        maxtime = max([pebbles[p]["modules"][module]["tschange"] for module in pebbles[p]["modules"]])
+        pebbles[p]["tschange"] = maxtime
+
         # If reported pebbles are completed, we remove them
 
     # Clean up reported - We keep them in memory, will grow slowly, so worth it for now
     # for p in pebbles:
     #     if pebbles[p]["reported"] and not p in current_jobs:
     #        del pebbles[p]
+
+    # If too old, clean up...
+    for p in pebbles:
+        if p not in current_jobs and time.time() - pebbles[p]["tschange"] > 300:
+            pebbles[p]["state"] = "timeout"
+            pebbles[p]["stateint"] = jobdb.STATE_TIMEOUT
 
     return pebbles
 
