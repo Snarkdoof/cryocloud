@@ -14,7 +14,8 @@ ccmodule = {
         "dirs": "Directories to map as volumes",
         "arguments": "Arguments for docker process",
         "log_all": "Log all output as debug, default False",
-        "debug": "Debug - write docker commands to /tmp/ default False"
+        "debug": "Debug - write docker commands to /tmp/ default False",
+        "oomretry": "Retry once if OOM killed the docker (if multiple dockers go in each others feet)"
     },
     "outputs": {
     },
@@ -54,6 +55,7 @@ def process_task(worker, task, cancel_event=None):
     args = a.get("arguments", [])
     log_all = a.get("log_all", False)
     debug = a.get("debug", False)
+    oomretry = a.get("oomretry", False)
 
     # If there is a GPU specified to use in the environment, use that!
     if "CUDA_VISIBLE_DEVICES" in os.environ:
@@ -63,7 +65,7 @@ def process_task(worker, task, cancel_event=None):
 
     dp = DockerProcess(target, worker.status, worker.log, API.api_stop_event,
                        dirs=dirs, env=env, gpu=gpu, args=args, log_all=log_all,
-                       cancel_event=cancel_event, debug=debug, gpus=gpus)
+                       cancel_event=cancel_event, debug=debug, gpus=gpus, oomretry=oomretry)
     # cancel_event=cancel_event)  # Doesn't work
     retval = dp.run()
 

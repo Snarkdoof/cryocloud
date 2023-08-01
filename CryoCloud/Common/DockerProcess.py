@@ -20,7 +20,8 @@ class DockerProcess():
     def __init__(self, cmd, status, log, stop_event,
                  env={}, dirs=[], gpu=False,
                  userid=None, groupid=None, log_all=True,
-                 args=[], cancel_event=None, debug=False, gpus="all"):
+                 args=[], cancel_event=None, debug=False, gpus="all",
+                 oomretry=False):
 
         # Read in all partitions on this machine, used to identify volumes
         # TODO: Might not work with automounts, is this an issue?
@@ -70,6 +71,8 @@ class DockerProcess():
         self.env = env
         self.gpu = gpu
         self.gpus = gpus
+        self.oomretry = oomretry
+
         if userid:
             self.userid = userid
         else:
@@ -223,6 +226,17 @@ class DockerProcess():
                 self.args[i + 1] = taskfile.name
         cmd.extend(self.args)
 
+        for i in range(2):
+            retval = self._run_docker(cmd)
+            if self.oomretry and retval == 137:
+                self.oomretry = False  # Only retry once
+                continue
+            break  # We are done or failed with not the OOM
+
+        return self.retval
+
+    def _run_docker(self, cmd):
+
         self.log.debug("Running Docker command '%s'" % str(cmd))
 
         p = subprocess.Popen(cmd, env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -288,7 +302,7 @@ class DockerProcess():
                 # Process exited
                 if self.cancel_event and self.cancel_event.is_set():
                     self.log.error("Docker process '%s' cancelled OK" % (self.cmd))
-                    return
+                    return self._retval
                 if self._retval == 0:
                     self.status["progress"] = 100
                     break
@@ -306,7 +320,7 @@ class DockerProcess():
                     self.log.warning("Not stopping, trying to kill")
                     p.kill()
                 terminated += 1
-        return self.retval
+        return self._retval
 
     def start(self, stop_event=None):
         """
