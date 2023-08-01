@@ -14,8 +14,6 @@ cfg = API.get_config("Services.CryoCloudBot")
 log = API.get_log("Services.CryoCloudBot")
 status = API.get_status("Services.CryoCloudBot")
 
-db = StatusDbReader.StatusDbReader()
-
 
 pebbles = {}
 
