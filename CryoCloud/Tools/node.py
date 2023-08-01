@@ -234,7 +234,7 @@ class Worker(multiprocessing.Process):
 
         if name is None:
             name = socket.gethostname()
-        self.wid = "%s-%s_%d" % (self._worker_type, name, self.workernum)
+        self.workerid = "%s-%s_%d" % (self._worker_type, name, self.workernum)
         self._current_job = (None, None)
         print("%s %s created" % (self._worker_type, workernum))
 
@@ -435,10 +435,10 @@ class Worker(multiprocessing.Process):
 
     def run(self):
         def sighandler(signum, frame):
-            print("%s %s Stopping when jobs are done %s" % (self._worker_type, self.wid, signum))
+            print("%s %s Stopping when jobs are done %s" % (self._worker_type, self.workerid, signum))
 
             if self._softstopevent.is_set():
-                print("%s %s User requests immediate shutdown %s" % (self._worker_type, self.wid, signum))
+                print("%s %s User requests immediate shutdown %s" % (self._worker_type, self.workerid, signum))
                 # API.shutdown()
                 self._stop_event.set()
 
@@ -454,10 +454,10 @@ class Worker(multiprocessing.Process):
 
         self._cache = CryoCache()
 
-        self.log = API.get_log(self.wid)
+        self.log = API.get_log(self.workerid)
         API.set_log_level("DEBUG")  # FOR NOW
 
-        self.status = API.get_status(self.wid)
+        self.status = API.get_status(self.workerid)
         if not self._jobdb:
             self._jobdb = jobdb.JobDB(None, None)
         self.status["state"].set_expire_time(600)
@@ -483,11 +483,11 @@ class Worker(multiprocessing.Process):
                 prefermodule = None
                 if self._current_job:
                     prefermodule = self._current_job[0]
-                jobs = self._jobdb.allocate_job(self.workernum, node=socket.gethostname(),
+                jobs = self._jobdb.allocate_job(self.workerid, node=socket.gethostname(),
                                                 supportedmodules=self._modules, max_jobs=max_jobs,
                                                 type=self._type, prefermodule=prefermodule)
                 if len(jobs) == 0:
-                    self._jobdb.update_worker(self.wid, json.dumps(self._modules), last_job_time)
+                    self._jobdb.update_worker(self.workerid, json.dumps(self._modules), last_job_time)
 
                     time.sleep(1)
                     if last_reported + 300 > time.time():
@@ -548,19 +548,19 @@ class Worker(multiprocessing.Process):
                 self._job_in_progress = None
 
         try:
-            self._jobdb.remove_worker(self.wid)
+            self._jobdb.remove_worker(self.workerid)
         except Exception as e:
             print("Failed to remove worker:", e)
         self._stop_event.set()
-        # print(self._worker_type, self.wid, "stopping")
+        # print(self._worker_type, self.workerid, "stopping")
         # self._stop_event.set()
-        print(self._worker_type, self.wid, "stopping")
+        print(self._worker_type, self.workerid, "stopping")
         self.status["state"] = "Stopped"
 
         # If we were not done we should update the DB
-        self._jobdb.force_stopped(self.workernum, node=socket.gethostname())
+        self._jobdb.force_stopped(self.workerid, node=socket.gethostname())
 
-        print(self._worker_type, self.wid, "stopped", self._softstopevent.is_set(), self._stop_event.is_set())
+        print(self._worker_type, self.workerid, "stopped", self._softstopevent.is_set(), self._stop_event.is_set())
 
     def stop_job(self):
         try:
@@ -587,7 +587,7 @@ class Worker(multiprocessing.Process):
         return progress, None
 
     def _process_task(self, task, loop=None):
-        # taskid = "%s.%s-%s_%d" % (task["runname"], self._worker_type, socket.gethostname(), self.workernum)
+        # taskid = "%s.%s-%s_%d" % (task["runname"], self._worker_type, socket.gethostname(), self.workerid)
         # print(taskid, "Processing", task)
 
         if DEBUG:

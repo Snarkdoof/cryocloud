@@ -87,7 +87,7 @@ class JobDB(mysql):
                     tsallocated DOUBLE DEFAULT NULL,
                     expiretime SMALLINT,
                     node VARCHAR(128) DEFAULT NULL,
-                    worker INT UNSIGNED DEFAULT NULL,
+                    worker VARCHAR(64) DEFAULT NULL,
                     retval MEDIUMBLOB DEFAULT NULL,
                     module VARCHAR(256) DEFAULT NULL,
                     modulepath TEXT DEFAULT NULL,
@@ -192,6 +192,20 @@ class JobDB(mysql):
             # Old table, upgrade it
             print("*** Updating jobdb table")
             self._execute("ALTER TABLE jobs ADD (itemid BIGINT DEFAULT 0)")
+
+        try:
+            c = self._execute("SELECT DATA_TYPE  FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'jobs' AND COLUMN_NAME = 'worker'")
+            r = c.fetchone()
+            if r[0] == "smallint":
+                c = self._execute("ALTER TABLE jobs MODIFY worker VARCHAR(64) DEFAULT NULL")
+                c.fetchone()
+        except:
+            print("Woopsie")
+            import traceback
+            traceback.print_exc()
+            # We just ignore this
+            pass
+
 
         c = self._execute("SELECT runid FROM runs WHERE runname=%s", [self._runname])
         row = c.fetchone()
@@ -370,7 +384,7 @@ class JobDB(mysql):
         effectively, so if load/unload is low, set the prefer level to zero.
 
         """
-        if workerid > 65000:
+        if len(workerid) > 64:
             raise Exception("BAD WORKER ID")
 
         nonce = random.randint(0, 2147483647)
