@@ -8,21 +8,72 @@ from CryoCore import API
 from CryoCloud.Tools.head import *
 import CryoCloud
 from CryoCloud.Common import jobdb
+from argparse import ArgumentParser
 
 stop_event = threading.Event()
 ready_event = threading.Event()
 
 class Options:
     def __init__(self):
-        self.max_task_time = 10
         self.steps = 0
         self.tasks = 0
+        self.max_task_time = 10
         self.require_allocated = False
         self.name = "Test"
         self.version = 0
         self.module = None
         self.processing_delay = 0
 
+    def __get__(self, what):
+        return False
+
+
+parser = ArgumentParser()
+parser.add_argument("--ip", dest="ip",
+                    default="1.2.3.4",
+                    help="The IP of the head node (default: 1.2.3.4)")
+parser.add_argument("--reset-counters", action="store_true", dest="reset",
+                    default=False,
+                    help="Reset status parameters")
+parser.add_argument("--name", dest="name",
+                    default="HeadTest",
+                    help="Name of this workflow")
+parser.add_argument("-v", "--version", dest="version",
+                    default="default",
+                    help="Config version to use on")
+parser.add_argument("--node", dest="node",
+                    default="",
+                    help="Specify a particular node to run all jobs on (leave for any)")
+parser.add_argument("--estimate", dest="estimate",
+                    action="store_true", default=False,
+                    help="Estimate how long this will take and exit")
+
+parser.add_argument("--standalone", dest="standalone",
+                    action="store_true", default=False,
+                    help="Run the workflow standalone on this machine, sequentially")
+parser.add_argument("--threads", dest="threads",
+                    default=1,
+                    help="If running 'standalone, how many threads for processing")
+
+parser.add_argument("--kubernetes", dest="kubernetes",
+                    action="store_true", default=False,
+                    help="Control Kubernetes")
+parser.add_argument("--loglevel", dest="loglevel",
+                    default="INFO",
+                    help="Minimum log level, default INFO, should be DEBUG, INFO or ERROR")
+parser.add_argument("--debug", action="store_true", dest="debug",
+                    default=False,
+                    help="Debug if possible")
+parser.add_argument("--nocache", action="store_true", dest="nocache",
+                    default=False,
+                    help="Disable CryoCache")
+
+options = parser.parse_args([])
+
+# Additional for tests?
+options.max_task_time = 10
+options.require_allocated = False
+options.processing_delay = 0
 
 class TestHandler(CryoCloud.DefaultHandler):
     @staticmethod
@@ -84,7 +135,7 @@ class HeadTest(unittest.TestCase):
     def setUp(self):
         ready_event.clear()
         API.api_stop_event.clear()
-        self.head = HeadNode(TestHandler(), Options())
+        self.head = HeadNode(TestHandler(), options)  # Options())
         self.handler = self.head.handler
         self.head.start()
         ready_event.wait(10)

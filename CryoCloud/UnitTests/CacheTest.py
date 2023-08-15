@@ -236,7 +236,7 @@ class CacheTest(unittest.TestCase):
         root = tempfile.TemporaryDirectory()
 
         filelist = [
-            os.path.join(root.name, "testfile"),            
+            os.path.join(root.name, "testfile"),
             os.path.join(root.name, "f00/bar/testfile2"),
             os.path.join(root.name, "f00/bar/testfile3"),
         ]
@@ -244,6 +244,7 @@ class CacheTest(unittest.TestCase):
         for fn in filelist:
             with open(fn, "w") as f:
                 f.write(fn)
+
         total_size = len("".join(filelist))
 
         r = cache.lookup(self.module, key, args)
@@ -289,6 +290,7 @@ class CacheTest(unittest.TestCase):
         cache.cfg["file_size_check"] = chk
         self.assertIsNone(r, "Missing file not detected")        
 
+        root.cleanup()
 
     def testTrim(self):
 
@@ -339,6 +341,7 @@ class CacheTest(unittest.TestCase):
         if r:
             self.fail("trim module didn't remove it: %s" % r)
 
+        root.cleanup()
 
 if __name__ == "__main__":
 
