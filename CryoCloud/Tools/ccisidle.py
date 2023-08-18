@@ -27,6 +27,7 @@ for key in vals:
 
 if not is_idle:
     print("System is NOT idle")
+    API.shutdown()
     raise SystemExit(1)
 
 print("System is idle (%d workers has fresh state)" % num_idle)
