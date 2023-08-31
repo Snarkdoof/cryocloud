@@ -1,5 +1,5 @@
 ## Installation etc
-Instruction [here](Docs/README.md)
+Instruction [here](Docs)
 
 
 ## CryoCloud Workflows
