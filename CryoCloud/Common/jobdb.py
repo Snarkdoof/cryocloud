@@ -194,15 +194,15 @@ class JobDB(mysql):
             self._execute("ALTER TABLE jobs ADD (itemid BIGINT DEFAULT 0)")
 
         try:
-            cfg = self._get_conn_cfg()
-            c = self._execute("SELECT DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='%s' AND TABLE_NAME = 'jobs' AND COLUMN_NAME = 'worker'", (cfg['db_name']))
+            dbname = self.db.get_connection().database
+            c = self._execute(f"SELECT DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='{dbname}' AND TABLE_NAME = 'jobs' AND COLUMN_NAME = 'worker'")
             r = c.fetchone()
             if r[0] == "smallint":
                 c = self._execute("ALTER TABLE jobs MODIFY worker VARCHAR(64) DEFAULT NULL")
                 c.fetchone()
 
 
-            c = self._execute("SELECT DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='%s' AND TABLE_NAME = 'profile' AND COLUMN_NAME = 'worker'", (cfg['db_name']))
+            c = self._execute(f"SELECT DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='{dbname}' AND TABLE_NAME = 'profile' AND COLUMN_NAME = 'worker'")
             r = c.fetchone()
             if r[0] == "smallint":
                 c = self._execute("ALTER TABLE profile MODIFY worker VARCHAR(64) DEFAULT NULL")
