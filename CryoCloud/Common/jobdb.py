@@ -123,7 +123,7 @@ class JobDB(mysql):
                 timeouts TINYINT DEFAULT 0,
                 cancelled TINYINT DEFAULT 0,
                 state TINYINT DEFAULT 1,
-                worker SMALLINT DEFAULT NULL,
+                worker VARCHAR(64) DEFAULT NULL,
                 node VARCHAR(128) DEFAULT NULL,
                 type TINYINT DEFAULT 1,
                 priority TINYINT DEFAULT -1,
@@ -194,10 +194,18 @@ class JobDB(mysql):
             self._execute("ALTER TABLE jobs ADD (itemid BIGINT DEFAULT 0)")
 
         try:
-            c = self._execute("SELECT DATA_TYPE  FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'jobs' AND COLUMN_NAME = 'worker'")
+            cfg = self._get_conn_cfg()
+            c = self._execute("SELECT DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='%s' AND TABLE_NAME = 'jobs' AND COLUMN_NAME = 'worker'", (cfg['db_name']))
             r = c.fetchone()
             if r[0] == "smallint":
                 c = self._execute("ALTER TABLE jobs MODIFY worker VARCHAR(64) DEFAULT NULL")
+                c.fetchone()
+
+
+            c = self._execute("SELECT DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='%s' AND TABLE_NAME = 'profile' AND COLUMN_NAME = 'worker'", (cfg['db_name']))
+            r = c.fetchone()
+            if r[0] == "smallint":
+                c = self._execute("ALTER TABLE profile MODIFY worker VARCHAR(64) DEFAULT NULL")
                 c.fetchone()
         except:
             print("Woopsie")
