@@ -416,6 +416,13 @@ class Workflow:
 
     @staticmethod
     def load_file(filename, handler=None):
+
+        # We add the path of the workflow to the pythonpath to get to the modules
+        d = os.path.dirname(filename)
+
+        sys.path.append(os.path.join(d, "Modules"))  # Add module path for the working dir of the job
+        sys.path.append(os.path.join(d, "modules"))  # Add module path for the working dir of the job
+
         with open(filename, "r") as f:
             data = f.read()
         return Workflow.load_json(data, handler)
