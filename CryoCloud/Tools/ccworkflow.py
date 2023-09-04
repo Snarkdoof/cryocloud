@@ -1658,9 +1658,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         # task["itemid"] is the graph identifier
         if task["itemid"] not in self._pebbles:
-            if task["module"] == "remove":
-                self.log.debug("Got allocated task for unknown Pebble %s" % task)
-            else:
+            if task["module"] != "remove":
                 self.log.warning("Got allocated task for unknown Pebble %s" % task)
             return
 
@@ -1710,9 +1708,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         # task["itemid"] is the graph identifier
         if task["itemid"] not in self._pebbles:
-            if task["module"] == "remove":
-                self.log.debug("Got completed task for unknown Pebble %s" % task)
-            else:
+            if task["module"] != "remove":
                 self.log.error("Got completed task for unknown Pebble %s" % task)
             return
 
