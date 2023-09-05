@@ -878,7 +878,7 @@ class CryoCloudTask(Task):
         # If we only run when all parents have completed and we have ccnode
         # "parent", we need to run this task on ALL parent nodes if they are
         # not all the same one
-        if caller and self.resolveOnAny is False and len(self.ccnode) > 0:
+        if caller and self.resolveOnAny is False and self.ccnode and len(self.ccnode) > 0:
             nodes = []
             for n in self.ccnode:
                 ri = self._build_runtime_info(pebble, caller)
