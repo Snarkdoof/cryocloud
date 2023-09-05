@@ -1949,7 +1949,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
     def _cleanup_pebble(self, pebble):
         print("Should delete pebble", pebble.gid)
-        if not threading.currentThread().getName().endswith(".HeadNode"):
+        if not threading.current_thread().name.endswith(".HeadNode"):
             raise Exception("Cleanup from WRONG THREAD")
 
 
