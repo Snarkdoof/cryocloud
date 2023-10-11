@@ -19,19 +19,19 @@ if len(sys.argv) < 2:
     raise SystemExit("Need worker module")
 
 filename = sys.argv[1]
-moduleinfo = inspect.getmoduleinfo(filename)
+modulename = inspect.getmodulename(filename)
 path = os.path.dirname(os.path.abspath(filename))
 sys.path.append(path)
 
 try:
     # Create the worker
     worker = node.Worker(0, API.api_stop_event)
-    worker.log = API.get_log("ccdocker." + moduleinfo.name)
-    worker.status = API.get_status("ccdocker." + moduleinfo.name)
+    worker.log = API.get_log("ccdocker." + modulename)
+    worker.status = API.get_status("ccdocker." + modulename)
 
     # Load module
-    info = imp.find_module(moduleinfo.name)
-    mod = imp.load_module(moduleinfo.name, info[0], info[1], info[2])
+    info = imp.find_module(modulename)
+    mod = imp.load_module(modulename, info[0], info[1], info[2])
 
     # Parse arguments
     try:
@@ -48,7 +48,7 @@ try:
     options = parser.parse_args(args=sys.argv[2:])
     # run the worker
     args = vars(options)
-    print("<info> Running worker module %s with arguments: '%s'" % (moduleinfo.name, args))
+    print("<info> Running worker module %s with arguments: '%s'" % (modulename, args))
     os.umask(0o2)
     progress, retval = mod.process_task(worker, {"args": args})
     print("{retval} " + json.dumps(retval))

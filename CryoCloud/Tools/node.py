@@ -260,7 +260,7 @@ class Worker(multiprocessing.Process):
     def _get_cache_args(self, task, module):
 
         # If this is a docker module, args are hidden like heck, find them
-        if module == "docker":
+        if module == "mod_docker":
             print("KEYS", task["arguments"])
             if "-f" in task["arguments"]:
                 a = task["arguments"][task["arguments"].index("-f") + 1]
@@ -342,7 +342,7 @@ class Worker(multiprocessing.Process):
 
         # If this is a docker job, we must load that instead
         if "__docker__" in job["args"]:
-            module_name = "docker"
+            module_name = "mod_docker"
         else:
             module_name = job["module"]
 
@@ -424,7 +424,7 @@ class Worker(multiprocessing.Process):
             self.status["host"] = socket.gethostname()
             self.status["progress"] = 0
             m = job["module"]
-            if m == "docker":
+            if m == "mod_docker":
                 m += " " + job["args"]["target"]
             self.status["module"].set_value(m, force_update=True)
 
@@ -651,7 +651,7 @@ class Worker(multiprocessing.Process):
                         raise Exception("Preparing files failed: %s" % e)
             return s
 
-        if task["module"] != "docker":  # If we're using dockers, this is the wrong place for fidling with files
+        if task["module"] != "mod_docker":  # If we're using dockers, this is the wrong place for fidling with files
             for arg in task["args"]:
                 if isinstance(task["args"][arg], list):
                     l = []
@@ -662,32 +662,6 @@ class Worker(multiprocessing.Process):
                     task["args"][arg] = l
                 else:
                     task["args"][arg] = prep(fprep, task["args"][arg])
-
-        if 0 and task["module"] == "docker":  # TODO: Use 'prep' above to avoid multiple copies of code?
-            a = task["args"]["arguments"]
-            if a.count("-t") == 1:
-                subargs = json.loads(a[a.index("-t") + 1])
-                for arg in subargs["args"]:
-                    if isinstance(subargs["args"][arg], list):
-                        for x in range(len(subargs["args"][arg])):
-                            if isinstance(subargs["args"][arg][x], str):
-                                t = subargs["args"][arg][x].split(" ")
-                                if "copy" in t or "unzip" in t or "mkdir" in t:
-                                    if not fprep:
-                                        fprep = self.get_fprep()
-                                    ret = fprep.fix([subargs["args"][arg][x]])
-                                    subargs["args"][arg][x] = ret["fileList"][0]
-                    elif isinstance(subargs["args"][arg], str):
-                        t = subargs["args"][arg].split(" ")
-                        if "copy" in t or "unzip" in t or "mkdir" in t:
-                            fprep = self.get_fprep()
-                            ret = fprep.fix([subargs["args"][arg]])
-                            if len(ret["fileList"]) == 0:
-                                raise Exception("Missing file %s" % subargs["args"][arg])
-                            subargs["args"][arg] = ret["fileList"][0]
-                a[a.index("-t") + 1] = json.dumps(subargs)
-
-                self.log.debug("Converted to %s" % str(a))
 
         # If docker, make the docker command now
         def toDocker(task):
