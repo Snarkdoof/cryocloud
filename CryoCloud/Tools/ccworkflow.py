@@ -1652,6 +1652,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             p.progress[level][key] += items[key]
 
     def onAllocated(self, task):
+        print("Allocated", task)
         if "itemid" not in task:
             self.log.error("Got allocated task without itemid: %s" % task)
             return
@@ -1701,6 +1702,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         return 0
 
     def onCompleted(self, task):
+
+        print("Completed", task)
 
         if "itemid" not in task:
             self.log.error("Got task without itemid: %s" % task)
@@ -1844,9 +1847,11 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
         # TODO: Fix this - it's not sexy in the least!
         if self.workflow._is_single_run and self.workflow.entry.is_done(p):
-
+            if len(self._pebbles) > 0:
+                print("Still unfinished pebbles")
+            
             # Also check that all jobs are done!
-            if not self._jobdb.is_all_jobs_done():
+            elif not self._jobdb.is_all_jobs_done():
                 print("Thought I was done, but still jobs left, continuing", p)
 
                 # We set a timer to check if it's just lag
@@ -1968,7 +1973,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
     def onError(self, task):
 
-        # print("*** ERROR", task)
+        print("*** ERROR", task)
         if "itemid" not in task:
             self.log.error("Got error for task without itemid: %s" % task)
             return

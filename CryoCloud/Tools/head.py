@@ -110,6 +110,7 @@ class HeadNode(threading.Thread):
         self._pending = []
 
     def stop(self):
+        print("STOP CALLED")
         API.api_stop_event.set()
 
     def create_task(self, step, task):
@@ -252,12 +253,11 @@ class HeadNode(threading.Thread):
                     # Any queued new jobs we should deliver?
                     for i in range(0, 50):
                         try:
-                            caller, pebble, result = self.handler.jobQueue.get_nowait()
+                            caller, pebble, result = self.handler.jobQueue.get(block=True, timeout=0.02)
                             # Should resolve a pebble (start an input job really)
                             caller.on_completed(pebble, result)
                             print("RESOLVED PEBBLE, result")
                         except queue.Empty:
-
                             self.handler.onCleanup()
                             break
 
@@ -344,12 +344,13 @@ class HeadNode(threading.Thread):
                 else:
                     self.log.warning("Exception in HEAD but neverfail is set, will retry in a bit")
                     time.sleep(2)
-            finally:
-                failed = True
+            #finally:
+            #    failed = True
 
         if not failed:
             self.log.info("Completed all work")
 
+        print("All doner - failed?", failed)
         # CLEAN UP
         try:
             self._jobdb.clear_jobs()
