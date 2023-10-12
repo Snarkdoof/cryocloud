@@ -325,8 +325,6 @@ class Task:
                 if log:
                     log.info("is_done: %s child %s hasn't completed" % (self.name, node))
                 return False  # Not done
-        if len(self.pebbles) > 0:
-            return False
 
         if DEBUG:
             print(self.name, "I'm all done")
@@ -2086,8 +2084,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         self.workflow.nodes[node].on_completed(pebble, "cancel")
 
         if not pebble.nodename[task["taskid"]].startswith("_"):
-            self.status["%s.processing" % pebble.nodename[task["taskid"]]].dec()
-
         # Do we have any global error handlers
         if not pebble.is_sub_pebble:
             for g in self.workflow.global_nodes:
