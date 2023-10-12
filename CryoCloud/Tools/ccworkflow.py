@@ -325,8 +325,6 @@ class Task:
                 if log:
                     log.info("is_done: %s child %s hasn't completed" % (self.name, node))
                 return False  # Not done
-        if len(self.pebbles) > 0:
-            return False
 
         if DEBUG:
             print(self.name, "I'm all done")
