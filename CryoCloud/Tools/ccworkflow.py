@@ -325,6 +325,8 @@ class Task:
                 if log:
                     log.info("is_done: %s child %s hasn't completed" % (self.name, node))
                 return False  # Not done
+        if len(self.pebbles) > 0:
+            return False
 
         if DEBUG:
             print(self.name, "I'm all done")
@@ -1846,12 +1848,12 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         self._check_kubernetes(node, p)
 
         # TODO: Fix this - it's not sexy in the least!
-        if self.workflow._is_single_run and self.workflow.entry.is_done(p):
-            if len(self._pebbles) > 0:
-                print("Still unfinished pebbles")
+        if len(self._pebbles) > 0:
+            print("Still unfinished pebbles")
+        elif self.workflow._is_single_run and self.workflow.entry.is_done(p):
             
             # Also check that all jobs are done!
-            elif not self._jobdb.is_all_jobs_done():
+            if not self._jobdb.is_all_jobs_done():
                 print("Thought I was done, but still jobs left, continuing", p)
 
                 # We set a timer to check if it's just lag
