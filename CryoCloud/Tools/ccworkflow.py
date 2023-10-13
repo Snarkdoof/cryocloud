@@ -1845,8 +1845,6 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         # jobs running
         self._check_kubernetes(node, p)
 
-        self._check_stop()
-
         # TODO: Fix this - it's not sexy in the least!
         if len(self._pebbles) > 0:
             print("Still unfinished pebbles")
