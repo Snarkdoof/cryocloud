@@ -1652,7 +1652,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
             p.progress[level][key] += items[key]
 
     def onAllocated(self, task):
-        print("Allocated", task)
+        # print("Allocated", task)
         if "itemid" not in task:
             self.log.error("Got allocated task without itemid: %s" % task)
             return
@@ -1703,7 +1703,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
     def onCompleted(self, task):
 
-        print("Completed", task)
+        # print("Completed", task)
 
         if "itemid" not in task:
             self.log.error("Got task without itemid: %s" % task)
@@ -1846,8 +1846,8 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         self._check_kubernetes(node, p)
 
         # TODO: Fix this - it's not sexy in the least!
-        if len(self._pebbles) > 0:
-            print("Still unfinished pebbles")
+        # if len(self._pebbles) > 0:
+        #     print("Still unfinished pebbles")
             
         elif self.workflow._is_single_run and self.workflow.entry.is_done(p):
             
@@ -1980,7 +1980,7 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
 
     def onError(self, task):
 
-        print("*** ERROR", task)
+        #print("*** ERROR", task)
         if "itemid" not in task:
             self.log.error("Got error for task without itemid: %s" % task)
             return
