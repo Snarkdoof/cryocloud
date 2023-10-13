@@ -1845,9 +1845,12 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
         # jobs running
         self._check_kubernetes(node, p)
 
+        self._check_stop()
+
         # TODO: Fix this - it's not sexy in the least!
         if len(self._pebbles) > 0:
             print("Still unfinished pebbles")
+            
         elif self.workflow._is_single_run and self.workflow.entry.is_done(p):
             
             # Also check that all jobs are done!
@@ -1970,6 +1973,12 @@ class WorkflowHandler(CryoCloud.DefaultHandler):
                     del self._pebbles[pbl]
             if pebble.gid in self._pebbles:
                 del self._pebbles[pebble.gid]
+
+            # Check if we are all done?
+            if self.workflow._is_single_run and self._jobdb.is_all_jobs_done():
+                self.log.debug("Single run and no more pebbles - that's it!")
+                API.shutdown()
+
 
     def onError(self, task):
 
